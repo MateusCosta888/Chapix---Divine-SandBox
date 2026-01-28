@@ -233,6 +233,12 @@ void ResourceManager::Load() {
   SetTextureFilter(texSnow, TEXTURE_FILTER_POINT);
   UnloadImage(snowImg);
 
+  // Procedural Bedrock (Dark Gray Indestructible Layer)
+  Image bedrockImg = GenImageColor(32, 32, {50, 50, 50, 255}); // Dark Gray
+  texBedrock = LoadTextureFromImage(bedrockImg);
+  SetTextureFilter(texBedrock, TEXTURE_FILTER_POINT);
+  UnloadImage(bedrockImg);
+
   texturesLoaded = true;
 }
 
@@ -250,6 +256,7 @@ void ResourceManager::Unload() {
   for (int i = 0; i < NUM_SAND_VARIANTS; i++)
     UnloadTexture(texSand[i]);
   UnloadTexture(texSnow);
+  UnloadTexture(texBedrock);
   for (int i = 0; i < NUM_MOUNTAIN_VARIANTS; i++)
     UnloadTexture(texMountain[i]);
   UnloadTexture(texMountainRocks);
@@ -325,6 +332,8 @@ Texture2D ResourceManager::GetTextureForTile(TileType type) {
     return texMountain[0];
   case TileType::Snow:
     return texSnow;
+  case TileType::Bedrock:
+    return texBedrock;
   default:
     return texDeepOcean[0];
   }
@@ -350,6 +359,8 @@ Texture2D ResourceManager::GetTextureForUI(TileType type) {
     return texMountain[0];
   case TileType::Snow:
     return texSnow;
+  case TileType::Bedrock:
+    return texBedrock;
   default:
     return texDeepOcean[0];
   }

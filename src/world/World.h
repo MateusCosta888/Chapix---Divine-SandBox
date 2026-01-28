@@ -26,13 +26,20 @@ public:
   uint32_t GetSeed() const { return seed_; }
 
   // User modification (for future UI)
-  void SetTileBiome(int x, int y, BiomeType newBiome);
+  void SetTileBiome(int x, int y, BiomeType newBiome); // Interaction
   void SetTileType(int x, int y, TileType newType);
   void SetTileDecoration(int x, int y, DecorationType type);
 
   // UI Helpers
   Texture2D GetTextureForUI(TileType type);
   Texture2D GetTextureForUI(DecorationType type);
+
+  // Collision & Physics
+  bool IsWalkable(int x, int y) const;
+  bool IsSwimmable(int x, int y) const;
+  float GetHeight(int x, int y) const;
+
+  void SimulateWater(float deltaTime);
 
   // Access to ResourceManager for WorldRenderer
   ResourceManager &GetResourceManager() { return resourceManager; }

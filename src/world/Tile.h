@@ -20,7 +20,8 @@ enum class TileType {
   Grass,
   Forest,
   Mountain,
-  Snow
+  Snow,
+  Bedrock // Indestructible bottom layer
 };
 
 // Decoration Types - Objects placed on top of terrain

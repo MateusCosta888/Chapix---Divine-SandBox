@@ -56,51 +56,74 @@ BiomeType DetermineBiome(float temp, float humidity, float latitude) {
 
 // Helper: Get terrain type based on height and biome
 TileType GetTerrainForBiome(BiomeType biome, float height) {
-  // Water takes priority regardless of biome (3 depths)
-  if (height < 0.15f)
-    return TileType::DeepOcean; // Deepest
-  if (height < 0.28f)
-    return TileType::Ocean; // Medium depth
-  if (height < 0.38f)
-    return TileType::ShallowOcean; // Coastal/shallow
+  // STRICT LAYER SYSTEM
+  // 1. Deep Water
+  if (height < 0.20f)
+    return TileType::DeepOcean;
+  // 2. Medium Water
+  if (height < 0.30f)
+    return TileType::Ocean;
+  // 3. Shallow Water
+  if (height < 0.40f)
+    return TileType::ShallowOcean;
 
-  switch (biome) {
-  case BiomeType::Desert:
-    if (height < 0.65f)
-      return TileType::DesertSand; // Mostly desert sand
-    return TileType::Mountain;     // Only rare rocky outcrops
-
-  case BiomeType::Snow:
-    if (height < 0.55f)
-      return TileType::Snow; // Snow covered ground
-    if (height < 0.75f)
-      return TileType::Mountain; // Snowy mountains
-    return TileType::Snow;       // High altitude snow peaks
-
-  case BiomeType::Plains:
-    if (height < 0.40f)
-      return TileType::Sand; // Beach
-    if (height < 0.60f)
-      return TileType::Grass;
-    return TileType::Mountain;
-
-  case BiomeType::Forest:
-    if (height < 0.40f)
-      return TileType::Sand; // Beach
-    if (height < 0.55f)
+  // 4. Land Layer (Sand/Grass/Forest/Snow)
+  // This layer exists between water and mountain.
+  if (height < 0.75f) {
+    if (biome == BiomeType::Desert) {
+      return TileType::DesertSand;
+    }
+    if (biome == BiomeType::Snow) {
+      return TileType::Snow;
+    }
+    // Coastal check for Plains/Forest
+    if (height < 0.45f) {
+      return TileType::Sand; // Beach just above water
+    }
+    if (biome == BiomeType::Forest) {
       return TileType::Forest;
-    return TileType::Mountain;
-
-  case BiomeType::Mountain:
-    if (height < 0.42f)
-      return TileType::Grass; // Foothills
-    if (height < 0.65f)
-      return TileType::Mountain;
-    return TileType::Snow; // Snow peaks
-
-  default:
-    return TileType::Grass;
+    }
+    return TileType::Grass; // Default land
   }
+
+  // 5. Mountain Layer (Highest)
+  // This is the blocking layer
+  return TileType::Mountain;
+}
+
+bool World::IsWalkable(int x, int y) const {
+  if (x < 0 || x >= width || y < 0 || y >= height)
+    return false;
+  const Tile &t = tiles[y * width + x];
+
+  // Mountains are too high to walk over
+  if (t.type == TileType::Mountain)
+    return false;
+
+  // Deep ocean might be too deep? User said "need swimming in water".
+  // Assuming "Walkable" means "Can stand/walk".
+  // So Water is NOT walkable (must swim).
+  // Land is walkable.
+  if (t.type == TileType::DeepOcean || t.type == TileType::Ocean ||
+      t.type == TileType::ShallowOcean) {
+    return false; // Requires swimming
+  }
+
+  return true;
+}
+
+bool World::IsSwimmable(int x, int y) const {
+  if (x < 0 || x >= width || y < 0 || y >= height)
+    return false;
+  const Tile &t = tiles[y * width + x];
+  return (t.type == TileType::DeepOcean || t.type == TileType::Ocean ||
+          t.type == TileType::ShallowOcean);
+}
+
+float World::GetHeight(int x, int y) const {
+  if (x < 0 || x >= width || y < 0 || y >= height)
+    return 0.0f;
+  return tiles[y * width + x].height;
 }
 
 void World::Generate() {
@@ -183,7 +206,84 @@ Tile &World::GetTile(int x, int y) {
   return tiles[y * width + x];
 }
 
-void World::Update() {}
+void World::Update() {
+  // Run water physics (fixed time step or every frame? Every frame is fine for
+  // now)
+  SimulateWater(GetFrameTime());
+}
+
+void World::SimulateWater(float deltaTime) {
+  // Simple cellular automata for water flow
+  // Water above sea level (0.40) tries to flow downhill
+
+  // Create a copy or just partial updates?
+  // Partial updates might cause cascading in one frame (teleporting water),
+  // but for simple visual "sliding" it might be okay.
+  // To be safe and prevent infinite flow in one frame, we might limit updates
+  // or iterate randomly. Let's iterate forward for now.
+
+  static float timer = 0.0f;
+  timer += deltaTime;
+  if (timer < 0.1f)
+    return; // Update 10 times per second to simulate viscosity
+  timer = 0.0f;
+
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      Tile &tile = GetTile(x, y);
+
+      // Only process water that is ABOVE sea level (placed by user or "stuck")
+      // Sea level is 0.40f as per GetTerrainForBiome logic
+      if (IsSwimmable(x, y) && tile.height >= 0.40f) {
+
+        // Find lowest neighbor
+        float currentH = tile.height;
+        float lowestH = currentH;
+        int targetX = -1;
+        int targetY = -1;
+
+        int dx[] = {0, 0, -1, 1};
+        int dy[] = {-1, 1, 0, 0};
+
+        for (int i = 0; i < 4; i++) {
+          int nx = x + dx[i];
+          int ny = y + dy[i];
+
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+            const Tile &neighbor = GetTile(nx, ny);
+            // Can flow into non-water or water that is lower?
+            // Usually flow into Empty (Air), but here we flow into Terrain.
+            // We want to flow DOWNHILL.
+            if (neighbor.height < lowestH) {
+              lowestH = neighbor.height;
+              targetX = nx;
+              targetY = ny;
+            }
+          }
+        }
+
+        // If found a lower spot
+        if (targetX != -1) {
+          // Move water
+          Tile &target = GetTile(targetX, targetY);
+
+          // If target is already water, it just merges (no height change logic
+          // yet) If target is land, it becomes water
+
+          TileType waterType = tile.type; // Carry the type (e.g. DeepOcean)
+
+          // Restore current tile to its natural state (Dry)
+          tile.type = GetTerrainForBiome(tile.biome, tile.height);
+
+          // Set target to water
+          target.type = waterType;
+
+          // Stop processing this drop for this frame (optional, but good)
+        }
+      }
+    }
+  }
+}
 
 // Helper: Get biome priority for autotiling (Higher number = draws on top)
 int GetBiomePriority(TileType type) {
@@ -231,12 +331,19 @@ void World::SetTileType(int x, int y, TileType newType) {
     return;
 
   Tile &tile = GetTile(x, y);
+  TraceLog(LOG_INFO, "WORLD: SetTileType %d,%d to Type %d", x, y, (int)newType);
   tile.type = newType;
 }
 
 void World::SetTileDecoration(int x, int y, DecorationType type) {
   if (x < 0 || x >= width || y < 0 || y >= height)
     return;
+
+  // Prevent placing decorations on water, but allow removing them
+  if (IsSwimmable(x, y) && type != DecorationType::None) {
+    return;
+  }
+
   Tile &tile = GetTile(x, y);
   tile.decoration = type;
   tile.decorationVariant = rng_.Int(0, 3);

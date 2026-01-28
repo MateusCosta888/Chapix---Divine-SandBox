@@ -1,0 +1,45 @@
+GUIA RÁPIDO DO GITHUB - CHAPIX DIVINE SANDBOX
+=============================================
+
+ESTE ARQUIVO AJUDA VOCÊ A TRABALHAR EM OUTROS COMPUTADORES.
+
+1. NO OUTRO PC (PRIMEIRA VEZ)
+-----------------------------
+Para baixar o projeto (Clonar):
+   git clone https://github.com/MateusCosta888/Chapix---Divine-SandBox.git
+
+2. COMO SALVAR SUAS ALTERAÇÕES (UPLOAD)
+---------------------------------------
+Sempre que modificar algo e quiser mandar para o GitHub, rode estes 3 comandos em ordem:
+
+   git add .
+   (Isso prepara todos os arquivos)
+
+   git commit -m "Escreva aqui o que voce mudou"
+   (Isso salva um pacote com suas mudancas no seu PC)
+
+   git push
+   (Isso envia o pacote para o site do GitHub)
+
+3. COMO ATUALIZAR (DOWNLOAD) - JEITO CERTO
+------------------------------------------
+Se o GitHub estiver mais novo que seu PC (ex: voce mexeu em outro PC), rode isso na pasta do projeto:
+
+   git pull
+   (Isso baixa as novidades e mistura com o que voce tem)
+
+4. O "JEITO RADICAL" (REINICIAR)
+--------------------------------
+Se voce baguncou sua pasta local ou esta com medo de conflitos, SIM, voce pode fazer o que perguntou:
+1. Exclua a pasta inteira do projeto no seu PC.
+2. Baixe tudo de novo limpo com:
+   git clone https://github.com/MateusCosta888/Chapix---Divine-SandBox.git
+
+(Isso garante que voce tera EXATAMENTE o que esta no site).
+
+RESUMO:
+- git clone [link]  -> Baixa tudo (so 1 vez ou p/ reiniciar)
+- git add .         -> Adiciona mudancas
+- git commit -m ""  -> Salva local
+- git push          -> Envia pra nuvem
+- git pull          -> Baixa da nuvem (atualiza)

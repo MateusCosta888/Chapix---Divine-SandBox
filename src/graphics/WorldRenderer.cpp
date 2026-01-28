@@ -83,6 +83,9 @@ void WorldRenderer::Draw() {
                      .texMountain[tileHash %
                                   ResourceManager::NUM_MOUNTAIN_VARIANTS];
           break;
+        case TileType::Bedrock:
+          tex = &resourceManager.texBedrock;
+          break;
         default:
           break;
         }
@@ -181,6 +184,9 @@ void WorldRenderer::Draw() {
         case TileType::Snow:
           color = (Color){(unsigned char)(240 + variation * 15),
                           (unsigned char)(245 + variation * 10), 255, 255};
+          break;
+        case TileType::Bedrock:
+          color = (Color){50, 50, 50, 255};
           break;
         default:
           color = BLACK;

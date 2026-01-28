@@ -31,7 +31,13 @@ void UIManager::Unload() {
 
 bool UIManager::IsPointerOnUI() const {
   Vector2 mousePos = GetMousePosition();
-  return mousePos.y > (SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT);
+  bool onUI = mousePos.y > (SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT);
+  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    TraceLog(LOG_INFO,
+             "DEBUG: IsPointerOnUI Check: MouseY=%f, Threshold=%d, Result=%d",
+             mousePos.y, (SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT), onUI);
+  }
+  return onUI;
 }
 
 void UIManager::Update(World &world, Camera2D &camera) {
@@ -90,10 +96,20 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
           } else {
             // Eraser
             Tile &t = world.GetTile(nx, ny);
-            if (t.type != TileType::Grass ||
-                t.decoration != DecorationType::None) {
-              world.SetTileType(nx, ny, TileType::Grass);
+
+            // Priority: Remove decoration first
+            if (t.decoration != DecorationType::None) {
+              TraceLog(LOG_INFO, "ERASER: Removing Decoration at %d,%d", nx,
+                       ny);
               world.SetTileDecoration(nx, ny, DecorationType::None);
+            }
+            // Then remove terrain (Dig to Bedrock)
+            else if (t.type != TileType::Bedrock) {
+              TraceLog(LOG_INFO, "ERASER: Digging to Bedrock at %d,%d", nx, ny);
+              world.SetTileType(nx, ny, TileType::Bedrock);
+            } else {
+              TraceLog(LOG_INFO,
+                       "ERASER: Hit Bedrock at %d,%d (Indestructible)", nx, ny);
             }
           }
         } else if (currentTab == UIState::Nature) {
@@ -199,6 +215,11 @@ void UIManager::DrawToolbar(const World &world) {
     for (int i = 0; i < numTools; i++) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
                            btnSize};
+      if (i == 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        TraceLog(LOG_INFO,
+                 "DEBUG: Button 0 Rect Y: %f, Mouse Y: %f, ScreenH: %d",
+                 btnRect.y, GetMousePosition().y, SCREEN_HEIGHT);
+      }
       bool isHover = CheckCollisionPointRec(mousePos, btnRect);
 
       // Button Background
@@ -255,6 +276,7 @@ void UIManager::DrawToolbar(const World &world) {
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
           !showBrushPopup) {
+        TraceLog(LOG_INFO, "UI: Clicked Tool Index %d", i);
         selectedToolIndex = i;
       }
     }
@@ -292,6 +314,7 @@ void UIManager::DrawToolbar(const World &world) {
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
           !showBrushPopup) {
+        TraceLog(LOG_INFO, "UI: Clicked Tool Index %d", i);
         selectedToolIndex = i;
       }
     }
@@ -325,6 +348,7 @@ void UIManager::DrawToolbar(const World &world) {
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
           !showBrushPopup) {
+        TraceLog(LOG_INFO, "UI: Clicked Tool Index %d", i);
         selectedToolIndex = i;
       }
     }

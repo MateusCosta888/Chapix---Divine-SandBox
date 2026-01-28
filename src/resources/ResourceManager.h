@@ -3,7 +3,6 @@
 #include "raylib.h"
 #include <vector>
 
-
 class ResourceManager {
 public:
   ResourceManager();
@@ -57,7 +56,9 @@ public:
 
   Texture2D texForest[NUM_FOREST_VARIANTS];
   Texture2D texGraminhas;
+  Texture2D texBedrock;
 
+  // -- Decoration Textures --
   Texture2D texTrees[NUM_TREE_TYPES];
   Texture2D texFruitTrees[NUM_FRUIT_TREE_TYPES];
   Texture2D texNormalTrees[NUM_NORMAL_TREE_TYPES];
