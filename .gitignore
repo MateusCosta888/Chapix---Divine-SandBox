@@ -1,0 +1,16 @@
+# Binaries
+*.exe
+*.o
+*.obj
+*.dll
+
+# Logs
+build_log*.txt
+*.log
+
+# VS Code
+.vscode/
+
+# Build artifacts
+bin/
+compiler/
