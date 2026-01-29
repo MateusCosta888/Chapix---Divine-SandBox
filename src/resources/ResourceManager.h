@@ -89,6 +89,20 @@ public:
   Texture2D GetTextureForTile(TileType type);
   Texture2D GetTextureForUI(TileType type);
   Texture2D GetTextureForUI(DecorationType type);
+  Texture2D GetHumanTexture(bool isWalking, int direction); // New Helper
+
+  // Human Assets
+  Texture2D texHumanIdle; // global.png
+  // For GIFs, Raylib usually splits them into textures or we just use
+  // `LoadImageAnim` logic, but for simplicity in this ResourceManager which
+  // returns Texture2D, we might load them as simple textures if they were
+  // sprite sheets, but user said GIFs. Raylib loads GIFs as an Image with
+  // frames. For now, let's store the raw Texture2D of the first frame or manage
+  // animation separately? Simpler: Just load them as Textures (static) if the
+  // user converted them, but user said GIFs. Actually, Raylib's `LoadTexture`
+  // only loads the first frame of a GIF. To handle resizing/animation properly
+  // we might need `Image`. But let's assume we load them as textures for now
+  Texture2D texHuman[16]; // 0-3: Down, 4-7: Right, 8-11: Left, 12-15: Up
 
 private:
   bool texturesLoaded = false;

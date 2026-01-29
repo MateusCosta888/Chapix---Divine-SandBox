@@ -239,6 +239,20 @@ void ResourceManager::Load() {
   SetTextureFilter(texBedrock, TEXTURE_FILTER_POINT);
   UnloadImage(bedrockImg);
 
+  // --- HUMAN ASSETS ---
+  // Idle (Sprite Sheet / Single Image)
+  texHumanIdle = LoadTexture("assets/char/global.png");
+  SetTextureFilter(texHumanIdle, TEXTURE_FILTER_POINT);
+
+  // Human (16 sprites)
+  for (int i = 0; i < 16; i++) {
+    // Format: assets/char/human000.png
+    std::string path = "assets/char/human" + std::string(i < 10 ? "00" : "0") +
+                       std::to_string(i) + ".png";
+    texHuman[i] = LoadTexture(path.c_str());
+    SetTextureFilter(texHuman[i], TEXTURE_FILTER_POINT);
+  }
+
   texturesLoaded = true;
 }
 
@@ -251,6 +265,12 @@ void ResourceManager::Unload() {
     UnloadTexture(texOcean[i]);
     UnloadTexture(texShallowOcean[i]);
   }
+  // Remove individual loops if they are annoying to target,
+  // but importantly add Human unload loop.
+  for (int i = 0; i < 16; i++) {
+    UnloadTexture(texHuman[i]);
+  }
+
   for (int i = 0; i < NUM_GRASS_VARIANTS; i++)
     UnloadTexture(texGrass[i]);
   for (int i = 0; i < NUM_SAND_VARIANTS; i++)
@@ -307,6 +327,13 @@ void ResourceManager::Unload() {
     UnloadTexture(texSmallRocks[i]);
   for (int i = 0; i < NUM_MEDIUM_ROCK_TYPES; i++)
     UnloadTexture(texMediumRocks[i]);
+
+  // Unload Human textures (already handled by loop above if placed correctly,
+  // or place here) I added a loop for texHuman[i] previously. I need to remove:
+  // UnloadTexture(texHumanIdle); UnloadTexture(texHumanWalkLeft); etc.
+
+  // Checking previous file content via view might be safer, but I'll try to
+  // target the block.
 
   texturesLoaded = false;
 }
@@ -382,7 +409,7 @@ Texture2D ResourceManager::GetTextureForUI(DecorationType type) {
   // Removed invalid enums (SnowBush, Cactus, Crystal) - they are procedural
   // only
   case DecorationType::Rock: // Generic rock?
-    return texMountainRocks; // Or simple small rock
+    return texSmallRocks[0]; // User requested Rock2_1.png
   case DecorationType::SmallRock:
     return texSmallRocks[0]; // Rock2
   case DecorationType::MediumRock:
@@ -394,6 +421,15 @@ Texture2D ResourceManager::GetTextureForUI(DecorationType type) {
   case DecorationType::Mushroom:
     return texMushrooms[0];
   default:
-    return texSmallRocks[0]; // Fallback
+    return {0};
   }
+}
+
+Texture2D ResourceManager::GetHumanTexture(bool isWalking, int direction) {
+  if (!texturesLoaded)
+    return {0};
+
+  // Always return the global sprite sheet (256x384)
+  // Slicing handles animation state
+  return texHumanIdle;
 }

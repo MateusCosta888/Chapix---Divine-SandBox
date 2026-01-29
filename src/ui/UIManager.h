@@ -2,9 +2,9 @@
 #include "../world/World.h"
 #include "raylib.h"
 
-
 // Enums moved from main.cpp
-enum class UIState { Terrain, Nature, Rocks, Settings };
+// Enums moved from main.cpp
+enum class UIState { Terrain, Nature, Rocks, Creatures, Settings };
 
 enum class BrushSize {
   Single = 0, // Special case for exact 1x1 painting
@@ -31,17 +31,18 @@ public:
 
 private:
   // Textures
-  Texture2D texButton;
-  Texture2D texPanel;
-  Texture2D texTab;
   Texture2D texCursor;
 
-  // State
+public:
+  // State - Moved to public for main.cpp access (or use Get/Set)
   bool showBrushPopup = false;
   bool popupJustOpened = false;
+
+private:
   UIState currentTab = UIState::Terrain;
   BrushSize currentBrushSize = BrushSize::S;
   int selectedToolIndex = 0;
+  float cursorScale = 0.5f;
 
   // Constants (Internal to UI)
   static const int SCREEN_WIDTH = 1024;

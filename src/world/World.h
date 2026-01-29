@@ -1,6 +1,7 @@
 #pragma once
 #include "../resources/ResourceManager.h" // Include ResourceManager
 #include "../utils/Random.h"
+#include "Entity.h" // Added
 #include "Tile.h"
 #include "raylib.h"
 #include <cstdint>
@@ -14,7 +15,12 @@ public:
 
   void Generate();
   void Reset(uint32_t seed);
-  void Update(); // For future simulation steps
+  void Update();                 // For future simulation steps
+  void UpdateEntities(float dt); // Added
+
+  // Entities
+  void AddEntity(EntityType type, Vector2 pos);
+  const std::vector<Entity> &GetEntities() const { return entities; }
 
   void LoadTextures();                   // Load tile textures
   void UnloadTextures();                 // Cleanup textures
@@ -33,6 +39,7 @@ public:
   // UI Helpers
   Texture2D GetTextureForUI(TileType type);
   Texture2D GetTextureForUI(DecorationType type);
+  Texture2D GetTextureForUI(EntityType type); // Added
 
   // Collision & Physics
   bool IsWalkable(int x, int y) const;
@@ -51,6 +58,7 @@ private:
   uint32_t seed_;
   Random rng_;
   std::vector<Tile> tiles;
+  std::vector<Entity> entities; // Added entities vector
 
   // Resource Manager instance
   ResourceManager resourceManager;

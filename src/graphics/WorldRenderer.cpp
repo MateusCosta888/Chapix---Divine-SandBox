@@ -630,16 +630,74 @@ void WorldRenderer::Draw() {
   float dashLen = 20.0f;
   float gapLen = 10.0f;
 
-  for (float px = startX; px < endX; px += dashLen + gapLen)
-    DrawRectangle((int)px, (int)startY, (int)std::min(dashLen, endX - px), 4,
-                  boundaryColor);
-  for (float px = startX; px < endX; px += dashLen + gapLen)
-    DrawRectangle((int)px, (int)endY, (int)std::min(dashLen, endX - px), 4,
-                  boundaryColor);
-  for (float py = startY; py < endY; py += dashLen + gapLen)
-    DrawRectangle((int)startX, (int)py, 4, (int)std::min(dashLen, endY - py),
-                  boundaryColor);
   for (float py = startY; py < endY; py += dashLen + gapLen)
     DrawRectangle((int)endX, (int)py, 4, (int)std::min(dashLen, endY - py),
                   boundaryColor);
+
+  // PASS 8: Entities
+  DrawEntities();
+}
+
+void WorldRenderer::DrawEntities() {
+  ResourceManager &resourceManager = world.GetResourceManager();
+  if (!resourceManager.IsLoaded())
+    return;
+
+  int tileSize = 10;
+  const std::vector<Entity> &entities = world.GetEntities();
+
+  for (const Entity &e : entities) {
+    if (e.type == EntityType::Human) {
+      // Human Drawing with 16 Sprites
+      // Mapping:
+      // 00-03: Down (Dir 0)
+      // 04-07: Right (Dir 1)
+      // 08-11: Left (Dir -1)
+      // 12-15: Up (Dir 2)
+
+      int baseIndex = 0; // Default Down
+      if (e.facingDirection == 1)
+        baseIndex = 4; // Right
+      else if (e.facingDirection == -1)
+        baseIndex = 8; // Left
+      else if (e.facingDirection == 2)
+        baseIndex = 12; // Up
+
+      int frame = e.currentFrame % 4;
+      int finalIndex = baseIndex + frame;
+
+      // Access public array directly (assuming it's public)
+      Texture2D tex = resourceManager.texHuman[finalIndex];
+
+      if (tex.id > 0) {
+        // Draw full texture (no sprite sheet slicing needed as they are
+        // individual files) Adjust sizing: Files are likely small. Let's assume
+        // we maintain the same visual size on screen. Previous sheet logic:
+        // frame 64x96, scale 0.5 -> 32x48. If individual files are same
+        // resolution (64x96 per file), use same sizing.
+
+        float destW = tex.width * 0.5f;
+        float destH = tex.height * 0.5f;
+
+        // Center feet at position
+        float screenX = e.position.x * tileSize;
+        float screenY = e.position.y * tileSize;
+
+        // Source is full image
+        Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+        Rectangle dest = {screenX, screenY, destW, destH};
+        Vector2 origin = {destW / 2, destH * 0.9f}; // Pivot at feet
+
+        DrawTexturePro(tex, src, dest, origin, 0.0f, WHITE);
+      } else {
+        // Fallback
+        DrawCircle((int)(e.position.x * tileSize),
+                   (int)(e.position.y * tileSize), tileSize / 2, RED);
+      }
+    } else {
+      // Other entities
+      DrawCircle((int)(e.position.x * tileSize), (int)(e.position.y * tileSize),
+                 tileSize / 2, BLUE);
+    }
+  }
 }

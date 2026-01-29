@@ -1,6 +1,7 @@
 #include "World.h"
 #include "../utils/Noise.h"
 #include "raylib.h"
+#include "raymath.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -210,9 +211,19 @@ void World::Update() {
   // Run water physics (fixed time step or every frame? Every frame is fine for
   // now)
   SimulateWater(GetFrameTime());
+  UpdateEntities(GetFrameTime()); // Update entities here
 }
 
 void World::SimulateWater(float deltaTime) {
+  // Water Flow (Cellular Automata) - Simple "Falling" logic
+  // Iterate from bottom up to avoid cascading in one frame (optional)
+  // Or just top down. Let's do random update or simple scan.
+  // For simplicity: Scan all, build next state buffer?
+  // Doing in-place for chaotic flow (Minecraft style)
+
+  // Note: We are already iterating logic in main via Update().
+  // Let's implement entity update here as well.
+
   // Simple cellular automata for water flow
   // Water above sea level (0.40) tries to flow downhill
 
@@ -355,4 +366,102 @@ Texture2D World::GetTextureForUI(TileType type) {
 
 Texture2D World::GetTextureForUI(DecorationType type) {
   return resourceManager.GetTextureForUI(type);
+}
+
+Texture2D World::GetTextureForUI(EntityType type) {
+  if (type == EntityType::Human) {
+    return resourceManager.GetHumanTexture(false, 1); // Idle
+  }
+  return {0};
+}
+
+void World::AddEntity(EntityType type, Vector2 pos) {
+  Entity e;
+  e.type = type;
+  e.position = pos;
+  e.state = EntityState::Idle;
+  e.health = 100.0f;
+  e.currentFrame = 0;
+  e.animTime = 0.0f;
+  e.facingDirection = 1; // Right
+  entities.push_back(e);
+  TraceLog(LOG_INFO, "WORLD: Added Entity Type %d at %.2f, %.2f", (int)type,
+           pos.x, pos.y);
+}
+
+void World::UpdateEntities(float deltaTime) {
+  for (auto &e : entities) {
+    // Basic AI
+    if (e.type == EntityType::Human) {
+      if (e.hasTarget) {
+        // Move towards target
+        Vector2 dir = Vector2Subtract(e.targetPos, e.position);
+        float dist = Vector2Length(dir);
+
+        if (dist < 0.1f) {
+          e.hasTarget = false;
+          e.state = EntityState::Idle;
+          e.currentFrame = 0; // Reset to standing frame
+        } else {
+          e.state = EntityState::Walking;
+          float speed = 2.0f; // tiles per second
+          Vector2 move = Vector2Scale(Vector2Normalize(dir), speed * deltaTime);
+          e.position = Vector2Add(e.position, move);
+
+          // Update Direction
+          if (fabs(dir.x) > fabs(dir.y)) {
+            // Horizontal preference
+            e.facingDirection = (dir.x > 0) ? 1 : -1; // 1=Right, -1=Left
+          } else {
+            // Vertical preference
+            e.facingDirection =
+                (dir.y > 0) ? 0
+                            : 2; // 0=Down, 2=Up (Mapped to Row 3 in Renderer)
+          }
+        }
+      } else {
+        // Idle Behavior
+        e.state = EntityState::Idle;
+        // Chance to pick new target
+        // Increased to 5% for more activity
+        if (rng_.Int(0, 100) < 5) {
+          float range = 5.0f;
+          float tx = e.position.x;
+          float ty = e.position.y;
+
+          int moveDir = rng_.Int(0, 4); // 0:Up, 1:Down, 2:Left, 3:Right
+          float dist = 2.0f + (rng_.Float() * 3.0f); // Move 2-5 tiles
+
+          if (moveDir == 0)
+            ty -= dist; // Up
+          else if (moveDir == 1)
+            ty += dist; // Down
+          else if (moveDir == 2)
+            tx -= dist; // Left
+          else if (moveDir == 3)
+            tx += dist; // Right
+
+          // Clamp
+          tx = std::max(0.0f, std::min((float)width - 1, tx));
+          ty = std::max(0.0f, std::min((float)height - 1, ty));
+          e.targetPos = {tx, ty};
+          e.hasTarget = true;
+          TraceLog(LOG_INFO,
+                   "AI: Entity Human picked CARDINAL target %.2f, %.2f", tx,
+                   ty);
+        }
+      }
+
+      // Animation
+      if (e.state == EntityState::Walking) {
+        e.animTime += deltaTime;
+        if (e.animTime >= 0.15f) {
+          e.animTime = 0.0f;
+          e.currentFrame = (e.currentFrame + 1) % 4;
+        }
+      } else {
+        e.currentFrame = 0; // Idle frame (col 0)
+      }
+    }
+  }
 }

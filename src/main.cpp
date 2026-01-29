@@ -72,6 +72,7 @@ int main(int argc, char *argv[]) {
     ui.Update(world, camera);
 
     world.UpdateAnimation(GetFrameTime());
+    world.UpdateEntities(GetFrameTime());
     if (IsKeyPressed(KEY_R)) {
       world.Reset((uint32_t)GetTime());
       world.Generate();

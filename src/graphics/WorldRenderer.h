@@ -8,5 +8,6 @@ public:
   void Draw();
 
 private:
+  void DrawEntities();
   World &world;
 };

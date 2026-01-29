@@ -5,29 +5,9 @@
 UIManager::UIManager() {}
 UIManager::~UIManager() { Unload(); }
 
-void UIManager::Load() {
-  texButton = LoadTexture("assets/decorations/20240709dragonButtonA-Sheet.png");
-  if (texButton.id == 0) {
-    // Fallback or error logging could go here, but this file is known to exist
-    TraceLog(LOG_WARNING, "Failed to load default button texture");
-  }
+void UIManager::Load() { texCursor = LoadTexture("assets/cursor.png"); }
 
-  texPanel =
-      LoadTexture("assets/decorations/20240713dragonFilledFrame-Sheet.png");
-  texTab = LoadTexture("assets/decorations/20240707dragonTabA-Sheet.png");
-  texCursor = LoadTexture("assets/cursor.png");
-
-  SetTextureFilter(texButton, TEXTURE_FILTER_POINT);
-  SetTextureFilter(texPanel, TEXTURE_FILTER_POINT);
-  SetTextureFilter(texTab, TEXTURE_FILTER_POINT);
-}
-
-void UIManager::Unload() {
-  UnloadTexture(texButton);
-  UnloadTexture(texPanel);
-  UnloadTexture(texTab);
-  UnloadTexture(texCursor);
-}
+void UIManager::Unload() { UnloadTexture(texCursor); }
 
 bool UIManager::IsPointerOnUI() const {
   Vector2 mousePos = GetMousePosition();
@@ -133,23 +113,27 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
                                    DecorationType::BigRock};
           if (selectedToolIndex < 2) {
             Tile &t = world.GetTile(nx, ny);
-            if (t.decoration != decs[selectedToolIndex])
+            if (t.decoration != decs[selectedToolIndex]) {
               world.SetTileDecoration(nx, ny, decs[selectedToolIndex]);
+            }
           } else {
             // Eraser
             Tile &t = world.GetTile(nx, ny);
             if (t.decoration != DecorationType::None)
               world.SetTileDecoration(nx, ny, DecorationType::None);
           }
+        } else if (currentTab == UIState::Creatures) {
+          // Human Placement
+          if (selectedToolIndex == 0) {
+            // Only place on click (not hold) to avoid spamming
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+              world.AddEntity(EntityType::Human,
+                              {(float)nx + 0.5f, (float)ny + 0.5f});
+            }
+          }
         }
       }
     }
-  }
-
-  // Right Click - Brush Popup
-  if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-    showBrushPopup = true;
-    popupJustOpened = true;
   }
 }
 
@@ -159,7 +143,7 @@ void UIManager::Draw(const World &world) {
   DrawToolbar(world);
 
   // Draw Cursor
-  DrawTextureEx(texCursor, mousePos, 0.0f, 2.0f, WHITE);
+  DrawTextureEx(texCursor, mousePos, 0.0f, cursorScale, WHITE);
 }
 
 void UIManager::DrawToolbar(const World &world) {
@@ -170,30 +154,25 @@ void UIManager::DrawToolbar(const World &world) {
                        (float)SCREEN_WIDTH, (float)TAB_HEIGHT};
   DrawRectangleRec(tabArea, GetColor(0x16213eFF));
 
-  const char *tabNames[] = {"Terrains", "Nature", "Rocks", "Settings"};
-  for (int i = 0; i < 4; i++) {
+  const char *tabNames[] = {"Terrains", "Nature", "Rocks", "Creatures",
+                            "Settings"};
+  for (int i = 0; i < 5; i++) {
     float tabW = 150;
     Rectangle tabRect = {i * tabW, tabArea.y, tabW, tabArea.height};
-    bool isHover = CheckCollisionPointRec(mousePos, tabRect);
+    bool isHover = CheckCollisionPointRec(GetMousePosition(), tabRect);
     bool isActive = ((int)currentTab == i);
 
     Color tabColor =
         isActive ? GetColor(0x0f3460FF)
                  : (isHover ? GetColor(0x1a1a2eFF) : GetColor(0x16213eFF));
     DrawRectangleRec(tabRect, tabColor);
+    DrawRectangleLinesEx(tabRect, 1, GetColor(0x0f3460FF));
+    DrawText(tabNames[i], (int)tabRect.x + 40, (int)tabRect.y + 8, 20,
+             isActive ? WHITE : LIGHTGRAY);
 
-    // Draw Tab border
-    Rectangle srcArg = {0, 0, (float)texTab.width, (float)texTab.height};
-    Rectangle destArg = {tabRect.x, tabRect.y, tabRect.width, tabRect.height};
-    // DrawTexturePro(texTab, srcArg, destArg, {0, 0}, 0.0f, WHITE); // Basic
-    // texture
-
-    DrawText(tabNames[i], (int)tabRect.x + 10, (int)tabRect.y + 5, 20,
-             isActive ? WHITE : GRAY);
-
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover) {
+    if (isHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !showBrushPopup) {
       currentTab = (UIState)i;
-      selectedToolIndex = 0; // Reset tool on tab switch
+      selectedToolIndex = 0;
     }
   }
 
@@ -223,16 +202,12 @@ void UIManager::DrawToolbar(const World &world) {
       bool isHover = CheckCollisionPointRec(mousePos, btnRect);
 
       // Button Background
-      Rectangle srcPanel = {0, 0, (float)texButton.width,
-                            (float)texButton.height};
-      if (selectedToolIndex == i)
-        srcPanel = {
-            0, 0, (float)texButton.width,
-            (float)texButton
-                .height}; // keeping it simple, maybe add hover state later
-
-      DrawTexturePro(texButton, srcPanel, btnRect, {0, 0}, 0.0f,
-                     isHover ? LIGHTGRAY : WHITE);
+      Color btnColor =
+          (selectedToolIndex == i)
+              ? GetColor(0x1a1a2eFF)
+              : (isHover ? GetColor(0x16213eFF) : GetColor(0x0f3460FF));
+      DrawRectangleRec(btnRect, btnColor);
+      DrawRectangleLinesEx(btnRect, 2, WHITE);
 
       if (selectedToolIndex == i) {
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
@@ -240,24 +215,10 @@ void UIManager::DrawToolbar(const World &world) {
 
       // Icon
       if (i < 8) {
-        // Get texture sample from World/ResourceManager
-        // Since UIManager doesn't have direct access to ResourceManager's
-        // internal textures easily unless we expose more, we can use the World
-        // helper GetTextureForUI
-
         TileType types[] = {TileType::DeepOcean,    TileType::Ocean,
                             TileType::ShallowOcean, TileType::Sand,
                             TileType::Grass,        TileType::Forest,
                             TileType::Mountain,     TileType::Snow};
-
-        // We need const_cast because GetTextureForUI was non-const in World.h,
-        // but Draw is const. Best practice: Update World.h to make
-        // GetTextureForUI const. For now, assuming world is passed as non-const
-        // or we fix constness. Actually, Draw(const World&) implies we
-        // shouldn't modify world. Let's rely on World::GetTextureForUI being
-        // effectively const-safe or fix it. It calls
-        // ResourceManager::GetTextureForUI which IS const-safe logic wise
-        // (returns copy/ref to existing tex).
 
         Texture2D tex = const_cast<World &>(world).GetTextureForUI(types[i]);
 
@@ -271,7 +232,21 @@ void UIManager::DrawToolbar(const World &world) {
           DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
         }
       } else {
-        DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 20, 10, RED);
+        // Procedural Eraser Icon
+        float pad = 15;
+        Rectangle eraserRect = {btnRect.x + pad, btnRect.y + pad,
+                                btnSize - pad * 2, btnSize - pad * 2};
+        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
+                          eraserRect.y + eraserRect.height / 2,
+                          eraserRect.width, eraserRect.height},
+                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
+                         WHITE);
+        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
+                          eraserRect.y + eraserRect.height / 2,
+                          eraserRect.width, eraserRect.height / 2},
+                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
+                         PINK);
+        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10, RED);
       }
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
@@ -287,9 +262,14 @@ void UIManager::DrawToolbar(const World &world) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
                            btnSize};
       bool isHover = CheckCollisionPointRec(mousePos, btnRect);
-      DrawTexturePro(texButton,
-                     {0, 0, (float)texButton.width, (float)texButton.height},
-                     btnRect, {0, 0}, 0.0f, isHover ? LIGHTGRAY : WHITE);
+
+      Color btnColor =
+          (selectedToolIndex == i)
+              ? GetColor(0x1a1a2eFF)
+              : (isHover ? GetColor(0x16213eFF) : GetColor(0x0f3460FF));
+      DrawRectangleRec(btnRect, btnColor);
+      DrawRectangleLinesEx(btnRect, 2, WHITE);
+
       if (selectedToolIndex == i) {
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
       }
@@ -309,7 +289,21 @@ void UIManager::DrawToolbar(const World &world) {
           DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
         }
       } else {
-        DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 20, 10, RED);
+        // Procedural Eraser Icon
+        float pad = 15;
+        Rectangle eraserRect = {btnRect.x + pad, btnRect.y + pad,
+                                btnSize - pad * 2, btnSize - pad * 2};
+        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
+                          eraserRect.y + eraserRect.height / 2,
+                          eraserRect.width, eraserRect.height},
+                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
+                         WHITE);
+        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
+                          eraserRect.y + eraserRect.height / 2,
+                          eraserRect.width, eraserRect.height / 2},
+                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
+                         PINK);
+        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10, RED);
       }
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
@@ -324,9 +318,14 @@ void UIManager::DrawToolbar(const World &world) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
                            btnSize};
       bool isHover = CheckCollisionPointRec(mousePos, btnRect);
-      DrawTexturePro(texButton,
-                     {0, 0, (float)texButton.width, (float)texButton.height},
-                     btnRect, {0, 0}, 0.0f, isHover ? LIGHTGRAY : WHITE);
+
+      Color btnColor =
+          (selectedToolIndex == i)
+              ? GetColor(0x1a1a2eFF)
+              : (isHover ? GetColor(0x16213eFF) : GetColor(0x0f3460FF));
+      DrawRectangleRec(btnRect, btnColor);
+      DrawRectangleLinesEx(btnRect, 2, WHITE);
+
       if (selectedToolIndex == i) {
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
       }
@@ -343,7 +342,21 @@ void UIManager::DrawToolbar(const World &world) {
           DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
         }
       } else {
-        DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 20, 10, RED);
+        // Procedural Eraser Icon
+        float pad = 15;
+        Rectangle eraserRect = {btnRect.x + pad, btnRect.y + pad,
+                                btnSize - pad * 2, btnSize - pad * 2};
+        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
+                          eraserRect.y + eraserRect.height / 2,
+                          eraserRect.width, eraserRect.height},
+                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
+                         WHITE);
+        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
+                          eraserRect.y + eraserRect.height / 2,
+                          eraserRect.width, eraserRect.height / 2},
+                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
+                         PINK);
+        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10, RED);
       }
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
@@ -352,54 +365,126 @@ void UIManager::DrawToolbar(const World &world) {
         selectedToolIndex = i;
       }
     }
+  } else if (currentTab == UIState::Creatures) {
+    numTools = 1; // Just Human
+    for (int i = 0; i < numTools; i++) {
+      Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
+                           btnSize};
+      bool isHover = CheckCollisionPointRec(mousePos, btnRect);
+
+      Color btnColor =
+          (selectedToolIndex == i)
+              ? GetColor(0x1a1a2eFF)
+              : (isHover ? GetColor(0x16213eFF) : GetColor(0x0f3460FF));
+      DrawRectangleRec(btnRect, btnColor);
+      DrawRectangleLinesEx(btnRect, 2, WHITE);
+
+      if (selectedToolIndex == i)
+        DrawRectangleLinesEx(btnRect, 3, YELLOW);
+
+      // Draw Human Icon
+      if (i == 0) {
+        Texture2D tex =
+            const_cast<World &>(world).GetTextureForUI(EntityType::Human);
+        if (tex.id > 0) {
+          float size =
+              (float)std::min(tex.width, tex.height); // Square crop assumption
+          if (tex.width > tex.height)
+            size = (float)tex.height;
+
+          // If it's a very large sheet, this might just show the first char
+          Rectangle src = {0, 0, size, size};
+
+          // Center in button
+          float scale = std::min((btnSize - 10) / size, (btnSize - 10) / size);
+          Rectangle dest = {btnRect.x + 5, btnRect.y + 5, size * scale,
+                            size * scale};
+          DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
+        }
+      }
+
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
+          !showBrushPopup) {
+        selectedToolIndex = i;
+      }
+    }
   } else if (currentTab == UIState::Settings) {
     DrawText("Press 'R' in game to Regenerate", (int)startX, (int)startY + 20,
              20, WHITE);
+
+    // Cursor Size Button
+    Rectangle cursorBtn = {startX, startY + 50, 200, 40};
+    bool isHover = CheckCollisionPointRec(mousePos, cursorBtn);
+    DrawRectangleRec(cursorBtn,
+                     isHover ? GetColor(0x1a1a2eFF) : GetColor(0x0f3460FF));
+    DrawRectangleLinesEx(cursorBtn, 2, WHITE);
+
+    // Display Current Size
+    const char *sizeText = "Cursor: 0.5x";
+    if (cursorScale == 0.25f)
+      sizeText = "Cursor: 0.25x";
+    else if (cursorScale == 0.75f)
+      sizeText = "Cursor: 0.75x";
+    else if (cursorScale == 1.0f)
+      sizeText = "Cursor: 1.0x";
+
+    DrawText(sizeText, (int)cursorBtn.x + 10, (int)cursorBtn.y + 10, 20, WHITE);
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover) {
+      // Cycle logic: 1.0 -> 0.75 -> 0.5 -> 0.25 -> 1.0 (Decreasing as requested
+      // or simply smaller range) Let's cycle up for intuition: 0.25 -> 0.5 ->
+      // 0.75 -> 1.0
+      if (cursorScale == 0.25f)
+        cursorScale = 0.5f;
+      else if (cursorScale == 0.5f)
+        cursorScale = 0.75f;
+      else if (cursorScale == 0.75f)
+        cursorScale = 1.0f;
+      else
+        cursorScale = 0.25f;
+    }
   }
 
-  // Brush Popup Logic
-  if (showBrushPopup) {
-    // Close on click outside (simulated)
-    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !popupJustOpened) {
-      showBrushPopup = false;
-    }
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-      // Check collision with popup items, if none, close
-      // For now just close helper
-      // showBrushPopup = false;
-    }
+  // Brush Size Toggle Button (Right Side)
+  float toggleW = 120;
+  Rectangle toggleRect = {(float)SCREEN_WIDTH - toggleW - 20, startY, toggleW,
+                          btnSize};
+  bool isToggleHover = CheckCollisionPointRec(mousePos, toggleRect);
 
-    Vector2 center = {(float)SCREEN_WIDTH / 2, (float)SCREEN_HEIGHT / 2};
-    Rectangle popupRect = {center.x - 150, center.y - 100, 300, 200};
+  DrawRectangleRec(toggleRect,
+                   isToggleHover ? GetColor(0x1a1a2eFF) : GetColor(0x0f3460FF));
+  DrawRectangleLinesEx(toggleRect, 2, WHITE);
 
-    DrawRectangleRec(popupRect, GetColor(0x1a1a2eFF));
-    DrawRectangleLinesEx(popupRect, 2, WHITE);
-    DrawText("Brush Size", (int)popupRect.x + 10, (int)popupRect.y + 10, 20,
-             WHITE);
+  const char *sizeNames[] = {"Single", "Small", "Medium", "Large", "X-Large"};
+  // Convert enum to index for display
+  int sizeIndex = 0;
+  if (currentBrushSize == BrushSize::S)
+    sizeIndex = 1;
+  else if (currentBrushSize == BrushSize::M)
+    sizeIndex = 2;
+  else if (currentBrushSize == BrushSize::L)
+    sizeIndex = 3;
+  else if (currentBrushSize == BrushSize::XL)
+    sizeIndex = 4;
 
-    const char *sizes[] = {"Single", "Small", "Medium", "Large", "X-Large"};
-    BrushSize bSizes[] = {BrushSize::Single, BrushSize::S, BrushSize::M,
-                          BrushSize::L, BrushSize::XL};
+  DrawText("Size:", (int)toggleRect.x + 10, (int)toggleRect.y + 10, 10,
+           LIGHTGRAY);
+  DrawText(sizeNames[sizeIndex], (int)toggleRect.x + 10, (int)toggleRect.y + 25,
+           20, WHITE);
 
-    for (int i = 0; i < 5; i++) {
-      Rectangle item = {popupRect.x + 20, popupRect.y + 40 + i * 30, 260, 25};
-      bool isHover = CheckCollisionPointRec(mousePos, item);
-      if (isHover)
-        DrawRectangleRec(item, GetColor(0x0f3460FF));
+  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isToggleHover) {
+    // Cycle size
+    if (currentBrushSize == BrushSize::Single)
+      currentBrushSize = BrushSize::S;
+    else if (currentBrushSize == BrushSize::S)
+      currentBrushSize = BrushSize::M;
+    else if (currentBrushSize == BrushSize::M)
+      currentBrushSize = BrushSize::L;
+    else if (currentBrushSize == BrushSize::L)
+      currentBrushSize = BrushSize::XL;
+    else
+      currentBrushSize = BrushSize::Single;
 
-      DrawText(sizes[i], (int)item.x + 5, (int)item.y + 2, 20, WHITE);
-      if (currentBrushSize == bSizes[i])
-        DrawText("*", (int)item.x + 240, (int)item.y, 20, YELLOW);
-
-      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover) {
-        currentBrushSize = bSizes[i];
-        showBrushPopup = false;
-      }
-    }
-
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
-        !CheckCollisionPointRec(mousePos, popupRect)) {
-      showBrushPopup = false;
-    }
+    TraceLog(LOG_INFO, "UI: Changed Brush Size to %d", (int)currentBrushSize);
   }
 }
