@@ -1,5 +1,6 @@
 #include "WorldRenderer.h"
 #include "../resources/ResourceManager.h"
+#include "raylib.h"
 #include <algorithm>
 #include <cmath>
 
@@ -25,25 +26,14 @@ void WorldRenderer::Draw() {
         unsigned int tileHash = tile.variant;
 
         switch (tile.type) {
-        case TileType::DeepOcean: {
-          // Weighted: 80% solid color, 20% waves
-          int waterProb = tileHash % 100;
-          tex = (waterProb < 20) ? &resourceManager.texDeepOcean[0]
-                                 : &resourceManager.texDeepOcean[1];
+        // Water tiles: Use simple procedural rendering (shader disabled for now
+        // - needs RenderTexture optimization)
+        case TileType::DeepOcean:
+        case TileType::Ocean:
+        case TileType::ShallowOcean:
+          // Skip texture, use color fallback + procedural effects
+          tex = nullptr;
           break;
-        }
-        case TileType::Ocean: {
-          int waterProb = tileHash % 100;
-          tex = (waterProb < 20) ? &resourceManager.texOcean[0]
-                                 : &resourceManager.texOcean[1];
-          break;
-        }
-        case TileType::ShallowOcean: {
-          int waterProb = tileHash % 100;
-          tex = (waterProb < 20) ? &resourceManager.texShallowOcean[0]
-                                 : &resourceManager.texShallowOcean[1];
-          break;
-        }
         case TileType::Grass: {
           // Weighted selection: grass1=20%, grass2=40%, grass3=40%
           int grassProb = tileHash % 100;
@@ -138,6 +128,13 @@ void WorldRenderer::Draw() {
           Vector2 origin = {(float)tileSize / 2, (float)tileSize / 2};
           DrawTexturePro(*tex, src, dest, origin, 0.0f, tint);
           usedTexture = true;
+
+          // Apply procedural water effects on top of texture
+          if (IsWaterTile(tile.type)) {
+            float time = (float)GetTime();
+            DrawWaterEffects(x, y, tile.type, x * tileSize, y * tileSize,
+                             tileSize, time);
+          }
         }
       }
 
@@ -193,6 +190,13 @@ void WorldRenderer::Draw() {
         }
 
         DrawRectangle(x * tileSize, y * tileSize, tileSize, tileSize, color);
+
+        // Apply procedural water effects on top of fallback color
+        if (IsWaterTile(tile.type)) {
+          float time = (float)GetTime();
+          DrawWaterEffects(x, y, tile.type, x * tileSize, y * tileSize,
+                           tileSize, time);
+        }
       }
 
       // Shadows
@@ -698,6 +702,242 @@ void WorldRenderer::DrawEntities() {
       // Other entities
       DrawCircle((int)(e.position.x * tileSize), (int)(e.position.y * tileSize),
                  tileSize / 2, BLUE);
+    }
+  }
+}
+
+// ============================================================================
+// WATER EFFECTS - Procedural rendering for waves, sparkles, and foam
+// ============================================================================
+
+bool WorldRenderer::IsWaterTile(TileType type) const {
+  return type == TileType::DeepOcean || type == TileType::Ocean ||
+         type == TileType::ShallowOcean;
+}
+
+void WorldRenderer::DrawWaterEffects(int tileX, int tileY, TileType type,
+                                     int screenX, int screenY, int tileSize,
+                                     float time) {
+  // Get tile's unique seed for consistent randomness
+  unsigned int seed = world.GetTile(tileX, tileY).variant;
+
+  // 1. Wave overlay (subtle brightness variation)
+  DrawWaterWaves(screenX, screenY, tileSize, time, type);
+
+  // 2. Sparkles (random glints)
+  DrawWaterSparkles(screenX, screenY, tileSize, time, seed);
+
+  // 3. Foam on edges (where water meets land)
+  DrawWaterFoam(tileX, tileY, screenX, screenY, tileSize, time);
+}
+
+void WorldRenderer::DrawWaterWaves(int screenX, int screenY, int tileSize,
+                                   float time, TileType type) {
+  // ==========================================================================
+  // LIGHTWEIGHT TEXTURED WATER - Rectangle overlays (fast!)
+  // ==========================================================================
+
+  float worldX = (float)screenX;
+  float worldY = (float)screenY;
+
+  // Wave 1: Large slow diagonal wave
+  float wave1 = sinf(worldX * 0.02f + worldY * 0.015f + time * 0.3f);
+  if (wave1 > 0.4f) {
+    unsigned char alpha = (unsigned char)((wave1 - 0.4f) / 0.6f * 35);
+    Color highlight = {180, 220, 255, alpha};
+    DrawRectangle(screenX, screenY, tileSize, tileSize, highlight);
+  } else if (wave1 < -0.4f) {
+    unsigned char alpha = (unsigned char)((-wave1 - 0.4f) / 0.6f * 25);
+    Color shadow = {20, 50, 100, alpha};
+    DrawRectangle(screenX, screenY, tileSize, tileSize, shadow);
+  }
+
+  // Wave 2: Smaller faster perpendicular wave (half tile strips)
+  float wave2 = sinf(worldX * 0.04f - worldY * 0.03f + time * 0.5f);
+  int halfTile = tileSize / 2;
+  if (wave2 > 0.5f) {
+    unsigned char alpha = (unsigned char)((wave2 - 0.5f) / 0.5f * 25);
+    Color highlight = {200, 240, 255, alpha};
+    if (((int)(worldX / halfTile) + (int)(worldY / halfTile)) % 2 == 0) {
+      DrawRectangle(screenX, screenY, halfTile, halfTile, highlight);
+    } else {
+      DrawRectangle(screenX + halfTile, screenY + halfTile, halfTile, halfTile,
+                    highlight);
+    }
+  }
+}
+
+void WorldRenderer::DrawWaterSparkles(int screenX, int screenY, int tileSize,
+                                      float time, unsigned int seed) {
+  // ==========================================================================
+  // SLOW, SMOOTH SPARKLES - Fade in/out gently instead of blinking
+  // ==========================================================================
+
+  // Very slow time progression (sparkles last ~2-3 seconds)
+  float slowTime = time * 0.3f;
+  int sparklePhase = (int)(slowTime) % 20; // Cycle every 20 phases
+
+  // Deterministic sparkle based on seed
+  unsigned int sparkleHash = seed ^ (unsigned int)(sparklePhase * 1234);
+
+  // Only ~10% of tiles have sparkles at any time
+  if ((sparkleHash % 100) < 10) {
+    // Sparkle position within tile
+    int sparkleX = screenX + (int)((sparkleHash >> 8) % (tileSize - 2)) + 1;
+    int sparkleY = screenY + (int)((sparkleHash >> 16) % (tileSize - 2)) + 1;
+
+    // Smooth fade using fractional time
+    float fadePhase = fmodf(slowTime, 1.0f); // 0 to 1
+    float fade = sinf(fadePhase * 3.14159f); // Smooth bell curve: 0 -> 1 -> 0
+
+    // Alpha based on fade (0 to 255)
+    unsigned char alpha = (unsigned char)(200 * fade);
+
+    if (alpha > 20) { // Only draw if visible
+      Color sparkleColor = {255, 255, 255, alpha};
+      // Small sparkle cross pattern (more natural than square)
+      DrawPixel(sparkleX, sparkleY, sparkleColor);
+      if (alpha > 100) {
+        DrawPixel(sparkleX - 1, sparkleY, sparkleColor);
+        DrawPixel(sparkleX + 1, sparkleY, sparkleColor);
+        DrawPixel(sparkleX, sparkleY - 1, sparkleColor);
+        DrawPixel(sparkleX, sparkleY + 1, sparkleColor);
+      }
+    }
+  }
+}
+
+void WorldRenderer::DrawWaterFoam(int tileX, int tileY, int screenX,
+                                  int screenY, int tileSize, float time) {
+  int width = world.GetWidth();
+  int height = world.GetHeight();
+
+  // Check each neighbor for land
+  bool hasLandNorth =
+      (tileY > 0) && !IsWaterTile(world.GetTile(tileX, tileY - 1).type);
+  bool hasLandSouth = (tileY < height - 1) &&
+                      !IsWaterTile(world.GetTile(tileX, tileY + 1).type);
+  bool hasLandEast =
+      (tileX < width - 1) && !IsWaterTile(world.GetTile(tileX + 1, tileY).type);
+  bool hasLandWest =
+      (tileX > 0) && !IsWaterTile(world.GetTile(tileX - 1, tileY).type);
+
+  // Also check diagonal corners for better corner handling
+  bool hasLandNW = (tileY > 0 && tileX > 0) &&
+                   !IsWaterTile(world.GetTile(tileX - 1, tileY - 1).type);
+  bool hasLandNE = (tileY > 0 && tileX < width - 1) &&
+                   !IsWaterTile(world.GetTile(tileX + 1, tileY - 1).type);
+  bool hasLandSW = (tileY < height - 1 && tileX > 0) &&
+                   !IsWaterTile(world.GetTile(tileX - 1, tileY + 1).type);
+  bool hasLandSE = (tileY < height - 1 && tileX < width - 1) &&
+                   !IsWaterTile(world.GetTile(tileX + 1, tileY + 1).type);
+
+  // No foam if no land neighbors at all
+  if (!hasLandNorth && !hasLandSouth && !hasLandEast && !hasLandWest &&
+      !hasLandNW && !hasLandNE && !hasLandSW && !hasLandSE) {
+    return;
+  }
+
+  // ==========================================================================
+  // ORGANIC FOAM - Pixel-by-pixel with gradient fade from edges
+  // ==========================================================================
+
+  // Count how many cardinal directions have land
+  int landSides = 0;
+  if (hasLandNorth)
+    landSides++;
+  if (hasLandSouth)
+    landSides++;
+  if (hasLandEast)
+    landSides++;
+  if (hasLandWest)
+    landSides++;
+
+  // Slow wave animation
+  float wavePhase = sinf(time * 0.4f);                 // Very slow
+  float waveOffset = (wavePhase * 0.5f + 0.5f) * 2.0f; // 0 to 2
+
+  // Maximum foam distance - MUCH smaller for surrounded tiles
+  float maxFoamDist = 4.0f;
+  if (landSides >= 4) {
+    // Fully surrounded - minimal foam (just 2px)
+    maxFoamDist = 2.0f;
+    waveOffset = 0.5f; // Minimal wave movement
+  } else if (landSides >= 3) {
+    // 3 sides surrounded - reduce foam
+    maxFoamDist = 3.0f;
+  }
+
+  // Main foam color (bright white-cyan)
+  Color foamBright = {250, 255, 255, 230};
+  Color foamMid = {220, 245, 255, 180};
+  Color foamSoft = {190, 230, 250, 100};
+
+  // Draw foam pixel by pixel for organic look
+  for (int py = 0; py < tileSize; py++) {
+    for (int px = 0; px < tileSize; px++) {
+      // Calculate distance to each edge
+      float distToNorth = (float)py;
+      float distToSouth = (float)(tileSize - 1 - py);
+      float distToWest = (float)px;
+      float distToEast = (float)(tileSize - 1 - px);
+
+      // Find minimum distance to any land edge
+      float minDist = 999.0f;
+
+      if (hasLandNorth && distToNorth < minDist)
+        minDist = distToNorth;
+      if (hasLandSouth && distToSouth < minDist)
+        minDist = distToSouth;
+      if (hasLandWest && distToWest < minDist)
+        minDist = distToWest;
+      if (hasLandEast && distToEast < minDist)
+        minDist = distToEast;
+
+      // Corner handling - distance to diagonal corners
+      if (hasLandNW && !hasLandNorth && !hasLandWest) {
+        float cornerDist = sqrtf((float)(px * px + py * py));
+        if (cornerDist < minDist)
+          minDist = cornerDist;
+      }
+      if (hasLandNE && !hasLandNorth && !hasLandEast) {
+        float cornerDist =
+            sqrtf((float)((tileSize - 1 - px) * (tileSize - 1 - px) + py * py));
+        if (cornerDist < minDist)
+          minDist = cornerDist;
+      }
+      if (hasLandSW && !hasLandSouth && !hasLandWest) {
+        float cornerDist =
+            sqrtf((float)(px * px + (tileSize - 1 - py) * (tileSize - 1 - py)));
+        if (cornerDist < minDist)
+          minDist = cornerDist;
+      }
+      if (hasLandSE && !hasLandSouth && !hasLandEast) {
+        float cornerDist =
+            sqrtf((float)((tileSize - 1 - px) * (tileSize - 1 - px) +
+                          (tileSize - 1 - py) * (tileSize - 1 - py)));
+        if (cornerDist < minDist)
+          minDist = cornerDist;
+      }
+
+      // Skip if no land edge found or too far from any edge
+      if (minDist > maxFoamDist)
+        continue;
+
+      // Apply wave offset to distance (foam moves in/out)
+      float adjustedDist = minDist - waveOffset;
+
+      // Draw foam based on distance
+      if (adjustedDist < 0) {
+        // Very close to edge - bright
+        DrawPixel(screenX + px, screenY + py, foamBright);
+      } else if (adjustedDist < 1.5f) {
+        // Medium distance - mid tone
+        DrawPixel(screenX + px, screenY + py, foamMid);
+      } else if (adjustedDist < 3.0f) {
+        // Far from edge - soft fade
+        DrawPixel(screenX + px, screenY + py, foamSoft);
+      }
     }
   }
 }

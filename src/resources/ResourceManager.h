@@ -13,7 +13,7 @@ public:
   bool IsLoaded() const { return texturesLoaded; }
 
   // Constants
-  static const int NUM_WATER_VARIANTS = 2;
+  static const int NUM_WATER_VARIANTS = 7;
   static const int NUM_GRASS_VARIANTS = 3;
   static const int NUM_SAND_VARIANTS = 2;
   static const int NUM_MOUNTAIN_VARIANTS = 2;

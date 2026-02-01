@@ -16,14 +16,35 @@ void ResourceManager::Load() {
   // or maybe '1'? Listing: princiapalaguafunda.png, princiapalaguafunda2.png So
   // index 0 -> "princiapalaguafunda.png", index 1 -> "princiapalaguafunda2.png"
 
-  texDeepOcean[0] = LoadTexture("assets/princiapalaguafunda.png");
-  texDeepOcean[1] = LoadTexture("assets/princiapalaguafunda2.png");
+  // Load Water (Single Files + Deep Decorations)
 
-  texOcean[0] = LoadTexture("assets/princiapalaguamedia.png");
-  texOcean[1] = LoadTexture("assets/princiapalaguamedia2.png");
+  // 1. Deep Ocean (Main + 6 Decorations)
+  texDeepOcean[0] = LoadTexture("assets/water/aguafunda.png");
+  // Decorations
+  const char *deepDecorPath = "assets/water/aguadecoraçoes paraagua fundas/";
+  texDeepOcean[1] =
+      LoadTexture(TextFormat("%sdecoraoesagua001.png", deepDecorPath));
+  texDeepOcean[2] =
+      LoadTexture(TextFormat("%sdecoraoesagua002.png", deepDecorPath));
+  texDeepOcean[3] =
+      LoadTexture(TextFormat("%sdecoraoesagua005.png", deepDecorPath));
+  texDeepOcean[4] =
+      LoadTexture(TextFormat("%sdecoraoesagua006.png", deepDecorPath));
+  texDeepOcean[5] =
+      LoadTexture(TextFormat("%sdecoraoesagua010.png", deepDecorPath));
+  texDeepOcean[6] =
+      LoadTexture(TextFormat("%sdecoraoesagua011.png", deepDecorPath));
 
-  texShallowOcean[0] = LoadTexture("assets/princiapalaguarasa.png");
-  texShallowOcean[1] = LoadTexture("assets/princiapalaguarasa2.png");
+  // 2. Medium Ocean (Single File)
+  texOcean[0] = LoadTexture("assets/water/mediaagua.png");
+  // Fill rest with same texture to be safe (optional, but good practice)
+  for (int i = 1; i < NUM_WATER_VARIANTS; i++)
+    texOcean[i] = texOcean[0];
+
+  // 3. Shallow Ocean (Single File)
+  texShallowOcean[0] = LoadTexture("assets/water/aguarasa.png");
+  for (int i = 1; i < NUM_WATER_VARIANTS; i++)
+    texShallowOcean[i] = texShallowOcean[0];
 
   // Load Grass
   for (int i = 0; i < NUM_GRASS_VARIANTS; i++) {
