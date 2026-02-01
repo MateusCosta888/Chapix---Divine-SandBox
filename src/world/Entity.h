@@ -1,7 +1,17 @@
 #pragma once
 #include "raylib.h"
 
-enum class EntityType { Human };
+enum class EntityType {
+  Human,
+  Cow,
+  Chicken,
+  Sheep,
+  Bull,
+  Chicken2,
+  Lamb,
+  Pig,
+  Turkey
+};
 
 enum class EntityState { Idle, Walking };
 

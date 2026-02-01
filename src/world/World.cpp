@@ -197,6 +197,76 @@ void World::Generate() {
       tile.decorationVariant = (tile.variant ^ seed_) % 4;
     }
   }
+
+  // ==========================================================================
+  // NATURAL ANIMAL SPAWNING - Sparse population on grasslands
+  // ==========================================================================
+  entities.clear(); // Clear any existing entities
+
+  int cowCount = 0, chickenCount = 0, sheepCount = 0;
+  int maxCows = 8, maxChickens = 12, maxSheep = 10;
+
+  for (int y = 20; y < height - 20; y += 3) { // Skip border areas, step 3
+    for (int x = 20; x < width - 20; x += 3) {
+      Tile &tile = GetTile(x, y);
+
+      // Only spawn on grass/forest
+      if (tile.type != TileType::Grass && tile.type != TileType::Forest)
+        continue;
+
+      // Use tile variant for deterministic random
+      unsigned int spawnRoll = (tile.variant ^ seed_ ^ 0xDEADBEEF) % 100;
+
+      // Higher spawn rates: 5% cow, 7% chicken, 6% sheep
+      if (spawnRoll < 5 && cowCount < maxCows) {
+        Entity cow;
+        cow.id = entities.size();
+        cow.type = EntityType::Cow;
+        cow.position = {(float)x + 0.5f, (float)y + 0.5f};
+        cow.state = EntityState::Idle;
+        cow.facingDirection = rng_.Int(-1, 2); // -1, 0, 1, 2
+        cow.speed = 0.5f;
+        cow.health = 100.0f;
+        cow.animTime = 0.0f;
+        cow.currentFrame = 0;
+        cow.hasTarget = false;
+        entities.push_back(cow);
+        cowCount++;
+      } else if (spawnRoll >= 5 && spawnRoll < 12 &&
+                 chickenCount < maxChickens) {
+        Entity chicken;
+        chicken.id = entities.size();
+        chicken.type = EntityType::Chicken;
+        chicken.position = {(float)x + 0.5f, (float)y + 0.5f};
+        chicken.state = EntityState::Idle;
+        chicken.facingDirection = rng_.Int(-1, 2);
+        chicken.speed = 0.8f;
+        chicken.health = 20.0f;
+        chicken.animTime = 0.0f;
+        chicken.currentFrame = 0;
+        chicken.hasTarget = false;
+        entities.push_back(chicken);
+        chickenCount++;
+      } else if (spawnRoll >= 12 && spawnRoll < 20 && sheepCount < maxSheep) {
+        Entity sheep;
+        sheep.id = entities.size();
+        sheep.type = EntityType::Sheep;
+        sheep.position = {(float)x + 0.5f, (float)y + 0.5f};
+        sheep.state = EntityState::Idle;
+        sheep.facingDirection = rng_.Int(-1, 2);
+        sheep.speed = 0.6f;
+        sheep.health = 50.0f;
+        sheep.animTime = 0.0f;
+        sheep.currentFrame = 0;
+        sheep.hasTarget = false;
+        entities.push_back(sheep);
+        sheepCount++;
+      }
+    }
+  }
+
+  TraceLog(LOG_INFO, "ANIMALS: Spawned %d cows, %d chickens, %d sheep",
+           cowCount, chickenCount, sheepCount);
 }
 
 Tile &World::GetTile(int x, int y) {
@@ -370,20 +440,64 @@ Texture2D World::GetTextureForUI(DecorationType type) {
 
 Texture2D World::GetTextureForUI(EntityType type) {
   if (type == EntityType::Human) {
-    return resourceManager.GetHumanTexture(false, 1); // Idle
+    return resourceManager.texHuman[0]; // First frame
+  }
+  if (type == EntityType::Cow) {
+    return resourceManager.texCow[0];
+  }
+  if (type == EntityType::Chicken) {
+    return resourceManager.texChicken[0];
+  }
+  if (type == EntityType::Sheep) {
+    return resourceManager.texSheep[0];
+  }
+  if (type == EntityType::Bull) {
+    return resourceManager.texBull[0];
+  }
+  if (type == EntityType::Chicken2) {
+    return resourceManager.texChicken2[0];
+  }
+  if (type == EntityType::Lamb) {
+    return resourceManager.texLamb[0];
+  }
+  if (type == EntityType::Pig) {
+    return resourceManager.texPig[0];
+  }
+  if (type == EntityType::Turkey) {
+    return resourceManager.texTurkey[0];
   }
   return {0};
 }
 
 void World::AddEntity(EntityType type, Vector2 pos) {
   Entity e;
+  e.id = entities.size();
   e.type = type;
   e.position = pos;
+  e.targetPos = pos;
   e.state = EntityState::Idle;
   e.health = 100.0f;
   e.currentFrame = 0;
   e.animTime = 0.0f;
-  e.facingDirection = 1; // Right
+  e.facingDirection = 0; // Down
+  e.hasTarget = false;
+
+  // Set speed based on creature type
+  if (type == EntityType::Human) {
+    e.speed = 2.0f;
+  } else if (type == EntityType::Cow || type == EntityType::Bull) {
+    e.speed = 0.5f;
+  } else if (type == EntityType::Chicken || type == EntityType::Chicken2 ||
+             type == EntityType::Turkey) {
+    e.speed = 0.8f;
+  } else if (type == EntityType::Sheep || type == EntityType::Lamb) {
+    e.speed = 0.6f;
+  } else if (type == EntityType::Pig) {
+    e.speed = 0.55f;
+  } else {
+    e.speed = 1.0f;
+  }
+
   entities.push_back(e);
   TraceLog(LOG_INFO, "WORLD: Added Entity Type %d at %.2f, %.2f", (int)type,
            pos.x, pos.y);
@@ -461,6 +575,81 @@ void World::UpdateEntities(float deltaTime) {
         }
       } else {
         e.currentFrame = 0; // Idle frame (col 0)
+      }
+    }
+
+    // ========================================================================
+    // ANIMAL AI - Simple wander behavior
+    // ========================================================================
+    else if (e.type == EntityType::Cow || e.type == EntityType::Chicken ||
+             e.type == EntityType::Sheep || e.type == EntityType::Bull ||
+             e.type == EntityType::Chicken2 || e.type == EntityType::Lamb ||
+             e.type == EntityType::Pig || e.type == EntityType::Turkey) {
+      if (e.hasTarget) {
+        // Move towards target
+        Vector2 dir = Vector2Subtract(e.targetPos, e.position);
+        float dist = Vector2Length(dir);
+
+        if (dist < 0.1f) {
+          e.hasTarget = false;
+          e.state = EntityState::Idle;
+          e.currentFrame = 0;
+        } else {
+          e.state = EntityState::Walking;
+          float speed = e.speed;
+          Vector2 move = Vector2Scale(Vector2Normalize(dir), speed * deltaTime);
+          e.position = Vector2Add(e.position, move);
+
+          // Update Direction
+          if (fabs(dir.x) > fabs(dir.y)) {
+            e.facingDirection = (dir.x > 0) ? 1 : -1;
+          } else {
+            e.facingDirection = (dir.y > 0) ? 0 : 2;
+          }
+        }
+      } else {
+        // Idle - chance to pick new target (less frequent than humans)
+        e.state = EntityState::Idle;
+        if (rng_.Int(0, 100) < 2) { // 2% chance per frame
+          float tx = e.position.x;
+          float ty = e.position.y;
+
+          int moveDir = rng_.Int(0, 4);
+          float moveDist = 1.0f + (rng_.Float() * 2.0f); // 1-3 tiles
+
+          if (moveDir == 0)
+            ty -= moveDist;
+          else if (moveDir == 1)
+            ty += moveDist;
+          else if (moveDir == 2)
+            tx -= moveDist;
+          else if (moveDir == 3)
+            tx += moveDist;
+
+          // Clamp to world bounds
+          tx = std::max(0.0f, std::min((float)width - 1, tx));
+          ty = std::max(0.0f, std::min((float)height - 1, ty));
+
+          // Only set target if it's walkable (grass/forest)
+          int tileX = (int)tx;
+          int tileY = (int)ty;
+          if (IsWalkable(tileX, tileY)) {
+            e.targetPos = {tx, ty};
+            e.hasTarget = true;
+          }
+        }
+      }
+
+      // Animation (6 frames per direction for animals)
+      if (e.state == EntityState::Walking) {
+        e.animTime += deltaTime;
+        float animSpeed = (e.type == EntityType::Chicken) ? 0.1f : 0.15f;
+        if (e.animTime >= animSpeed) {
+          e.animTime = 0.0f;
+          e.currentFrame = (e.currentFrame + 1) % 6;
+        }
+      } else {
+        e.currentFrame = 0;
       }
     }
   }

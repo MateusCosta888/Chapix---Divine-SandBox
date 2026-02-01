@@ -261,7 +261,45 @@ void ResourceManager::Load() {
   UnloadImage(bedrockImg);
 
   // --- HUMAN ASSETS ---
-  // Idle (Sprite Sheet / Single Image)
+  // Load and Resize UI Icons (workaround for large generated images)
+  Image imgDeep = LoadImage("assets/ui/water_deep.png");
+  if (imgDeep.data) {
+    ImageResizeNN(&imgDeep, 64, 64);
+    texUIWaterDeep = LoadTextureFromImage(imgDeep);
+    UnloadImage(imgDeep);
+  } else {
+    // Fallback if file missing
+    Image img = GenImageColor(64, 64, (Color){26, 54, 93, 255});
+    texUIWaterDeep = LoadTextureFromImage(img);
+    UnloadImage(img);
+  }
+  SetTextureFilter(texUIWaterDeep, TEXTURE_FILTER_POINT);
+
+  Image imgMedium = LoadImage("assets/ui/water_medium.png");
+  if (imgMedium.data) {
+    ImageResizeNN(&imgMedium, 64, 64);
+    texUIWaterMedium = LoadTextureFromImage(imgMedium);
+    UnloadImage(imgMedium);
+  } else {
+    Image img = GenImageColor(64, 64, (Color){37, 99, 235, 255});
+    texUIWaterMedium = LoadTextureFromImage(img);
+    UnloadImage(img);
+  }
+  SetTextureFilter(texUIWaterMedium, TEXTURE_FILTER_POINT);
+
+  Image imgShallow = LoadImage("assets/ui/water_shallow.png");
+  if (imgShallow.data) {
+    ImageResizeNN(&imgShallow, 64, 64);
+    texUIWaterShallow = LoadTextureFromImage(imgShallow);
+    UnloadImage(imgShallow);
+  } else {
+    Image img = GenImageColor(64, 64, (Color){34, 211, 238, 255});
+    texUIWaterShallow = LoadTextureFromImage(img);
+    UnloadImage(img);
+  }
+  SetTextureFilter(texUIWaterShallow, TEXTURE_FILTER_POINT);
+
+  // Human (Single File for now - if GIF logic needed, handle separately)
   texHumanIdle = LoadTexture("assets/char/global.png");
   SetTextureFilter(texHumanIdle, TEXTURE_FILTER_POINT);
 
@@ -272,6 +310,79 @@ void ResourceManager::Load() {
                        std::to_string(i) + ".png";
     texHuman[i] = LoadTexture(path.c_str());
     SetTextureFilter(texHuman[i], TEXTURE_FILTER_POINT);
+  }
+
+  // --- ANIMAL ASSETS ---
+  // Cow (24 sprites)
+  for (int i = 0; i < 24; i++) {
+    std::string path = "assets/animals/cow/cow" +
+                       std::string(i < 10 ? "00" : "0") + std::to_string(i) +
+                       ".png";
+    texCow[i] = LoadTexture(path.c_str());
+    SetTextureFilter(texCow[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Chicken (24 sprites)
+  for (int i = 0; i < 24; i++) {
+    std::string path = "assets/animals/chiken1/chiken1" +
+                       std::string(i < 10 ? "00" : "0") + std::to_string(i) +
+                       ".png";
+    texChicken[i] = LoadTexture(path.c_str());
+    SetTextureFilter(texChicken[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Sheep (24 sprites)
+  for (int i = 0; i < 24; i++) {
+    std::string path = "assets/animals/sheep/sheep" +
+                       std::string(i < 10 ? "00" : "0") + std::to_string(i) +
+                       ".png";
+    texSheep[i] = LoadTexture(path.c_str());
+    SetTextureFilter(texSheep[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Bull (24 sprites)
+  for (int i = 0; i < 24; i++) {
+    std::string path = "assets/animals/bull/bull" +
+                       std::string(i < 10 ? "00" : "0") + std::to_string(i) +
+                       ".png";
+    texBull[i] = LoadTexture(path.c_str());
+    SetTextureFilter(texBull[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Chicken2 (24 sprites)
+  for (int i = 0; i < 24; i++) {
+    std::string path = "assets/animals/chiken2/chiken2" +
+                       std::string(i < 10 ? "00" : "0") + std::to_string(i) +
+                       ".png";
+    texChicken2[i] = LoadTexture(path.c_str());
+    SetTextureFilter(texChicken2[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Lamb (24 sprites)
+  for (int i = 0; i < 24; i++) {
+    std::string path = "assets/animals/lamb/lamb" +
+                       std::string(i < 10 ? "00" : "0") + std::to_string(i) +
+                       ".png";
+    texLamb[i] = LoadTexture(path.c_str());
+    SetTextureFilter(texLamb[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Pig (24 sprites)
+  for (int i = 0; i < 24; i++) {
+    std::string path = "assets/animals/pig/pig" +
+                       std::string(i < 10 ? "00" : "0") + std::to_string(i) +
+                       ".png";
+    texPig[i] = LoadTexture(path.c_str());
+    SetTextureFilter(texPig[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Turkey (24 sprites)
+  for (int i = 0; i < 24; i++) {
+    std::string path = "assets/animals/turkey/turkey" +
+                       std::string(i < 10 ? "00" : "0") + std::to_string(i) +
+                       ".png";
+    texTurkey[i] = LoadTexture(path.c_str());
+    SetTextureFilter(texTurkey[i], TEXTURE_FILTER_POINT);
   }
 
   texturesLoaded = true;
@@ -291,6 +402,24 @@ void ResourceManager::Unload() {
   for (int i = 0; i < 16; i++) {
     UnloadTexture(texHuman[i]);
   }
+
+  // Unload Animal Textures
+  for (int i = 0; i < 24; i++) {
+    UnloadTexture(texCow[i]);
+    UnloadTexture(texChicken[i]);
+    UnloadTexture(texSheep[i]);
+    UnloadTexture(texBull[i]);
+    UnloadTexture(texChicken2[i]);
+    UnloadTexture(texLamb[i]);
+    UnloadTexture(texPig[i]);
+    UnloadTexture(texPig[i]);
+    UnloadTexture(texTurkey[i]);
+  }
+
+  // Unload UI Icons
+  UnloadTexture(texUIWaterDeep);
+  UnloadTexture(texUIWaterMedium);
+  UnloadTexture(texUIWaterShallow);
 
   for (int i = 0; i < NUM_GRASS_VARIANTS; i++)
     UnloadTexture(texGrass[i]);
@@ -392,11 +521,11 @@ Texture2D ResourceManager::GetTextureForUI(TileType type) {
     return {0};
   switch (type) {
   case TileType::DeepOcean:
-    return texDeepOcean[0];
+    return texUIWaterDeep;
   case TileType::Ocean:
-    return texOcean[0];
+    return texUIWaterMedium;
   case TileType::ShallowOcean:
-    return texShallowOcean[0];
+    return texUIWaterShallow;
   case TileType::Sand:
     return texSand[0];
   case TileType::Grass:

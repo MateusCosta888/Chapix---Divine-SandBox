@@ -123,11 +123,15 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
               world.SetTileDecoration(nx, ny, DecorationType::None);
           }
         } else if (currentTab == UIState::Creatures) {
-          // Human Placement
-          if (selectedToolIndex == 0) {
+          // Creature Placement
+          EntityType creatureTypesForPlacement[] = {
+              EntityType::Human, EntityType::Cow,  EntityType::Chicken,
+              EntityType::Sheep, EntityType::Bull, EntityType::Chicken2,
+              EntityType::Lamb,  EntityType::Pig,  EntityType::Turkey};
+          if (selectedToolIndex >= 0 && selectedToolIndex < 9) {
             // Only place on click (not hold) to avoid spamming
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-              world.AddEntity(EntityType::Human,
+              world.AddEntity(creatureTypesForPlacement[selectedToolIndex],
                               {(float)nx + 0.5f, (float)ny + 0.5f});
             }
           }
@@ -223,12 +227,23 @@ void UIManager::DrawToolbar(const World &world) {
         Texture2D tex = const_cast<World &>(world).GetTextureForUI(types[i]);
 
         if (tex.id > 0) {
-          // Center and fit
+          // Center and fit - use integer scale for pixel-perfect scaling
+          float availableSize = btnSize - 10;
+          float rawScale =
+              availableSize / (float)std::max(tex.width, tex.height);
           float scale =
-              std::min((btnSize - 10) / tex.width, (btnSize - 10) / tex.height);
+              std::max(1.0f, std::floor(rawScale)); // Pixel scale, at least 1x
+
+          float scaledW = tex.width * scale;
+          float scaledH = tex.height * scale;
+
+          // Center in button
+          float offsetX = (btnSize - scaledW) / 2.0f;
+          float offsetY = (btnSize - scaledH) / 2.0f;
+
           Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
-          Rectangle dest = {btnRect.x + 5, btnRect.y + 5, tex.width * scale,
-                            tex.height * scale};
+          Rectangle dest = {btnRect.x + offsetX, btnRect.y + offsetY, scaledW,
+                            scaledH};
           DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
         }
       } else {
@@ -366,7 +381,13 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Creatures) {
-    numTools = 1; // Just Human
+    numTools =
+        9; // Human, Cow, Chicken, Sheep, Bull, Chicken2, Lamb, Pig, Turkey
+    EntityType creatureTypes[] = {
+        EntityType::Human, EntityType::Cow,  EntityType::Chicken,
+        EntityType::Sheep, EntityType::Bull, EntityType::Chicken2,
+        EntityType::Lamb,  EntityType::Pig,  EntityType::Turkey};
+
     for (int i = 0; i < numTools; i++) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
                            btnSize};
@@ -382,25 +403,27 @@ void UIManager::DrawToolbar(const World &world) {
       if (selectedToolIndex == i)
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
 
-      // Draw Human Icon
-      if (i == 0) {
-        Texture2D tex =
-            const_cast<World &>(world).GetTextureForUI(EntityType::Human);
-        if (tex.id > 0) {
-          float size =
-              (float)std::min(tex.width, tex.height); // Square crop assumption
-          if (tex.width > tex.height)
-            size = (float)tex.height;
+      // Draw Creature Icon
+      Texture2D tex =
+          const_cast<World &>(world).GetTextureForUI(creatureTypes[i]);
+      if (tex.id > 0) {
+        // Center and fit - use integer scale for pixel-perfect scaling
+        float availableSize = btnSize - 10;
+        float rawScale = availableSize / (float)std::max(tex.width, tex.height);
+        float scale =
+            std::max(1.0f, std::floor(rawScale)); // Pixel scale, at least 1x
 
-          // If it's a very large sheet, this might just show the first char
-          Rectangle src = {0, 0, size, size};
+        float scaledW = tex.width * scale;
+        float scaledH = tex.height * scale;
 
-          // Center in button
-          float scale = std::min((btnSize - 10) / size, (btnSize - 10) / size);
-          Rectangle dest = {btnRect.x + 5, btnRect.y + 5, size * scale,
-                            size * scale};
-          DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
-        }
+        // Center in button
+        float offsetX = (btnSize - scaledW) / 2.0f;
+        float offsetY = (btnSize - scaledH) / 2.0f;
+
+        Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+        Rectangle dest = {btnRect.x + offsetX, btnRect.y + offsetY, scaledW,
+                          scaledH};
+        DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
       }
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&

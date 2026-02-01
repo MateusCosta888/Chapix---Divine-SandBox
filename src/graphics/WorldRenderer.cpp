@@ -698,6 +698,70 @@ void WorldRenderer::DrawEntities() {
         DrawCircle((int)(e.position.x * tileSize),
                    (int)(e.position.y * tileSize), tileSize / 2, RED);
       }
+    } else if (e.type == EntityType::Cow || e.type == EntityType::Chicken ||
+               e.type == EntityType::Sheep || e.type == EntityType::Bull ||
+               e.type == EntityType::Chicken2 || e.type == EntityType::Lamb ||
+               e.type == EntityType::Pig || e.type == EntityType::Turkey) {
+      // Animal Drawing with 24 Sprites
+      // Correct mapping based on actual sprite files:
+      // 00-05: Down (Dir 0) - facing camera
+      // 06-11: Up (Dir 2) - facing away
+      // 12-17: Left (Dir -1)
+      // 18-23: Right (Dir 1)
+
+      int baseIndex = 0; // Default Down
+      if (e.facingDirection == 2)
+        baseIndex = 6; // Up
+      else if (e.facingDirection == -1)
+        baseIndex = 12; // Left
+      else if (e.facingDirection == 1)
+        baseIndex = 18; // Right
+
+      int frame = e.currentFrame % 6;
+      int finalIndex = baseIndex + frame;
+
+      // Get appropriate texture array
+      Texture2D tex;
+      if (e.type == EntityType::Cow) {
+        tex = resourceManager.texCow[finalIndex];
+      } else if (e.type == EntityType::Chicken) {
+        tex = resourceManager.texChicken[finalIndex];
+      } else if (e.type == EntityType::Sheep) {
+        tex = resourceManager.texSheep[finalIndex];
+      } else if (e.type == EntityType::Bull) {
+        tex = resourceManager.texBull[finalIndex];
+      } else if (e.type == EntityType::Chicken2) {
+        tex = resourceManager.texChicken2[finalIndex];
+      } else if (e.type == EntityType::Lamb) {
+        tex = resourceManager.texLamb[finalIndex];
+      } else if (e.type == EntityType::Pig) {
+        tex = resourceManager.texPig[finalIndex];
+      } else {
+        tex = resourceManager.texTurkey[finalIndex];
+      }
+
+      if (tex.id > 0) {
+        // Adjust scale: Chickens should be smaller
+        float scale = (e.type == EntityType::Chicken) ? 0.4f : 0.5f;
+        float destW = tex.width * scale;
+        float destH = tex.height * scale;
+
+        float screenX = e.position.x * tileSize;
+        float screenY = e.position.y * tileSize;
+
+        Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+        Rectangle dest = {screenX, screenY, destW, destH};
+        Vector2 origin = {destW / 2, destH * 0.9f};
+
+        DrawTexturePro(tex, src, dest, origin, 0.0f, WHITE);
+      } else {
+        // Fallback
+        Color fallbackColor = (e.type == EntityType::Cow)       ? BROWN
+                              : (e.type == EntityType::Chicken) ? ORANGE
+                                                                : LIGHTGRAY;
+        DrawCircle((int)(e.position.x * tileSize),
+                   (int)(e.position.y * tileSize), tileSize / 2, fallbackColor);
+      }
     } else {
       // Other entities
       DrawCircle((int)(e.position.x * tileSize), (int)(e.position.y * tileSize),

@@ -104,6 +104,21 @@ public:
   // we might need `Image`. But let's assume we load them as textures for now
   Texture2D texHuman[16]; // 0-3: Down, 4-7: Right, 8-11: Left, 12-15: Up
 
+  // Animal textures (24 frames each: 6 per direction - Down, Up, Left, Right)
+  Texture2D texCow[24];
+  Texture2D texChicken[24];
+  Texture2D texSheep[24];
+  Texture2D texBull[24];
+  Texture2D texChicken2[24];
+  Texture2D texLamb[24];
+  Texture2D texPig[24];
+  Texture2D texTurkey[24];
+
+  // UI Icons
+  Texture2D texUIWaterDeep;
+  Texture2D texUIWaterMedium;
+  Texture2D texUIWaterShallow;
+
 private:
   bool texturesLoaded = false;
 };
