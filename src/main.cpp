@@ -104,6 +104,21 @@ int main(int argc, char *argv[]) {
 
     EndMode2D();
 
+    // DEBUG: Show tile info under cursor
+    {
+      Vector2 worldPos = GetScreenToWorld2D(mousePos, camera);
+      int tx = (int)(worldPos.x / 10);
+      int ty = (int)(worldPos.y / 10);
+      if (tx >= 0 && tx < world.GetWidth() && ty >= 0 &&
+          ty < world.GetHeight()) {
+        const Tile &tile = world.GetTile(tx, ty);
+        DrawText(TextFormat("Tile(%d,%d) Type:%d TransIdx:%d Mask:%d", tx, ty,
+                            (int)tile.type, tile.transitionIndex,
+                            tile.transitionMask),
+                 10, 60, 16, YELLOW);
+      }
+    }
+
     // UI Render
     ui.Draw(world);
     // DrawTextureEx(ui.texCursor, mousePos, 0, 0.5f, WHITE); // Handled by

@@ -399,41 +399,75 @@ void World::UpdateTileTransition(int x, int y) {
     return;
 
   Tile &t = tiles[y * width + x];
-  uint8_t mask = 0;
 
-  // Check neighbors: N, E, S, W
-  // If neighbor is different type (or out of bounds), set bit.
-  // Bit 0: North
-  // Bit 1: East
-  // Bit 2: South
-  // Bit 3: West
+  // ─────────────────────────────────────────────────────────
+  // LAYER 1: Cardinal Neighbors (NESW) -> 16 base textures
+  // ─────────────────────────────────────────────────────────
+  // Bit 0 (1): North different
+  // Bit 1 (2): East different
+  // Bit 2 (4): South different
+  // Bit 3 (8): West different
 
-  auto check = [&](int dx, int dy, int bit) {
+  auto isDifferent = [&](int dx, int dy) -> bool {
     int nx = x + dx;
     int ny = y + dy;
-
     if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
-      // Out of bounds counts as "different" (border)
-      mask |= (1 << bit);
-      return;
+      return true; // Out of bounds = different
     }
-
-    const Tile &neighbor = tiles[ny * width + nx];
-    // Simple logic: different type = border
-    // Refinement: DeepOcean and Ocean shouldn't draw borders between them?
-    // For now, strict type equality.
-    if (neighbor.type != t.type) {
-      mask |= (1 << bit);
-    }
+    return tiles[ny * width + nx].type != t.type;
   };
 
-  check(0, -1, 0); // North
-  check(1, 0, 1);  // East
-  check(0, 1, 2);  // South
-  check(-1, 0, 3); // West
+  bool diffN = isDifferent(0, -1);
+  bool diffE = isDifferent(1, 0);
+  bool diffS = isDifferent(0, 1);
+  bool diffW = isDifferent(-1, 0);
+
+  uint8_t mask = 0;
+  if (diffN)
+    mask |= 1;
+  if (diffE)
+    mask |= 2;
+  if (diffS)
+    mask |= 4;
+  if (diffW)
+    mask |= 8;
 
   t.transitionMask = mask;
-  t.transitionIndex = mask; // Direct mapping for now
+  t.transitionIndex = mask; // ALWAYS use mask as index (0-15)
+
+  // ─────────────────────────────────────────────────────────
+  // LAYER 2: Inner Corners (Diagonal Overlays)
+  // ─────────────────────────────────────────────────────────
+  // Inner corners appear when:
+  //   - Two adjacent cardinal neighbors are SAME type
+  //   - BUT the diagonal between them is DIFFERENT
+  //
+  // Bit 0 (1): NE corner (N=same, E=same, NE=different)
+  // Bit 1 (2): NW corner (N=same, W=same, NW=different)
+  // Bit 2 (4): SE corner (S=same, E=same, SE=different)
+  // Bit 3 (8): SW corner (S=same, W=same, SW=different)
+
+  t.innerCornerMask = 0;
+
+  // NE corner: N and E are same type, but NE diagonal is different
+  if (!diffN && !diffE && isDifferent(1, -1)) {
+    t.innerCornerMask |= 1;
+  }
+
+  // NW corner: N and W are same type, but NW diagonal is different
+  if (!diffN && !diffW && isDifferent(-1, -1)) {
+    t.innerCornerMask |= 2;
+  }
+
+  // SE corner: S and E are same type, but SE diagonal is different
+  if (!diffS && !diffE && isDifferent(1, 1)) {
+    t.innerCornerMask |= 4;
+  }
+
+  // SW corner: S and W are same type, but SW diagonal is different
+  if (!diffS && !diffW && isDifferent(-1, 1)) {
+    t.innerCornerMask |= 8;
+  }
 }
 
 void World::UpdateTileTransitions() {
@@ -468,12 +502,16 @@ void World::SetTileType(int x, int y, TileType newType) {
   TraceLog(LOG_INFO, "WORLD: SetTileType %d,%d to Type %d", x, y, (int)newType);
   tile.type = newType;
 
-  // Update autotiling for this tile and neighbors
+  // Update autotiling for this tile and neighbors (cardinal + diagonal)
   UpdateTileTransition(x, y);
-  UpdateTileTransition(x, y - 1); // N
-  UpdateTileTransition(x + 1, y); // E
-  UpdateTileTransition(x, y + 1); // S
-  UpdateTileTransition(x - 1, y); // W
+  UpdateTileTransition(x, y - 1);     // N
+  UpdateTileTransition(x + 1, y);     // E
+  UpdateTileTransition(x, y + 1);     // S
+  UpdateTileTransition(x - 1, y);     // W
+  UpdateTileTransition(x + 1, y - 1); // NE
+  UpdateTileTransition(x - 1, y - 1); // NW
+  UpdateTileTransition(x + 1, y + 1); // SE
+  UpdateTileTransition(x - 1, y + 1); // SW
 }
 
 void World::SetTileDecoration(int x, int y, DecorationType type) {

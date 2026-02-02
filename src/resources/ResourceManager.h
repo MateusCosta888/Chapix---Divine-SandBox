@@ -114,7 +114,9 @@ public:
   Texture2D texPig[24];
 
   // Terrain Textures
-  Texture2D texGrassTransitions[16]; // Autotiling transitions
+  Texture2D texGrassTransitions[16]; // Autotiling base (16 cardinal masks)
+  Texture2D
+      texGrassInnerCorners[4]; // Inner corner overlays: 0=NE, 1=NW, 2=SE, 3=SW
   Texture2D texDirt[3];
   Texture2D texTurkey[24];
 

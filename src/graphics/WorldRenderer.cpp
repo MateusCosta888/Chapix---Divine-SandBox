@@ -125,6 +125,22 @@ void WorldRenderer::Draw() {
           }
           // Else: Use full texture for truly single tiles
 
+          // Fix for transparency black holes in autotiling:
+          // If this is a grass transition tile (not a full block), draw sand
+          // underneath first.
+          if (tile.type == TileType::Grass && tile.transitionIndex != 0) {
+            Texture2D *underTex =
+                &resourceManager
+                     .texSand[tileHash % ResourceManager::NUM_SAND_VARIANTS];
+            DrawTexturePro(
+                *underTex,
+                {0, 0, (float)underTex->width, (float)underTex->height},
+                {(float)(x * tileSize + tileSize / 2),
+                 (float)(y * tileSize + tileSize / 2), (float)tileSize,
+                 (float)tileSize},
+                {(float)tileSize / 2, (float)tileSize / 2}, 0.0f, WHITE);
+          }
+
           Rectangle src = {srcX, srcY, srcW, srcH};
           Rectangle dest = {(float)(x * tileSize + tileSize / 2),
                             (float)(y * tileSize + tileSize / 2),
@@ -133,6 +149,49 @@ void WorldRenderer::Draw() {
           DrawTexturePro(*tex, src, dest, origin, 0.0f, tint);
           usedTexture = true;
 
+          // LAYER 2: Draw inner corner overlays for Grass tiles
+          if (tile.type == TileType::Grass && tile.innerCornerMask != 0) {
+            // NE corner (bit 0)
+            if (tile.innerCornerMask & 1) {
+              Texture2D *cornerTex = &resourceManager.texGrassInnerCorners[0];
+              if (cornerTex && cornerTex->id > 0) {
+                DrawTexturePro(
+                    *cornerTex,
+                    {0, 0, (float)cornerTex->width, (float)cornerTex->height},
+                    dest, origin, 0.0f, WHITE);
+              }
+            }
+            // NW corner (bit 1)
+            if (tile.innerCornerMask & 2) {
+              Texture2D *cornerTex = &resourceManager.texGrassInnerCorners[1];
+              if (cornerTex && cornerTex->id > 0) {
+                DrawTexturePro(
+                    *cornerTex,
+                    {0, 0, (float)cornerTex->width, (float)cornerTex->height},
+                    dest, origin, 0.0f, WHITE);
+              }
+            }
+            // SE corner (bit 2)
+            if (tile.innerCornerMask & 4) {
+              Texture2D *cornerTex = &resourceManager.texGrassInnerCorners[2];
+              if (cornerTex && cornerTex->id > 0) {
+                DrawTexturePro(
+                    *cornerTex,
+                    {0, 0, (float)cornerTex->width, (float)cornerTex->height},
+                    dest, origin, 0.0f, WHITE);
+              }
+            }
+            // SW corner (bit 3)
+            if (tile.innerCornerMask & 8) {
+              Texture2D *cornerTex = &resourceManager.texGrassInnerCorners[3];
+              if (cornerTex && cornerTex->id > 0) {
+                DrawTexturePro(
+                    *cornerTex,
+                    {0, 0, (float)cornerTex->width, (float)cornerTex->height},
+                    dest, origin, 0.0f, WHITE);
+              }
+            }
+          }
           // Apply procedural water effects on top of texture
           if (IsWaterTile(tile.type)) {
             float time = (float)GetTime();

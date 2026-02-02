@@ -16,41 +16,26 @@ void ResourceManager::Load() {
   // or maybe '1'? Listing: princiapalaguafunda.png, princiapalaguafunda2.png So
   // index 0 -> "princiapalaguafunda.png", index 1 -> "princiapalaguafunda2.png"
 
-  // Load Water (Single Files + Deep Decorations)
-
-  // 1. Deep Ocean (Main + 6 Decorations)
-  texDeepOcean[0] = LoadTexture("assets/water/aguafunda.png");
-  // Decorations
-  const char *deepDecorPath = "assets/water/aguadecoraçoes paraagua fundas/";
-  texDeepOcean[1] =
-      LoadTexture(TextFormat("%sdecoraoesagua001.png", deepDecorPath));
-  texDeepOcean[2] =
-      LoadTexture(TextFormat("%sdecoraoesagua002.png", deepDecorPath));
-  texDeepOcean[3] =
-      LoadTexture(TextFormat("%sdecoraoesagua005.png", deepDecorPath));
-  texDeepOcean[4] =
-      LoadTexture(TextFormat("%sdecoraoesagua006.png", deepDecorPath));
-  texDeepOcean[5] =
-      LoadTexture(TextFormat("%sdecoraoesagua010.png", deepDecorPath));
-  texDeepOcean[6] =
-      LoadTexture(TextFormat("%sdecoraoesagua011.png", deepDecorPath));
-
-  // 2. Medium Ocean (Single File)
-  texOcean[0] = LoadTexture("assets/water/mediaagua.png");
-  // Fill rest with same texture to be safe (optional, but good practice)
-  for (int i = 1; i < NUM_WATER_VARIANTS; i++)
-    texOcean[i] = texOcean[0];
-
-  // 3. Shallow Ocean (Single File)
-  texShallowOcean[0] = LoadTexture("assets/water/aguarasa.png");
-  for (int i = 1; i < NUM_WATER_VARIANTS; i++)
-    texShallowOcean[i] = texShallowOcean[0];
+  // Water textures are now procedural/shader-based.
+  // Old texture loading removed as requested.
 
   // Load Grass
-  for (int i = 0; i < NUM_GRASS_VARIANTS; i++) {
-    texGrass[i] = LoadTexture(TextFormat("assets/grassprincipal%d.png", i + 1));
-    SetTextureFilter(texGrass[i], TEXTURE_FILTER_POINT);
-  }
+  // Load Grass (Using variants from assets/grass folder as requested)
+  // grassprincipal1 -> grass014 (mts detalhes)
+  // grassprincipal2 -> grass015 (medio detalhes)
+  // grassprincipal3 -> grass016 (poucos detalhes)
+
+  texGrass[0] =
+      LoadTexture("assets/grass/grass014. - completo com mts detalhes.png");
+  SetTextureFilter(texGrass[0], TEXTURE_FILTER_POINT);
+
+  texGrass[1] =
+      LoadTexture("assets/grass/grass015 - completo com medio detalhes.png");
+  SetTextureFilter(texGrass[1], TEXTURE_FILTER_POINT);
+
+  texGrass[2] =
+      LoadTexture("assets/grass/grass016 - completo com poucos detalhes.png");
+  SetTextureFilter(texGrass[2], TEXTURE_FILTER_POINT);
 
   // Load Sand (terra)
   texSand[0] = LoadTexture("assets/terraprincipal1.png");
@@ -79,21 +64,21 @@ void ResourceManager::Load() {
 
   // Grass Autotiling Textures (Specific mapping)
   const char *grassFiles[16] = {
-      "grass009- conpleto cor solida.png",             // 0: Center
-      "grass006 - horizontal baixo para cima.png",     // 1: N (Swapped with 4)
-      "grass010 - vertical esquerda para direita.png", // 2: E (Swapped with 8)
-      "grass011 - canto superior direito redondo.png", // 3: N+E
-      "grass012 - horizontal cima para baixo.png",     // 4: S (Swapped with 1)
-      "grass014. - completo com mts detalhes.png",     // 5: N+S
-      "grass005 - canto inferior direito redondo.png", // 6: S+E
+      "grass009- conpleto cor solida.png",              // 0: Center
+      "grass006 - horizontal baixo para cima.png",      // 1: N
+      "grass010 - vertical esquerda para direita.png",  // 2: E (Swapped with 8)
+      "grass007 - canto inferior esquerdo redondo.png", // 3: N+E
+      "grass012 - horizontal cima para baixo.png",      // 4: S (North Content)
+      "grass014. - completo com mts detalhes.png",      // 5: N+S
+      "grass013 - conto superior esquer redondo.png",   // 6: S+E
       "grass003 - curva no canto superior direito para a "
-      "direita.png",                                  // 7: N+S+E
-      "grass008 - vertical dieita para esquerda.png", // 8: W (Swapped with 2)
-      "grass013 - conto superior esquer redondo.png", // 9: N+W
-      "grass015 - completo com medio detalhes.png",   // 10: E+W
+      "direita.png", // 7: N+S+E (Inner Top Right)
+      "grass008 - vertical dieita para esquerda.png",  // 8: W (East Content)
+      "grass005 - canto inferior direito redondo.png", // 9: N+W
+      "grass015 - completo com medio detalhes.png",    // 10: E+W
       "grass004 - curva no canto superior esquer para a "
-      "esquerda.png",                                   // 11: N+W+E
-      "grass007 - canto inferior esquerdo redondo.png", // 12: S+W
+      "esquerda.png", // 11: N+W+E (Inner Top Left)
+      "grass011 - canto superior direito redondo.png", // 12: S+W
       "grass001-curva no canto inferior direito para a "
       "direita.png", // 13: N+S+W
       "grass002 - curva no canto inferior esquerdo par a "
@@ -105,6 +90,21 @@ void ResourceManager::Load() {
     std::string path = "assets/grass/" + std::string(grassFiles[i]);
     texGrassTransitions[i] = LoadTexture(path.c_str());
     SetTextureFilter(texGrassTransitions[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Inner Corner Overlays (Layer 2)
+  // 0=NE, 1=NW, 2=SE, 3=SW
+  const char *innerCornerFiles[4] = {
+      "grass 20.png", // NE corner
+      "grass 19.png", // NW corner
+      "grass 17.png", // SE corner
+      "grass 18.png"  // SW corner
+  };
+
+  for (int i = 0; i < 4; i++) {
+    std::string path = "assets/grass/" + std::string(innerCornerFiles[i]);
+    texGrassInnerCorners[i] = LoadTexture(path.c_str());
+    SetTextureFilter(texGrassInnerCorners[i], TEXTURE_FILTER_POINT);
   }
 
   // --- TREES ---

@@ -57,8 +57,13 @@ struct Tile {
   // Logic flags
   bool hasRiver = false;
 
-  // Autotiling (Bitmasking)
-  // 4-bit mask (N/E/S/W) -> 16 variations
-  uint8_t transitionMask : 4;
-  uint8_t transitionIndex : 4; // Calculated index into transition texture
+  // Autotiling (Two-Layer System)
+  // Layer 1: Cardinal mask (NESW) -> 16 base textures
+  uint8_t transitionMask = 0;  // 4-bit mask: N=1, E=2, S=4, W=8
+  uint8_t transitionIndex = 0; // = transitionMask (0-15)
+
+  // Layer 2: Inner corners (diagonal overlays)
+  // Bit 0 (1): NE corner, Bit 1 (2): NW corner
+  // Bit 2 (4): SE corner, Bit 3 (8): SW corner
+  uint8_t innerCornerMask = 0;
 };
