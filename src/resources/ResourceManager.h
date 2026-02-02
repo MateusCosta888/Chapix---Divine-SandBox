@@ -112,6 +112,10 @@ public:
   Texture2D texChicken2[24];
   Texture2D texLamb[24];
   Texture2D texPig[24];
+
+  // Terrain Textures
+  Texture2D texGrassTransitions[16]; // Autotiling transitions
+  Texture2D texDirt[3];
   Texture2D texTurkey[24];
 
   // UI Icons

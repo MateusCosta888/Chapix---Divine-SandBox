@@ -77,6 +77,36 @@ void ResourceManager::Load() {
   texGraminhas = LoadTexture("assets/grainhas.png");
   SetTextureFilter(texGraminhas, TEXTURE_FILTER_POINT);
 
+  // Grass Autotiling Textures (Specific mapping)
+  const char *grassFiles[16] = {
+      "grass009- conpleto cor solida.png",             // 0: Center
+      "grass006 - horizontal baixo para cima.png",     // 1: N (Swapped with 4)
+      "grass010 - vertical esquerda para direita.png", // 2: E (Swapped with 8)
+      "grass011 - canto superior direito redondo.png", // 3: N+E
+      "grass012 - horizontal cima para baixo.png",     // 4: S (Swapped with 1)
+      "grass014. - completo com mts detalhes.png",     // 5: N+S
+      "grass005 - canto inferior direito redondo.png", // 6: S+E
+      "grass003 - curva no canto superior direito para a "
+      "direita.png",                                  // 7: N+S+E
+      "grass008 - vertical dieita para esquerda.png", // 8: W (Swapped with 2)
+      "grass013 - conto superior esquer redondo.png", // 9: N+W
+      "grass015 - completo com medio detalhes.png",   // 10: E+W
+      "grass004 - curva no canto superior esquer para a "
+      "esquerda.png",                                   // 11: N+W+E
+      "grass007 - canto inferior esquerdo redondo.png", // 12: S+W
+      "grass001-curva no canto inferior direito para a "
+      "direita.png", // 13: N+S+W
+      "grass002 - curva no canto inferior esquerdo par a "
+      "esquerda.png",                               // 14: E+S+W
+      "grass016 - completo com poucos detalhes.png" // 15: All
+  };
+
+  for (int i = 0; i < 16; i++) {
+    std::string path = "assets/grass/" + std::string(grassFiles[i]);
+    texGrassTransitions[i] = LoadTexture(path.c_str());
+    SetTextureFilter(texGrassTransitions[i], TEXTURE_FILTER_POINT);
+  }
+
   // --- TREES ---
   const char *treePath =
       "assets/top-down-trees-pixel-art/PNGs/Assets_separately/Trees_shadow/";
@@ -417,9 +447,12 @@ void ResourceManager::Unload() {
   }
 
   // Unload UI Icons
-  UnloadTexture(texUIWaterDeep);
   UnloadTexture(texUIWaterMedium);
   UnloadTexture(texUIWaterShallow);
+
+  for (int i = 0; i < 16; i++) {
+    UnloadTexture(texGrassTransitions[i]);
+  }
 
   for (int i = 0; i < NUM_GRASS_VARIANTS; i++)
     UnloadTexture(texGrass[i]);

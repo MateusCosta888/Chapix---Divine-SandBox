@@ -35,17 +35,21 @@ void WorldRenderer::Draw() {
           tex = nullptr;
           break;
         case TileType::Grass: {
-          // Weighted selection: grass1=20%, grass2=40%, grass3=40%
-          int grassProb = tileHash % 100;
-          if (grassProb < 20) {
-            tex =
-                &resourceManager.texGrass[0]; // 20% chance for grassprincipal1
-          } else if (grassProb < 60) {
-            tex =
-                &resourceManager.texGrass[1]; // 40% chance for grassprincipal2
+          // If pure grass (internal), use variations
+          if (tile.transitionIndex == 0) {
+            int grassProb = tileHash % 100;
+            if (grassProb < 20) {
+              tex = &resourceManager.texGrass[0];
+            } else if (grassProb < 60) {
+              tex = &resourceManager.texGrass[1];
+            } else {
+              tex = &resourceManager.texGrass[2];
+            }
           } else {
-            tex =
-                &resourceManager.texGrass[2]; // 40% chance for grassprincipal3
+            // Use Autotiling Transition
+            // Ensure index is within 0-15
+            int idx = tile.transitionIndex & 0xF;
+            tex = &resourceManager.texGrassTransitions[idx];
           }
           break;
         }

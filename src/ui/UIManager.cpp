@@ -13,9 +13,10 @@ bool UIManager::IsPointerOnUI() const {
   Vector2 mousePos = GetMousePosition();
   bool onUI = mousePos.y > (SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT);
   if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-    TraceLog(LOG_INFO,
-             "DEBUG: IsPointerOnUI Check: MouseY=%f, Threshold=%d, Result=%d",
-             mousePos.y, (SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT), onUI);
+    if (mousePos.y > (SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT)) {
+      return true;
+    }
+    return onUI;
   }
   return onUI;
 }
@@ -261,7 +262,8 @@ void UIManager::DrawToolbar(const World &world) {
                           eraserRect.width, eraserRect.height / 2},
                          {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
                          PINK);
-        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10, RED);
+        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10,
+        // RED);
       }
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
@@ -318,7 +320,8 @@ void UIManager::DrawToolbar(const World &world) {
                           eraserRect.width, eraserRect.height / 2},
                          {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
                          PINK);
-        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10, RED);
+        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10,
+        // RED);
       }
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
@@ -371,7 +374,8 @@ void UIManager::DrawToolbar(const World &world) {
                           eraserRect.width, eraserRect.height / 2},
                          {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
                          PINK);
-        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10, RED);
+        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10,
+        // RED);
       }
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
@@ -454,9 +458,9 @@ void UIManager::DrawToolbar(const World &world) {
     DrawText(sizeText, (int)cursorBtn.x + 10, (int)cursorBtn.y + 10, 20, WHITE);
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover) {
-      // Cycle logic: 1.0 -> 0.75 -> 0.5 -> 0.25 -> 1.0 (Decreasing as requested
-      // or simply smaller range) Let's cycle up for intuition: 0.25 -> 0.5 ->
-      // 0.75 -> 1.0
+      // Cycle logic: 1.0 -> 0.75 -> 0.5 -> 0.25 -> 1.0 (Decreasing as
+      // requested or simply smaller range) Let's cycle up for intuition: 0.25
+      // -> 0.5 -> 0.75 -> 1.0
       if (cursorScale == 0.25f)
         cursorScale = 0.5f;
       else if (cursorScale == 0.5f)

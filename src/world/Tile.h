@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 
 // Biome Types - Determines regional climate and allowed terrain
 enum class BiomeType {
@@ -55,4 +56,9 @@ struct Tile {
 
   // Logic flags
   bool hasRiver = false;
+
+  // Autotiling (Bitmasking)
+  // 4-bit mask (N/E/S/W) -> 16 variations
+  uint8_t transitionMask : 4;
+  uint8_t transitionIndex : 4; // Calculated index into transition texture
 };

@@ -267,6 +267,9 @@ void World::Generate() {
 
   TraceLog(LOG_INFO, "ANIMALS: Spawned %d cows, %d chickens, %d sheep",
            cowCount, chickenCount, sheepCount);
+
+  // Initial Calculation of Autotiling Transitions
+  UpdateTileTransitions();
 }
 
 Tile &World::GetTile(int x, int y) {
@@ -391,6 +394,56 @@ int GetBiomePriority(TileType type) {
 }
 
 // Helper: Get texture for tile type (Updated with new sprites)
+void World::UpdateTileTransition(int x, int y) {
+  if (x < 0 || x >= width || y < 0 || y >= height)
+    return;
+
+  Tile &t = tiles[y * width + x];
+  uint8_t mask = 0;
+
+  // Check neighbors: N, E, S, W
+  // If neighbor is different type (or out of bounds), set bit.
+  // Bit 0: North
+  // Bit 1: East
+  // Bit 2: South
+  // Bit 3: West
+
+  auto check = [&](int dx, int dy, int bit) {
+    int nx = x + dx;
+    int ny = y + dy;
+
+    if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+      // Out of bounds counts as "different" (border)
+      mask |= (1 << bit);
+      return;
+    }
+
+    const Tile &neighbor = tiles[ny * width + nx];
+    // Simple logic: different type = border
+    // Refinement: DeepOcean and Ocean shouldn't draw borders between them?
+    // For now, strict type equality.
+    if (neighbor.type != t.type) {
+      mask |= (1 << bit);
+    }
+  };
+
+  check(0, -1, 0); // North
+  check(1, 0, 1);  // East
+  check(0, 1, 2);  // South
+  check(-1, 0, 3); // West
+
+  t.transitionMask = mask;
+  t.transitionIndex = mask; // Direct mapping for now
+}
+
+void World::UpdateTileTransitions() {
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      UpdateTileTransition(x, y);
+    }
+  }
+}
+
 Texture2D *World::GetTextureForTile(TileType type) {
   // Use ResourceManager to get the base texture for the type
   static Texture2D tempTex;
@@ -414,6 +467,13 @@ void World::SetTileType(int x, int y, TileType newType) {
   Tile &tile = GetTile(x, y);
   TraceLog(LOG_INFO, "WORLD: SetTileType %d,%d to Type %d", x, y, (int)newType);
   tile.type = newType;
+
+  // Update autotiling for this tile and neighbors
+  UpdateTileTransition(x, y);
+  UpdateTileTransition(x, y - 1); // N
+  UpdateTileTransition(x + 1, y); // E
+  UpdateTileTransition(x, y + 1); // S
+  UpdateTileTransition(x - 1, y); // W
 }
 
 void World::SetTileDecoration(int x, int y, DecorationType type) {
