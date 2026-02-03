@@ -29,29 +29,44 @@ void World::UpdateAnimation(float deltaTime) {
 }
 
 // Helper: Determine biome from temperature, humidity
-// Latitude influence is now baked into the temperature map in Generate()
-BiomeType DetermineBiome(float temp, float humidity, float latitude) {
+// Also calculates biomeDistance (0 = at threshold edge, 1 = far from edge)
+BiomeType DetermineBiome(float temp, float humidity, float latitude,
+                         float &outBiomeDistance) {
+  // Calculate distances to each threshold
+  float distSnow = std::abs(temp - 0.30f);
+  float distDesertTemp = std::abs(temp - 0.65f);
+  float distDesertHumid = std::abs(humidity - 0.45f);
+  float distForest = std::abs(humidity - 0.50f);
+
   // Snow biome: Cold regions
   if (temp < 0.30f) {
+    outBiomeDistance = std::min(1.0f, distSnow * 5.0f);
     return BiomeType::Snow;
   }
 
   // Desert biome: Hot and Dry
   if (temp > 0.65f && humidity < 0.45f) {
+    outBiomeDistance =
+        std::min(1.0f, std::min(distDesertTemp, distDesertHumid) * 5.0f);
     return BiomeType::Desert;
   }
 
   // Mountain: very cold (handled mostly by height, but also temp)
   if (temp < 0.20f) {
+    outBiomeDistance = std::min(1.0f, std::abs(temp - 0.20f) * 5.0f);
     return BiomeType::Mountain;
   }
 
   // Forest: Temperate and Humid
   if (humidity > 0.50f) {
+    outBiomeDistance = std::min(1.0f, distForest * 5.0f);
     return BiomeType::Forest;
   }
 
   // Plains: Default temperate
+  // Distance = minimum distance to any threshold
+  outBiomeDistance =
+      std::min(1.0f, std::min({distSnow, distDesertTemp, distForest}) * 5.0f);
   return BiomeType::Plains;
 }
 
@@ -183,10 +198,9 @@ void World::Generate() {
       // 4. Determine biome (using temp/humidity logic only)
       if (h < 0.35f) {
         tile.biome = BiomeType::Ocean;
+        tile.biomeDistance = 1.0f;
       } else {
-        tile.biome = DetermineBiome(
-            temp, humid, ny); // ny is ignored inside but kept for signature
-                              // compatibility if not changed
+        tile.biome = DetermineBiome(temp, humid, ny, tile.biomeDistance);
       }
 
       // 5. Get terrain type based on biome and height
@@ -195,6 +209,27 @@ void World::Generate() {
       // Pre-calculate visual variants
       tile.variant = x * 73856093 ^ y * 19349663;
       tile.decorationVariant = (tile.variant ^ seed_) % 4;
+    }
+  }
+
+  // ==========================================================================
+  // EDGE MASK CALCULATION (post-process after all tiles generated)
+  // ==========================================================================
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      Tile &tile = GetTile(x, y);
+      tile.edgeMask = 0;
+
+      // Check each direction for different terrain
+      // Bit 0 = North, Bit 1 = East, Bit 2 = South, Bit 3 = West
+      if (y > 0 && GetTile(x, y - 1).type != tile.type)
+        tile.edgeMask |= 0x01;
+      if (x < width - 1 && GetTile(x + 1, y).type != tile.type)
+        tile.edgeMask |= 0x02;
+      if (y < height - 1 && GetTile(x, y + 1).type != tile.type)
+        tile.edgeMask |= 0x04;
+      if (x > 0 && GetTile(x - 1, y).type != tile.type)
+        tile.edgeMask |= 0x08;
     }
   }
 
@@ -267,9 +302,6 @@ void World::Generate() {
 
   TraceLog(LOG_INFO, "ANIMALS: Spawned %d cows, %d chickens, %d sheep",
            cowCount, chickenCount, sheepCount);
-
-  // Initial Calculation of Autotiling Transitions
-  UpdateTileTransitions();
 }
 
 Tile &World::GetTile(int x, int y) {
@@ -393,91 +425,6 @@ int GetBiomePriority(TileType type) {
   }
 }
 
-// Helper: Get texture for tile type (Updated with new sprites)
-void World::UpdateTileTransition(int x, int y) {
-  if (x < 0 || x >= width || y < 0 || y >= height)
-    return;
-
-  Tile &t = tiles[y * width + x];
-
-  // ─────────────────────────────────────────────────────────
-  // LAYER 1: Cardinal Neighbors (NESW) -> 16 base textures
-  // ─────────────────────────────────────────────────────────
-  // Bit 0 (1): North different
-  // Bit 1 (2): East different
-  // Bit 2 (4): South different
-  // Bit 3 (8): West different
-
-  auto isDifferent = [&](int dx, int dy) -> bool {
-    int nx = x + dx;
-    int ny = y + dy;
-    if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
-      return true; // Out of bounds = different
-    }
-    return tiles[ny * width + nx].type != t.type;
-  };
-
-  bool diffN = isDifferent(0, -1);
-  bool diffE = isDifferent(1, 0);
-  bool diffS = isDifferent(0, 1);
-  bool diffW = isDifferent(-1, 0);
-
-  uint8_t mask = 0;
-  if (diffN)
-    mask |= 1;
-  if (diffE)
-    mask |= 2;
-  if (diffS)
-    mask |= 4;
-  if (diffW)
-    mask |= 8;
-
-  t.transitionMask = mask;
-  t.transitionIndex = mask; // ALWAYS use mask as index (0-15)
-
-  // ─────────────────────────────────────────────────────────
-  // LAYER 2: Inner Corners (Diagonal Overlays)
-  // ─────────────────────────────────────────────────────────
-  // Inner corners appear when:
-  //   - Two adjacent cardinal neighbors are SAME type
-  //   - BUT the diagonal between them is DIFFERENT
-  //
-  // Bit 0 (1): NE corner (N=same, E=same, NE=different)
-  // Bit 1 (2): NW corner (N=same, W=same, NW=different)
-  // Bit 2 (4): SE corner (S=same, E=same, SE=different)
-  // Bit 3 (8): SW corner (S=same, W=same, SW=different)
-
-  t.innerCornerMask = 0;
-
-  // NE corner: N and E are same type, but NE diagonal is different
-  if (!diffN && !diffE && isDifferent(1, -1)) {
-    t.innerCornerMask |= 1;
-  }
-
-  // NW corner: N and W are same type, but NW diagonal is different
-  if (!diffN && !diffW && isDifferent(-1, -1)) {
-    t.innerCornerMask |= 2;
-  }
-
-  // SE corner: S and E are same type, but SE diagonal is different
-  if (!diffS && !diffE && isDifferent(1, 1)) {
-    t.innerCornerMask |= 4;
-  }
-
-  // SW corner: S and W are same type, but SW diagonal is different
-  if (!diffS && !diffW && isDifferent(-1, 1)) {
-    t.innerCornerMask |= 8;
-  }
-}
-
-void World::UpdateTileTransitions() {
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      UpdateTileTransition(x, y);
-    }
-  }
-}
-
 Texture2D *World::GetTextureForTile(TileType type) {
   // Use ResourceManager to get the base texture for the type
   static Texture2D tempTex;
@@ -492,6 +439,7 @@ void World::SetTileBiome(int x, int y, BiomeType newBiome) {
   }
   tile.biome = newBiome;
   tile.type = GetTerrainForBiome(newBiome, tile.height);
+  UpdateNeighborsEdgeMask(x, y);
 }
 
 void World::SetTileType(int x, int y, TileType newType) {
@@ -501,17 +449,7 @@ void World::SetTileType(int x, int y, TileType newType) {
   Tile &tile = GetTile(x, y);
   TraceLog(LOG_INFO, "WORLD: SetTileType %d,%d to Type %d", x, y, (int)newType);
   tile.type = newType;
-
-  // Update autotiling for this tile and neighbors (cardinal + diagonal)
-  UpdateTileTransition(x, y);
-  UpdateTileTransition(x, y - 1);     // N
-  UpdateTileTransition(x + 1, y);     // E
-  UpdateTileTransition(x, y + 1);     // S
-  UpdateTileTransition(x - 1, y);     // W
-  UpdateTileTransition(x + 1, y - 1); // NE
-  UpdateTileTransition(x - 1, y - 1); // NW
-  UpdateTileTransition(x + 1, y + 1); // SE
-  UpdateTileTransition(x - 1, y + 1); // SW
+  UpdateNeighborsEdgeMask(x, y);
 }
 
 void World::SetTileDecoration(int x, int y, DecorationType type) {
@@ -565,6 +503,33 @@ Texture2D World::GetTextureForUI(EntityType type) {
     return resourceManager.texTurkey[0];
   }
   return {0};
+}
+
+void World::UpdateTileEdgeMask(int x, int y) {
+  if (x < 0 || x >= width || y < 0 || y >= height)
+    return;
+
+  Tile &tile = GetTile(x, y);
+  tile.edgeMask = 0;
+
+  // Check each direction for different terrain
+  // Bit 0 = North, Bit 1 = East, Bit 2 = South, Bit 3 = West
+  if (y > 0 && GetTile(x, y - 1).type != tile.type)
+    tile.edgeMask |= 0x01;
+  if (x < width - 1 && GetTile(x + 1, y).type != tile.type)
+    tile.edgeMask |= 0x02;
+  if (y < height - 1 && GetTile(x, y + 1).type != tile.type)
+    tile.edgeMask |= 0x04;
+  if (x > 0 && GetTile(x - 1, y).type != tile.type)
+    tile.edgeMask |= 0x08;
+}
+
+void World::UpdateNeighborsEdgeMask(int x, int y) {
+  UpdateTileEdgeMask(x, y);
+  UpdateTileEdgeMask(x, y - 1);
+  UpdateTileEdgeMask(x + 1, y);
+  UpdateTileEdgeMask(x, y + 1);
+  UpdateTileEdgeMask(x - 1, y);
 }
 
 void World::AddEntity(EntityType type, Vector2 pos) {

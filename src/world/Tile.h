@@ -1,4 +1,7 @@
-#pragma once
+#ifndef TILE_H
+#define TILE_H
+
+#include "raylib.h"
 #include <cstdint>
 
 // Biome Types - Determines regional climate and allowed terrain
@@ -54,16 +57,12 @@ struct Tile {
   float temperature = 0.5f; // 0.0 (cold) - 1.0 (hot)
   float humidity = 0.5f;    // 0.0 (dry) - 1.0 (wet)
 
+  // Visual transition properties (NEW)
+  float biomeDistance = 1.0f; // 0 = at biome edge, 1 = far from edge
+  uint8_t edgeMask = 0;       // Bitmask: bit0=N, bit1=E, bit2=S, bit3=W
+
   // Logic flags
   bool hasRiver = false;
-
-  // Autotiling (Two-Layer System)
-  // Layer 1: Cardinal mask (NESW) -> 16 base textures
-  uint8_t transitionMask = 0;  // 4-bit mask: N=1, E=2, S=4, W=8
-  uint8_t transitionIndex = 0; // = transitionMask (0-15)
-
-  // Layer 2: Inner corners (diagonal overlays)
-  // Bit 0 (1): NE corner, Bit 1 (2): NW corner
-  // Bit 2 (4): SE corner, Bit 3 (8): SW corner
-  uint8_t innerCornerMask = 0;
 };
+
+#endif // TILE_H

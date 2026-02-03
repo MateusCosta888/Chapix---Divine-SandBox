@@ -15,9 +15,16 @@ public:
   // Constants
   static const int NUM_WATER_VARIANTS = 7;
   static const int NUM_GRASS_VARIANTS = 3;
-  static const int NUM_SAND_VARIANTS = 2;
+  static const int NUM_SAND_VARIANTS = 3; // Updated: 3 sand variants
+  static const int NUM_SNOW_VARIANTS = 4; // New: 4 snow variants
   static const int NUM_MOUNTAIN_VARIANTS = 2;
   static const int NUM_FOREST_VARIANTS = 2;
+
+  // Tile Decorations
+  static const int NUM_GRASS_DECORATIONS = 4;  // 2 mushrooms + 1 rock + 1 trunk
+  static const int NUM_FOREST_DECORATIONS = 3; // bushes + little plants
+  static const int NUM_SAND_DECORATIONS = 1;   // 1 rock
+  static const int NUM_SNOW_DECORATIONS = 2;   // snow rocks + snowman
 
   // Trees
   static const int NUM_TREE_TYPES = 4;
@@ -50,13 +57,20 @@ public:
 
   Texture2D texGrass[NUM_GRASS_VARIANTS];
   Texture2D texSand[NUM_SAND_VARIANTS];
-  Texture2D texSnow;
+  Texture2D texSnow[NUM_SNOW_VARIANTS]; // Updated: array of 4
+  Texture2D texIce;                     // New: ice texture
   Texture2D texMountain[NUM_MOUNTAIN_VARIANTS];
   Texture2D texMountainRocks;
 
   Texture2D texForest[NUM_FOREST_VARIANTS];
   Texture2D texGraminhas;
   Texture2D texBedrock;
+
+  // Tile-based decorations (simple overlays)
+  Texture2D texGrassDecorations[NUM_GRASS_DECORATIONS];
+  Texture2D texForestDecorations[NUM_FOREST_DECORATIONS];
+  Texture2D texSandDecorations[NUM_SAND_DECORATIONS];
+  Texture2D texSnowDecorations[NUM_SNOW_DECORATIONS];
 
   // -- Decoration Textures --
   Texture2D texTrees[NUM_TREE_TYPES];
@@ -114,9 +128,6 @@ public:
   Texture2D texPig[24];
 
   // Terrain Textures
-  Texture2D texGrassTransitions[16]; // Autotiling base (16 cardinal masks)
-  Texture2D
-      texGrassInnerCorners[4]; // Inner corner overlays: 0=NE, 1=NW, 2=SE, 3=SW
   Texture2D texDirt[3];
   Texture2D texTurkey[24];
 

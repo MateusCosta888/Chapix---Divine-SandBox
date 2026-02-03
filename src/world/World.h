@@ -36,10 +36,9 @@ public:
   void SetTileType(int x, int y, TileType newType);
   void SetTileDecoration(int x, int y, DecorationType type);
 
-  // Autotiling
-  void UpdateTileTransitions(); // Recalculate for entire world
-  void UpdateTileTransition(int x,
-                            int y); // Recalculate for single tile + neighbors
+  // Updates edge mask for a specific tile/neighbors
+  void UpdateTileEdgeMask(int x, int y);
+  void UpdateNeighborsEdgeMask(int x, int y);
 
   // UI Helpers
   Texture2D GetTextureForUI(TileType type);

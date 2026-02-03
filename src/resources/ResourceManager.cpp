@@ -16,96 +16,102 @@ void ResourceManager::Load() {
   // or maybe '1'? Listing: princiapalaguafunda.png, princiapalaguafunda2.png So
   // index 0 -> "princiapalaguafunda.png", index 1 -> "princiapalaguafunda2.png"
 
-  // Water textures are now procedural/shader-based.
-  // Old texture loading removed as requested.
+  // Load Water (Deep, Ocean, Shallow) for UI
+  texUIWaterDeep = LoadTexture("assets/UI/Icons/water_deep.png");
+  texUIWaterMedium = LoadTexture("assets/UI/Icons/water_medium.png");
+  texUIWaterShallow = LoadTexture("assets/UI/Icons/water_shallow.png");
 
-  // Load Grass
-  // Load Grass (Using variants from assets/grass folder as requested)
-  // grassprincipal1 -> grass014 (mts detalhes)
-  // grassprincipal2 -> grass015 (medio detalhes)
-  // grassprincipal3 -> grass016 (poucos detalhes)
+  SetTextureFilter(texUIWaterDeep, TEXTURE_FILTER_POINT);
+  SetTextureFilter(texUIWaterMedium, TEXTURE_FILTER_POINT);
+  SetTextureFilter(texUIWaterShallow, TEXTURE_FILTER_POINT);
 
-  texGrass[0] =
-      LoadTexture("assets/grass/grass014. - completo com mts detalhes.png");
-  SetTextureFilter(texGrass[0], TEXTURE_FILTER_POINT);
+  // === TERRAIN TEXTURES from assets/tiles ===
 
-  texGrass[1] =
-      LoadTexture("assets/grass/grass015 - completo com medio detalhes.png");
-  SetTextureFilter(texGrass[1], TEXTURE_FILTER_POINT);
+  // Load Grass (NormalGrass folder)
+  texGrass[0] = LoadTexture("assets/tiles/NormalGrass/Grass1.png");
+  texGrass[1] = LoadTexture("assets/tiles/NormalGrass/Grass2.png");
+  texGrass[2] = LoadTexture("assets/tiles/NormalGrass/Grass3.png");
+  for (int i = 0; i < NUM_GRASS_VARIANTS; i++) {
+    SetTextureFilter(texGrass[i], TEXTURE_FILTER_POINT);
+  }
 
-  texGrass[2] =
-      LoadTexture("assets/grass/grass016 - completo com poucos detalhes.png");
-  SetTextureFilter(texGrass[2], TEXTURE_FILTER_POINT);
+  // Grass decorations (2 mushrooms + 1 rock + 1 trunk)
+  texGrassDecorations[0] =
+      LoadTexture("assets/tiles/NormalGrass/mushroom(decoration).png");
+  texGrassDecorations[1] =
+      LoadTexture("assets/tiles/NormalGrass/mushroom2(decoration).png");
+  texGrassDecorations[2] =
+      LoadTexture("assets/tiles/NormalGrass/Rock(decoration).png");
+  texGrassDecorations[3] =
+      LoadTexture("assets/tiles/NormalGrass/tree trunk1(decoration).png");
+  for (int i = 0; i < NUM_GRASS_DECORATIONS; i++) {
+    SetTextureFilter(texGrassDecorations[i], TEXTURE_FILTER_POINT);
+  }
 
-  // Load Sand (terra)
-  texSand[0] = LoadTexture("assets/terraprincipal1.png");
-  texSand[1] = LoadTexture("assets/terraprincipal2.png");
+  // Load Sand (sand folder)
+  texSand[0] = LoadTexture("assets/tiles/sand/sand1.png");
+  texSand[1] = LoadTexture("assets/tiles/sand/sand2.png");
+  texSand[2] = LoadTexture("assets/tiles/sand/sand3.png");
+  for (int i = 0; i < NUM_SAND_VARIANTS; i++) {
+    SetTextureFilter(texSand[i], TEXTURE_FILTER_POINT);
+  }
 
-  // Load Mountain
-  texMountain[0] = LoadTexture("assets/montanha1.png");
-  texMountain[1] = LoadTexture("assets/montanha2.png");
+  // Sand decorations (1 rock)
+  texSandDecorations[0] = LoadTexture("assets/tiles/sand/Rock(decoration).png");
+  for (int i = 0; i < NUM_SAND_DECORATIONS; i++) {
+    SetTextureFilter(texSandDecorations[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Load Mountain (mountain folder)
+  texMountain[0] = LoadTexture("assets/tiles/mountain/montanha1.png");
+  texMountain[1] = LoadTexture("assets/tiles/mountain/montanha2.png");
   for (int i = 0; i < NUM_MOUNTAIN_VARIANTS; i++) {
     SetTextureFilter(texMountain[i], TEXTURE_FILTER_POINT);
   }
-
   texMountainRocks = LoadTexture("assets/pedrinhasmontanha.png");
   SetTextureFilter(texMountainRocks, TEXTURE_FILTER_POINT);
 
-  // Load Forest Ground
-  texForest[0] = LoadTexture("assets/floresta1.png");
-  texForest[1] = LoadTexture("assets/floresta2.png");
+  // Load Forest (florest folder)
+  texForest[0] = LoadTexture("assets/tiles/florest/florest1.png");
+  texForest[1] = LoadTexture("assets/tiles/florest/Florest2.png");
   for (int i = 0; i < NUM_FOREST_VARIANTS; i++) {
     SetTextureFilter(texForest[i], TEXTURE_FILTER_POINT);
   }
 
-  // Forest grass decoration (Typo in file 'grainhas.png')
+  // Forest decorations (bushes + plants)
+  texForestDecorations[0] =
+      LoadTexture("assets/tiles/florest/Bushe(decoration).png");
+  texForestDecorations[1] =
+      LoadTexture("assets/tiles/florest/LittlePlant(decoration).png");
+  texForestDecorations[2] =
+      LoadTexture("assets/tiles/florest/LittlePlant2(decoration).png");
+  for (int i = 0; i < NUM_FOREST_DECORATIONS; i++) {
+    SetTextureFilter(texForestDecorations[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Load Snow (snow folder)
+  texSnow[0] = LoadTexture("assets/tiles/snow/snow1.png");
+  texSnow[1] = LoadTexture("assets/tiles/snow/snow2.png");
+  texSnow[2] = LoadTexture("assets/tiles/snow/snow3.png");
+  texSnow[3] = LoadTexture("assets/tiles/snow/snow4.png");
+  for (int i = 0; i < NUM_SNOW_VARIANTS; i++) {
+    SetTextureFilter(texSnow[i], TEXTURE_FILTER_POINT);
+  }
+  texIce = LoadTexture("assets/tiles/snow/ice.png");
+  SetTextureFilter(texIce, TEXTURE_FILTER_POINT);
+
+  // Snow decorations (rocks + snowman)
+  texSnowDecorations[0] =
+      LoadTexture("assets/tiles/snow/snowRocks(decoration).png");
+  texSnowDecorations[1] =
+      LoadTexture("assets/tiles/snow/snowman(decoration).png");
+  for (int i = 0; i < NUM_SNOW_DECORATIONS; i++) {
+    SetTextureFilter(texSnowDecorations[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Forest grass decoration (graminhas - keeping old path for now)
   texGraminhas = LoadTexture("assets/grainhas.png");
   SetTextureFilter(texGraminhas, TEXTURE_FILTER_POINT);
-
-  // Grass Autotiling Textures (Specific mapping)
-  const char *grassFiles[16] = {
-      "grass009- conpleto cor solida.png",              // 0: Center
-      "grass006 - horizontal baixo para cima.png",      // 1: N
-      "grass010 - vertical esquerda para direita.png",  // 2: E (Swapped with 8)
-      "grass007 - canto inferior esquerdo redondo.png", // 3: N+E
-      "grass012 - horizontal cima para baixo.png",      // 4: S (North Content)
-      "grass014. - completo com mts detalhes.png",      // 5: N+S
-      "grass013 - conto superior esquer redondo.png",   // 6: S+E
-      "grass003 - curva no canto superior direito para a "
-      "direita.png", // 7: N+S+E (Inner Top Right)
-      "grass008 - vertical dieita para esquerda.png",  // 8: W (East Content)
-      "grass005 - canto inferior direito redondo.png", // 9: N+W
-      "grass015 - completo com medio detalhes.png",    // 10: E+W
-      "grass004 - curva no canto superior esquer para a "
-      "esquerda.png", // 11: N+W+E (Inner Top Left)
-      "grass011 - canto superior direito redondo.png", // 12: S+W
-      "grass001-curva no canto inferior direito para a "
-      "direita.png", // 13: N+S+W
-      "grass002 - curva no canto inferior esquerdo par a "
-      "esquerda.png",                               // 14: E+S+W
-      "grass016 - completo com poucos detalhes.png" // 15: All
-  };
-
-  for (int i = 0; i < 16; i++) {
-    std::string path = "assets/grass/" + std::string(grassFiles[i]);
-    texGrassTransitions[i] = LoadTexture(path.c_str());
-    SetTextureFilter(texGrassTransitions[i], TEXTURE_FILTER_POINT);
-  }
-
-  // Inner Corner Overlays (Layer 2)
-  // 0=NE, 1=NW, 2=SE, 3=SW
-  const char *innerCornerFiles[4] = {
-      "grass 20.png", // NE corner
-      "grass 19.png", // NW corner
-      "grass 17.png", // SE corner
-      "grass 18.png"  // SW corner
-  };
-
-  for (int i = 0; i < 4; i++) {
-    std::string path = "assets/grass/" + std::string(innerCornerFiles[i]);
-    texGrassInnerCorners[i] = LoadTexture(path.c_str());
-    SetTextureFilter(texGrassInnerCorners[i], TEXTURE_FILTER_POINT);
-  }
 
   // --- TREES ---
   const char *treePath =
@@ -278,12 +284,6 @@ void ResourceManager::Load() {
     SetTextureFilter(texShallowOcean[i], TEXTURE_FILTER_POINT);
   }
 
-  // Procedural Snow
-  Image snowImg = GenImageColor(32, 32, WHITE);
-  texSnow = LoadTextureFromImage(snowImg);
-  SetTextureFilter(texSnow, TEXTURE_FILTER_POINT);
-  UnloadImage(snowImg);
-
   // Procedural Bedrock (Dark Gray Indestructible Layer)
   Image bedrockImg = GenImageColor(32, 32, {50, 50, 50, 255}); // Dark Gray
   texBedrock = LoadTextureFromImage(bedrockImg);
@@ -419,6 +419,10 @@ void ResourceManager::Load() {
 }
 
 void ResourceManager::Unload() {
+  UnloadTexture(texUIWaterDeep);
+  UnloadTexture(texUIWaterMedium);
+  UnloadTexture(texUIWaterShallow);
+
   if (!texturesLoaded)
     return;
 
@@ -450,15 +454,21 @@ void ResourceManager::Unload() {
   UnloadTexture(texUIWaterMedium);
   UnloadTexture(texUIWaterShallow);
 
-  for (int i = 0; i < 16; i++) {
-    UnloadTexture(texGrassTransitions[i]);
-  }
-
   for (int i = 0; i < NUM_GRASS_VARIANTS; i++)
     UnloadTexture(texGrass[i]);
   for (int i = 0; i < NUM_SAND_VARIANTS; i++)
     UnloadTexture(texSand[i]);
-  UnloadTexture(texSnow);
+  for (int i = 0; i < NUM_SNOW_VARIANTS; i++)
+    UnloadTexture(texSnow[i]);
+  UnloadTexture(texIce);
+  for (int i = 0; i < NUM_GRASS_DECORATIONS; i++)
+    UnloadTexture(texGrassDecorations[i]);
+  for (int i = 0; i < NUM_FOREST_DECORATIONS; i++)
+    UnloadTexture(texForestDecorations[i]);
+  for (int i = 0; i < NUM_SAND_DECORATIONS; i++)
+    UnloadTexture(texSandDecorations[i]);
+  for (int i = 0; i < NUM_SNOW_DECORATIONS; i++)
+    UnloadTexture(texSnowDecorations[i]);
   UnloadTexture(texBedrock);
   for (int i = 0; i < NUM_MOUNTAIN_VARIANTS; i++)
     UnloadTexture(texMountain[i]);
@@ -541,7 +551,7 @@ Texture2D ResourceManager::GetTextureForTile(TileType type) {
   case TileType::Mountain:
     return texMountain[0];
   case TileType::Snow:
-    return texSnow;
+    return texSnow[0];
   case TileType::Bedrock:
     return texBedrock;
   default:
@@ -568,7 +578,7 @@ Texture2D ResourceManager::GetTextureForUI(TileType type) {
   case TileType::Mountain:
     return texMountain[0];
   case TileType::Snow:
-    return texSnow;
+    return texSnow[0];
   case TileType::Bedrock:
     return texBedrock;
   default:

@@ -30,15 +30,27 @@ public:
   BrushSize GetBrushSize() const { return currentBrushSize; }
 
 private:
-  // Textures
-  Texture2D texCursor;
-
 public:
   // State - Moved to public for main.cpp access (or use Get/Set)
   bool showBrushPopup = false;
   bool popupJustOpened = false;
 
 private:
+  // Textures
+  Texture2D texCursor;
+
+  // New Taskbar Textures (9-slice)
+  Texture2D texPanelTL, texPanelTC, texPanelTR;
+  Texture2D texPanelML, texPanelMC, texPanelMR;
+  Texture2D texPanelBL, texPanelBC, texPanelBR;
+
+  // Font
+  Font uiFont;
+
+  // Button Texture
+  Texture2D texButton;    // Using boto003.png as requested
+  Texture2D texTabButton; // Using ButtomAbas.png
+
   UIState currentTab = UIState::Terrain;
   BrushSize currentBrushSize = BrushSize::S;
   int selectedToolIndex = 0;

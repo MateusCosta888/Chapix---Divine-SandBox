@@ -5,9 +5,43 @@
 UIManager::UIManager() {}
 UIManager::~UIManager() { Unload(); }
 
-void UIManager::Load() { texCursor = LoadTexture("assets/cursor.png"); }
+void UIManager::Load() {
+  texCursor = LoadTexture("assets/cursor.png");
 
-void UIManager::Unload() { UnloadTexture(texCursor); }
+  // Load 9-Slice Panel Textures
+  texPanelTL = LoadTexture("assets/UI/TaskBar/bordas/superior esquerda.png");
+  texPanelTC = LoadTexture("assets/UI/TaskBar/bordas/Superior Central.png");
+  texPanelTR = LoadTexture("assets/UI/TaskBar/bordas/Superior Direita.png");
+  texPanelML = LoadTexture("assets/UI/TaskBar/bordas/Meio esquerda.png");
+  texPanelMC = LoadTexture("assets/UI/TaskBar/bordas/Meio central.png");
+  texPanelMR = LoadTexture("assets/UI/TaskBar/bordas/Meio Direita.png");
+  texPanelBL = LoadTexture("assets/UI/TaskBar/bordas/Inferior Esquerda.png");
+  texPanelBC = LoadTexture("assets/UI/TaskBar/bordas/Inferior Central.png");
+  texPanelBR = LoadTexture("assets/UI/TaskBar/bordas/Inferior Direita.png");
+
+  // Load Button Texture
+  texButton = LoadTexture("assets/UI/TaskBar/Botoes/boto004.png");
+  texTabButton = LoadTexture("assets/UI/TaskBar/Botoes/ButtomAbas.png");
+
+  // Load Font
+  uiFont = LoadFontEx("assets/UI/Font/DungeonFont.ttf", 32, 0, 250);
+}
+
+void UIManager::Unload() {
+  UnloadTexture(texCursor);
+  UnloadTexture(texPanelTL);
+  UnloadTexture(texPanelTC);
+  UnloadTexture(texPanelTR);
+  UnloadTexture(texPanelML);
+  UnloadTexture(texPanelMC);
+  UnloadTexture(texPanelMR);
+  UnloadTexture(texPanelBL);
+  UnloadTexture(texPanelBC);
+  UnloadTexture(texPanelBR);
+  UnloadTexture(texButton);
+  UnloadTexture(texTabButton);
+  UnloadFont(uiFont);
+}
 
 bool UIManager::IsPointerOnUI() const {
   Vector2 mousePos = GetMousePosition();
@@ -152,28 +186,90 @@ void UIManager::Draw(const World &world) {
 }
 
 void UIManager::DrawToolbar(const World &world) {
+  // Helper helper
+  auto DrawNineSlicePanel = [&](Rectangle rect) {
+    int cornerW = texPanelTL.width;
+    int cornerH = texPanelTL.height;
+
+    // Corners
+    DrawTexture(texPanelTL, rect.x, rect.y, WHITE);
+    DrawTexture(texPanelTR, rect.x + rect.width - cornerW, rect.y, WHITE);
+    DrawTexture(texPanelBL, rect.x, rect.y + rect.height - cornerH, WHITE);
+    DrawTexture(texPanelBR, rect.x + rect.width - cornerW,
+                rect.y + rect.height - cornerH, WHITE);
+
+    // Edges (Stretched)
+    DrawTexturePro(
+        texPanelTC, {0, 0, (float)texPanelTC.width, (float)texPanelTC.height},
+        {rect.x + cornerW, rect.y, rect.width - 2 * cornerW, (float)cornerH},
+        {0, 0}, 0.0f, WHITE);
+    DrawTexturePro(texPanelBC,
+                   {0, 0, (float)texPanelBC.width, (float)texPanelBC.height},
+                   {rect.x + cornerW, rect.y + rect.height - cornerH,
+                    rect.width - 2 * cornerW, (float)cornerH},
+                   {0, 0}, 0.0f, WHITE);
+    DrawTexturePro(
+        texPanelML, {0, 0, (float)texPanelML.width, (float)texPanelML.height},
+        {rect.x, rect.y + cornerH, (float)cornerW, rect.height - 2 * cornerH},
+        {0, 0}, 0.0f, WHITE);
+    DrawTexturePro(texPanelMR,
+                   {0, 0, (float)texPanelMR.width, (float)texPanelMR.height},
+                   {rect.x + rect.width - cornerW, rect.y + cornerH,
+                    (float)cornerW, rect.height - 2 * cornerH},
+                   {0, 0}, 0.0f, WHITE);
+
+    // Center
+    DrawTexturePro(texPanelMC,
+                   {0, 0, (float)texPanelMC.width, (float)texPanelMC.height},
+                   {rect.x + cornerW, rect.y + cornerH,
+                    rect.width - 2 * cornerW, rect.height - 2 * cornerH},
+                   {0, 0}, 0.0f, WHITE);
+  };
+
+  // Helper for textured buttons
+  auto DrawTexturedButton = [&](Texture2D tex, Rectangle rect, bool isSelected,
+                                bool isHover) {
+    // Draw Base Texture (boto003)
+    DrawTexturePro(tex, {0, 0, (float)tex.width, (float)tex.height}, rect,
+                   {0, 0}, 0.0f, WHITE);
+
+    if (isSelected) {
+      DrawRectangleLinesEx(rect, 3, YELLOW);
+    } else if (isHover) {
+      DrawRectangleLinesEx(rect, 2, WHITE);
+    }
+  };
+
   Vector2 mousePos = GetMousePosition();
 
-  // UI Render
-  Rectangle tabArea = {0, (float)SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT,
-                       (float)SCREEN_WIDTH, (float)TAB_HEIGHT};
-  DrawRectangleRec(tabArea, GetColor(0x16213eFF));
+  // Full Taskbar Area (Tabs + Toolbar) - Encapsulated
+  Rectangle fullTaskbarRect = {
+      0, (float)SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT,
+      (float)SCREEN_WIDTH, (float)TOOLBAR_HEIGHT + TAB_HEIGHT};
+  DrawNineSlicePanel(fullTaskbarRect);
+
+  Rectangle tabArea = {0, fullTaskbarRect.y, (float)SCREEN_WIDTH,
+                       (float)TAB_HEIGHT};
 
   const char *tabNames[] = {"Terrains", "Nature", "Rocks", "Creatures",
                             "Settings"};
   for (int i = 0; i < 5; i++) {
     float tabW = 150;
-    Rectangle tabRect = {i * tabW, tabArea.y, tabW, tabArea.height};
+    Rectangle tabRect = {i * tabW + 5, tabArea.y + 5, tabW - 5,
+                         tabArea.height - 5};
     bool isHover = CheckCollisionPointRec(GetMousePosition(), tabRect);
     bool isActive = ((int)currentTab == i);
 
-    Color tabColor =
-        isActive ? GetColor(0x0f3460FF)
-                 : (isHover ? GetColor(0x1a1a2eFF) : GetColor(0x16213eFF));
-    DrawRectangleRec(tabRect, tabColor);
-    DrawRectangleLinesEx(tabRect, 1, GetColor(0x0f3460FF));
-    DrawText(tabNames[i], (int)tabRect.x + 40, (int)tabRect.y + 8, 20,
-             isActive ? WHITE : LIGHTGRAY);
+    // Use texTabButton for Tabs
+    DrawTexturedButton(texTabButton, tabRect, isActive, isHover);
+
+    // Centered Text
+    Vector2 textSize = MeasureTextEx(uiFont, tabNames[i], 20, 1);
+    Vector2 textPos = {tabRect.x + (tabRect.width - textSize.x) / 2,
+                       tabRect.y + (tabRect.height - textSize.y) / 2};
+
+    DrawTextEx(uiFont, tabNames[i], textPos, 20, 1,
+               isActive ? WHITE : LIGHTGRAY);
 
     if (isHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !showBrushPopup) {
       currentTab = (UIState)i;
@@ -181,15 +277,13 @@ void UIManager::DrawToolbar(const World &world) {
     }
   }
 
-  // Toolbar Background
-  DrawRectangle(0, SCREEN_HEIGHT - TOOLBAR_HEIGHT, SCREEN_WIDTH, TOOLBAR_HEIGHT,
-                GetColor(0x0f3460FF));
-
   // Content based on Tab
-  float startX = 20;
-  float startY = SCREEN_HEIGHT - TOOLBAR_HEIGHT + 10;
+  float startX = 25;
+  float startY = SCREEN_HEIGHT - TOOLBAR_HEIGHT + 20;
   float btnSize = 60;
-  float padding = 10;
+  float padding = 15;
+
+  // Arrays for rendering buttons...
 
   int numTools = 0;
 
@@ -207,12 +301,8 @@ void UIManager::DrawToolbar(const World &world) {
       bool isHover = CheckCollisionPointRec(mousePos, btnRect);
 
       // Button Background
-      Color btnColor =
-          (selectedToolIndex == i)
-              ? GetColor(0x1a1a2eFF)
-              : (isHover ? GetColor(0x16213eFF) : GetColor(0x0f3460FF));
-      DrawRectangleRec(btnRect, btnColor);
-      DrawRectangleLinesEx(btnRect, 2, WHITE);
+      // Button Background
+      DrawTexturedButton(texButton, btnRect, selectedToolIndex == i, isHover);
 
       if (selectedToolIndex == i) {
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
@@ -229,7 +319,8 @@ void UIManager::DrawToolbar(const World &world) {
 
         if (tex.id > 0) {
           // Center and fit - use integer scale for pixel-perfect scaling
-          float availableSize = btnSize - 10;
+          float availableSize =
+              btnSize - 20; // Increased padding for better fit
           float rawScale =
               availableSize / (float)std::max(tex.width, tex.height);
           float scale =
@@ -280,12 +371,8 @@ void UIManager::DrawToolbar(const World &world) {
                            btnSize};
       bool isHover = CheckCollisionPointRec(mousePos, btnRect);
 
-      Color btnColor =
-          (selectedToolIndex == i)
-              ? GetColor(0x1a1a2eFF)
-              : (isHover ? GetColor(0x16213eFF) : GetColor(0x0f3460FF));
-      DrawRectangleRec(btnRect, btnColor);
-      DrawRectangleLinesEx(btnRect, 2, WHITE);
+      // Button Background
+      DrawTexturedButton(texButton, btnRect, selectedToolIndex == i, isHover);
 
       if (selectedToolIndex == i) {
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
@@ -299,7 +386,7 @@ void UIManager::DrawToolbar(const World &world) {
         Texture2D tex = const_cast<World &>(world).GetTextureForUI(decs[i]);
         if (tex.id > 0) {
           float scale =
-              std::min((btnSize - 10) / tex.width, (btnSize - 10) / tex.height);
+              std::min((btnSize - 20) / tex.width, (btnSize - 20) / tex.height);
           Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
           Rectangle dest = {btnRect.x + 5, btnRect.y + 5, tex.width * scale,
                             tex.height * scale};
@@ -337,12 +424,7 @@ void UIManager::DrawToolbar(const World &world) {
                            btnSize};
       bool isHover = CheckCollisionPointRec(mousePos, btnRect);
 
-      Color btnColor =
-          (selectedToolIndex == i)
-              ? GetColor(0x1a1a2eFF)
-              : (isHover ? GetColor(0x16213eFF) : GetColor(0x0f3460FF));
-      DrawRectangleRec(btnRect, btnColor);
-      DrawRectangleLinesEx(btnRect, 2, WHITE);
+      DrawTexturedButton(texButton, btnRect, selectedToolIndex == i, isHover);
 
       if (selectedToolIndex == i) {
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
@@ -353,7 +435,7 @@ void UIManager::DrawToolbar(const World &world) {
         Texture2D tex = const_cast<World &>(world).GetTextureForUI(decs[i]);
         if (tex.id > 0) {
           float scale =
-              std::min((btnSize - 10) / tex.width, (btnSize - 10) / tex.height);
+              std::min((btnSize - 20) / tex.width, (btnSize - 20) / tex.height);
           Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
           Rectangle dest = {btnRect.x + 5, btnRect.y + 5, tex.width * scale,
                             tex.height * scale};
@@ -397,12 +479,7 @@ void UIManager::DrawToolbar(const World &world) {
                            btnSize};
       bool isHover = CheckCollisionPointRec(mousePos, btnRect);
 
-      Color btnColor =
-          (selectedToolIndex == i)
-              ? GetColor(0x1a1a2eFF)
-              : (isHover ? GetColor(0x16213eFF) : GetColor(0x0f3460FF));
-      DrawRectangleRec(btnRect, btnColor);
-      DrawRectangleLinesEx(btnRect, 2, WHITE);
+      DrawTexturedButton(texButton, btnRect, selectedToolIndex == i, isHover);
 
       if (selectedToolIndex == i)
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
@@ -412,7 +489,7 @@ void UIManager::DrawToolbar(const World &world) {
           const_cast<World &>(world).GetTextureForUI(creatureTypes[i]);
       if (tex.id > 0) {
         // Center and fit - use integer scale for pixel-perfect scaling
-        float availableSize = btnSize - 10;
+        float availableSize = btnSize - 20; // Increased padding
         float rawScale = availableSize / (float)std::max(tex.width, tex.height);
         float scale =
             std::max(1.0f, std::floor(rawScale)); // Pixel scale, at least 1x
@@ -436,8 +513,8 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Settings) {
-    DrawText("Press 'R' in game to Regenerate", (int)startX, (int)startY + 20,
-             20, WHITE);
+    DrawTextEx(uiFont, "Press 'R' in game to Regenerate",
+               {(float)startX, (float)startY + 20}, 20, 1, WHITE);
 
     // Cursor Size Button
     Rectangle cursorBtn = {startX, startY + 50, 200, 40};
@@ -455,7 +532,11 @@ void UIManager::DrawToolbar(const World &world) {
     else if (cursorScale == 1.0f)
       sizeText = "Cursor: 1.0x";
 
-    DrawText(sizeText, (int)cursorBtn.x + 10, (int)cursorBtn.y + 10, 20, WHITE);
+    Vector2 sizeTextDims = MeasureTextEx(uiFont, sizeText, 20, 1);
+    DrawTextEx(uiFont, sizeText,
+               {cursorBtn.x + (cursorBtn.width - sizeTextDims.x) / 2,
+                cursorBtn.y + (cursorBtn.height - sizeTextDims.y) / 2},
+               20, 1, WHITE);
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover) {
       // Cycle logic: 1.0 -> 0.75 -> 0.5 -> 0.25 -> 1.0 (Decreasing as
@@ -478,9 +559,7 @@ void UIManager::DrawToolbar(const World &world) {
                           btnSize};
   bool isToggleHover = CheckCollisionPointRec(mousePos, toggleRect);
 
-  DrawRectangleRec(toggleRect,
-                   isToggleHover ? GetColor(0x1a1a2eFF) : GetColor(0x0f3460FF));
-  DrawRectangleLinesEx(toggleRect, 2, WHITE);
+  DrawTexturedButton(texButton, toggleRect, false, isToggleHover);
 
   const char *sizeNames[] = {"Single", "Small", "Medium", "Large", "X-Large"};
   // Convert enum to index for display
@@ -494,10 +573,12 @@ void UIManager::DrawToolbar(const World &world) {
   else if (currentBrushSize == BrushSize::XL)
     sizeIndex = 4;
 
-  DrawText("Size:", (int)toggleRect.x + 10, (int)toggleRect.y + 10, 10,
-           LIGHTGRAY);
-  DrawText(sizeNames[sizeIndex], (int)toggleRect.x + 10, (int)toggleRect.y + 25,
-           20, WHITE);
+  DrawTextEx(uiFont,
+             "Size:", {(float)toggleRect.x + 10, (float)toggleRect.y + 5}, 16,
+             1, LIGHTGRAY); // Smaller label
+  DrawTextEx(uiFont, sizeNames[sizeIndex],
+             {(float)toggleRect.x + 10, (float)toggleRect.y + 25}, 20, 1,
+             WHITE);
 
   if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isToggleHover) {
     // Cycle size

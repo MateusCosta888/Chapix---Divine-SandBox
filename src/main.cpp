@@ -112,10 +112,8 @@ int main(int argc, char *argv[]) {
       if (tx >= 0 && tx < world.GetWidth() && ty >= 0 &&
           ty < world.GetHeight()) {
         const Tile &tile = world.GetTile(tx, ty);
-        DrawText(TextFormat("Tile(%d,%d) Type:%d TransIdx:%d Mask:%d", tx, ty,
-                            (int)tile.type, tile.transitionIndex,
-                            tile.transitionMask),
-                 10, 60, 16, YELLOW);
+        DrawText(TextFormat("Tile(%d,%d) Type:%d", tx, ty, (int)tile.type), 10,
+                 60, 16, YELLOW);
       }
     }
 

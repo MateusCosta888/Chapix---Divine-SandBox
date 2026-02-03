@@ -35,21 +35,14 @@ void WorldRenderer::Draw() {
           tex = nullptr;
           break;
         case TileType::Grass: {
-          // If pure grass (internal), use variations
-          if (tile.transitionIndex == 0) {
-            int grassProb = tileHash % 100;
-            if (grassProb < 20) {
-              tex = &resourceManager.texGrass[0];
-            } else if (grassProb < 60) {
-              tex = &resourceManager.texGrass[1];
-            } else {
-              tex = &resourceManager.texGrass[2];
-            }
+          // Simple grass rendering with 3 variants
+          int grassProb = tileHash % 100;
+          if (grassProb < 20) {
+            tex = &resourceManager.texGrass[0];
+          } else if (grassProb < 60) {
+            tex = &resourceManager.texGrass[1];
           } else {
-            // Use Autotiling Transition
-            // Ensure index is within 0-15
-            int idx = tile.transitionIndex & 0xF;
-            tex = &resourceManager.texGrassTransitions[idx];
+            tex = &resourceManager.texGrass[2];
           }
           break;
         }
@@ -70,7 +63,8 @@ void WorldRenderer::Draw() {
                      .texSand[tileHash % ResourceManager::NUM_SAND_VARIANTS];
           break;
         case TileType::Snow:
-          tex = &resourceManager.texSnow; // Use real snow texture
+          tex = &resourceManager
+                     .texSnow[tileHash % ResourceManager::NUM_SNOW_VARIANTS];
           break;
         case TileType::Mountain:
           tex = &resourceManager
@@ -125,22 +119,6 @@ void WorldRenderer::Draw() {
           }
           // Else: Use full texture for truly single tiles
 
-          // Fix for transparency black holes in autotiling:
-          // If this is a grass transition tile (not a full block), draw sand
-          // underneath first.
-          if (tile.type == TileType::Grass && tile.transitionIndex != 0) {
-            Texture2D *underTex =
-                &resourceManager
-                     .texSand[tileHash % ResourceManager::NUM_SAND_VARIANTS];
-            DrawTexturePro(
-                *underTex,
-                {0, 0, (float)underTex->width, (float)underTex->height},
-                {(float)(x * tileSize + tileSize / 2),
-                 (float)(y * tileSize + tileSize / 2), (float)tileSize,
-                 (float)tileSize},
-                {(float)tileSize / 2, (float)tileSize / 2}, 0.0f, WHITE);
-          }
-
           Rectangle src = {srcX, srcY, srcW, srcH};
           Rectangle dest = {(float)(x * tileSize + tileSize / 2),
                             (float)(y * tileSize + tileSize / 2),
@@ -149,49 +127,81 @@ void WorldRenderer::Draw() {
           DrawTexturePro(*tex, src, dest, origin, 0.0f, tint);
           usedTexture = true;
 
-          // LAYER 2: Draw inner corner overlays for Grass tiles
-          if (tile.type == TileType::Grass && tile.innerCornerMask != 0) {
-            // NE corner (bit 0)
-            if (tile.innerCornerMask & 1) {
-              Texture2D *cornerTex = &resourceManager.texGrassInnerCorners[0];
-              if (cornerTex && cornerTex->id > 0) {
-                DrawTexturePro(
-                    *cornerTex,
-                    {0, 0, (float)cornerTex->width, (float)cornerTex->height},
-                    dest, origin, 0.0f, WHITE);
-              }
+          // === TILE DECORATIONS (simple overlays) ===
+          // These appear with low probability on certain tile types
+          int decorChance = (tileHash * 31) % 100;
+          Texture2D *decorTex = nullptr;
+
+          if (tile.type == TileType::Grass && decorChance < 6) {
+            // 6% chance of decoration on grass
+            // Index 0,1 = mushrooms (common), 2 = rock (common), 3 = trunk
+            // (rare)
+            int decorRoll = (tileHash / 100) % 10;
+            int decorIdx;
+            if (decorRoll < 4) {
+              decorIdx = 0; // mushroom1 (40%)
+            } else if (decorRoll < 7) {
+              decorIdx = 1; // mushroom2 (30%)
+            } else if (decorRoll < 9) {
+              decorIdx = 2; // rock (20%)
+            } else {
+              decorIdx = 3; // trunk (10% - rare)
             }
-            // NW corner (bit 1)
-            if (tile.innerCornerMask & 2) {
-              Texture2D *cornerTex = &resourceManager.texGrassInnerCorners[1];
-              if (cornerTex && cornerTex->id > 0) {
-                DrawTexturePro(
-                    *cornerTex,
-                    {0, 0, (float)cornerTex->width, (float)cornerTex->height},
-                    dest, origin, 0.0f, WHITE);
-              }
+            decorTex = &resourceManager.texGrassDecorations[decorIdx];
+          } else if (tile.type == TileType::Forest && decorChance < 10) {
+            // 10% chance of decoration on forest
+            int decorIdx =
+                (tileHash / 100) % ResourceManager::NUM_FOREST_DECORATIONS;
+            decorTex = &resourceManager.texForestDecorations[decorIdx];
+          } else if ((tile.type == TileType::Sand ||
+                      tile.type == TileType::DesertSand) &&
+                     decorChance < 1) {
+            // 1% chance of decoration on sand (very rare)
+            decorTex = &resourceManager.texSandDecorations[0];
+          } else if (tile.type == TileType::Snow && decorChance < 4) {
+            // 4% chance of decoration on snow
+            int decorIdx =
+                (tileHash / 100) % ResourceManager::NUM_SNOW_DECORATIONS;
+            decorTex = &resourceManager.texSnowDecorations[decorIdx];
+          }
+
+          if (decorTex != nullptr && decorTex->id > 0) {
+            Rectangle decorSrc = {0, 0, (float)decorTex->width,
+                                  (float)decorTex->height};
+            DrawTexturePro(*decorTex, decorSrc, dest, origin, 0.0f, WHITE);
+          }
+
+          // === EDGE SHADOWS (procedural depth) ===
+          // Draw subtle shadows on tile edges where different terrain meets
+          if (tile.edgeMask != 0) {
+            int shadowSize = 2; // pixels (reduced)
+            unsigned char shadowAlpha =
+                15 + (unsigned char)((1.0f - tile.biomeDistance) * 10);
+
+            // North edge
+            if (tile.edgeMask & 0x01) {
+              DrawRectangle(x * tileSize, y * tileSize, tileSize, shadowSize,
+                            (Color){0, 0, 0, shadowAlpha});
             }
-            // SE corner (bit 2)
-            if (tile.innerCornerMask & 4) {
-              Texture2D *cornerTex = &resourceManager.texGrassInnerCorners[2];
-              if (cornerTex && cornerTex->id > 0) {
-                DrawTexturePro(
-                    *cornerTex,
-                    {0, 0, (float)cornerTex->width, (float)cornerTex->height},
-                    dest, origin, 0.0f, WHITE);
-              }
+            // East edge
+            if (tile.edgeMask & 0x02) {
+              DrawRectangle(x * tileSize + tileSize - shadowSize, y * tileSize,
+                            shadowSize, tileSize,
+                            (Color){0, 0, 0, shadowAlpha});
             }
-            // SW corner (bit 3)
-            if (tile.innerCornerMask & 8) {
-              Texture2D *cornerTex = &resourceManager.texGrassInnerCorners[3];
-              if (cornerTex && cornerTex->id > 0) {
-                DrawTexturePro(
-                    *cornerTex,
-                    {0, 0, (float)cornerTex->width, (float)cornerTex->height},
-                    dest, origin, 0.0f, WHITE);
-              }
+            // South edge
+            if (tile.edgeMask & 0x04) {
+              DrawRectangle(x * tileSize, y * tileSize + tileSize - shadowSize,
+                            tileSize, shadowSize,
+                            (Color){0, 0, 0, shadowAlpha});
+            }
+            // West edge
+            if (tile.edgeMask & 0x08) {
+              DrawRectangle(x * tileSize, y * tileSize, shadowSize, tileSize,
+                            (Color){0, 0, 0, shadowAlpha});
             }
           }
+
           // Apply procedural water effects on top of texture
           if (IsWaterTile(tile.type)) {
             float time = (float)GetTime();
