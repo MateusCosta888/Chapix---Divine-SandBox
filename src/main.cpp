@@ -19,7 +19,7 @@ const int TAB_HEIGHT = 30;
 // struct GameUI removed
 
 int main(int argc, char *argv[]) {
-  InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Genesis 2D - God Simulator");
+  InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "ChapisX - Divine SandBox");
   SetTargetFPS(60);
 
   uint32_t seed = 0;

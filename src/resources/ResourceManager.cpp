@@ -56,19 +56,36 @@ void ResourceManager::Load() {
     SetTextureFilter(texSand[i], TEXTURE_FILTER_POINT);
   }
 
-  // Sand decorations (1 rock)
+  // Sand decorations (Rock + 2 Cacti)
   texSandDecorations[0] = LoadTexture("assets/tiles/sand/Rock(decoration).png");
+  texSandDecorations[1] =
+      LoadTexture("assets/tiles/sand/Cactus(decoration).png");
+  texSandDecorations[2] =
+      LoadTexture("assets/tiles/sand/Cactus2(decoration).png");
   for (int i = 0; i < NUM_SAND_DECORATIONS; i++) {
     SetTextureFilter(texSandDecorations[i], TEXTURE_FILTER_POINT);
   }
 
   // Load Mountain (mountain folder)
-  texMountain[0] = LoadTexture("assets/tiles/mountain/montanha1.png");
-  texMountain[1] = LoadTexture("assets/tiles/mountain/montanha2.png");
+  // Load Mountain (mountain folder)
+  texMountain[0] = LoadTexture("assets/tiles/mountain/Mountain1.png");
+  texMountain[1] = LoadTexture("assets/tiles/mountain/mountain2.png");
   for (int i = 0; i < NUM_MOUNTAIN_VARIANTS; i++) {
     SetTextureFilter(texMountain[i], TEXTURE_FILTER_POINT);
   }
-  texMountainRocks = LoadTexture("assets/pedrinhasmontanha.png");
+
+  // Mountain Decorations (Rocks)
+  texMountainDecorations[0] =
+      LoadTexture("assets/tiles/mountain/Rock(decoration).png");
+  texMountainDecorations[1] =
+      LoadTexture("assets/tiles/mountain/Rock2(decoration).png");
+  for (int i = 0; i < NUM_MOUNTAIN_DECORATIONS; i++) {
+    SetTextureFilter(texMountainDecorations[i], TEXTURE_FILTER_POINT);
+  }
+
+  texMountainRocks = LoadTexture(
+      "assets/pedrinhasmontanha.png"); // Keeping old single sheet just in case,
+                                       // but likely unused?
   SetTextureFilter(texMountainRocks, TEXTURE_FILTER_POINT);
 
   // Load Forest (florest folder)
@@ -329,17 +346,165 @@ void ResourceManager::Load() {
   }
   SetTextureFilter(texUIWaterShallow, TEXTURE_FILTER_POINT);
 
-  // Human (Single File for now - if GIF logic needed, handle separately)
-  texHumanIdle = LoadTexture("assets/char/global.png");
-  SetTextureFilter(texHumanIdle, TEXTURE_FILTER_POINT);
+  // --- HUMAN ASSETS ---
+  // Paths:
+  // Unarmed: assets/char/Normal Charcter FULL animations/Character without
+  // weapon/ Armed: assets/char/Normal Charcter FULL animations/Character with
+  // sword and shield/ Subfolders: idle, walk, attack Files: [state]
+  // [direction][frame].png Directions: down, right, left, up (matches index
+  // 0,1,2,3)
 
-  // Human (16 sprites)
-  for (int i = 0; i < 16; i++) {
-    // Format: assets/char/human000.png
-    std::string path = "assets/char/human" + std::string(i < 10 ? "00" : "0") +
-                       std::to_string(i) + ".png";
-    texHuman[i] = LoadTexture(path.c_str());
-    SetTextureFilter(texHuman[i], TEXTURE_FILTER_POINT);
+  const std::string basePath = "assets/char/Normal Charcter FULL animations/";
+  const std::string dirs[] = {"down", "right", "left", "up"};
+  const std::string states[] = {"idle", "walk", "attack"};
+
+  // UNARMED
+  for (int s = 0; s < 3; s++) {     // State
+    for (int d = 0; d < 4; d++) {   // Direction
+      for (int f = 0; f < 4; f++) { // Frame
+        std::string folder =
+            basePath + "Character without weapon/" + states[s] + "/";
+        // Filename e.g. "idle down1.png"
+        // Note: Frame index in file is 1-based
+        std::string filename =
+            states[s] + " " + dirs[d] + std::to_string(f + 1) + ".png";
+
+        texHumanUnarmed[s][d][f] = LoadTexture((folder + filename).c_str());
+        SetTextureFilter(texHumanUnarmed[s][d][f], TEXTURE_FILTER_POINT);
+      }
+    }
+  }
+
+  // ARMED
+  for (int s = 0; s < 3; s++) {     // State
+    for (int d = 0; d < 4; d++) {   // Direction
+      for (int f = 0; f < 4; f++) { // Frame
+        std::string folder =
+            basePath + "Character with sword and shield/" + states[s] + "/";
+        // Same structure
+        std::string filename =
+            states[s] + " " + dirs[d] + std::to_string(f + 1) + ".png";
+
+        texHumanArmed[s][d][f] = LoadTexture((folder + filename).c_str());
+        SetTextureFilter(texHumanArmed[s][d][f], TEXTURE_FILTER_POINT);
+      }
+    }
+  }
+
+  // BOAR LOADING
+  // Order: Down, Right, Left, Up (to match DirIdx 0,1,2,3)
+  std::string boarDirs[] = {"Down", "Right", "Left", "Up"};
+
+  // Idle (4 frames)
+  for (int d = 0; d < 4; d++) {
+    for (int f = 1; f <= 4; f++) {
+      std::string path = "assets/animals/Boar/BoarIDLE/Idle" + boarDirs[d] +
+                         std::to_string(f) + ".png";
+      Texture2D t = LoadTexture(path.c_str());
+      SetTextureFilter(t, TEXTURE_FILTER_POINT);
+      texBoarIdle.push_back(t);
+    }
+  }
+
+  // Walk (6 frames) - Weird naming: WalkDown1.png, WalkDown (2).png
+  for (int d = 0; d < 4; d++) {
+    for (int f = 1; f <= 6; f++) {
+      std::string fname = "Walk" + boarDirs[d];
+      if (f == 1)
+        fname += "1.png";
+      else
+        fname += " (" + std::to_string(f) + ").png";
+
+      std::string path = "assets/animals/Boar/BoarWalk/" + fname;
+      Texture2D t = LoadTexture(path.c_str());
+      SetTextureFilter(t, TEXTURE_FILTER_POINT);
+      texBoarWalk.push_back(t);
+    }
+  }
+
+  // Run (5 frames) - Typo: RunDonw2.png
+  for (int d = 0; d < 4; d++) {
+    for (int f = 1; f <= 5; f++) {
+      std::string fname = "Run" + boarDirs[d] + std::to_string(f) + ".png";
+      // Fix Typo
+      if (d == 0 && f == 2)
+        fname = "RunDonw2.png";
+
+      std::string path = "assets/animals/Boar/BoarRun/" + fname;
+      Texture2D t = LoadTexture(path.c_str());
+      SetTextureFilter(t, TEXTURE_FILTER_POINT);
+      texBoarRun.push_back(t);
+    }
+  }
+
+  // Attack (5 frames)
+  for (int d = 0; d < 4; d++) {
+    for (int f = 1; f <= 5; f++) {
+      std::string path = "assets/animals/Boar/BoarAttack/Attack" + boarDirs[d] +
+                         std::to_string(f) + ".png";
+      Texture2D t = LoadTexture(path.c_str());
+      SetTextureFilter(t, TEXTURE_FILTER_POINT);
+      texBoarAttack.push_back(t);
+    }
+  }
+
+  // Hurt (4 frames)
+  for (int d = 0; d < 4; d++) {
+    for (int f = 1; f <= 4; f++) {
+      std::string path = "assets/animals/Boar/BoarHurt/Hurt" + boarDirs[d] +
+                         std::to_string(f) + ".png";
+      Texture2D t = LoadTexture(path.c_str());
+      SetTextureFilter(t, TEXTURE_FILTER_POINT);
+      texBoarHurt.push_back(t);
+    }
+  }
+
+  // Death (6 frames)
+  for (int d = 0; d < 4; d++) {
+    for (int f = 1; f <= 6; f++) {
+      std::string path = "assets/animals/Boar/BoarDeath/Death" + boarDirs[d] +
+                         std::to_string(f) + ".png";
+      Texture2D t = LoadTexture(path.c_str());
+      SetTextureFilter(t, TEXTURE_FILTER_POINT);
+      texBoarDeath.push_back(t);
+    }
+  }
+
+  // HUMAN EXTRAS
+  // Swim (Unarmed)
+  // std::string dirs[] = ... (Using existing)
+  for (int d = 0; d < 4; d++) {
+    for (int f = 1; f <= 4; f++) {
+      std::string path = basePath + "Character without weapon/swim/swim " +
+                         dirs[d] + std::to_string(f) + ".png";
+      texHumanUnarmedSwim[d][f - 1] = LoadTexture(path.c_str());
+      SetTextureFilter(texHumanUnarmedSwim[d][f - 1], TEXTURE_FILTER_POINT);
+    }
+  }
+  // Swim (Armed)
+  for (int d = 0; d < 4; d++) {
+    for (int f = 1; f <= 4; f++) {
+      std::string path = basePath +
+                         "Character with sword and shield/swim/swim " +
+                         dirs[d] + std::to_string(f) + ".png";
+      texHumanArmedSwim[d][f - 1] = LoadTexture(path.c_str());
+      SetTextureFilter(texHumanArmedSwim[d][f - 1], TEXTURE_FILTER_POINT);
+    }
+  }
+  // Block (Armed)
+  for (int d = 0; d < 4; d++) {
+    std::string path = basePath +
+                       "Character with sword and shield/block/block " +
+                       dirs[d] + ".png";
+    texHumanArmedBlock[d] = LoadTexture(path.c_str());
+    SetTextureFilter(texHumanArmedBlock[d], TEXTURE_FILTER_POINT);
+  }
+  // Death
+  for (int f = 1; f <= 4; f++) {
+    std::string path =
+        basePath + "death animation/death" + std::to_string(f) + ".png";
+    texHumanDeath[f - 1] = LoadTexture(path.c_str());
+    SetTextureFilter(texHumanDeath[f - 1], TEXTURE_FILTER_POINT);
   }
 
   // --- ANIMAL ASSETS ---
@@ -433,8 +598,14 @@ void ResourceManager::Unload() {
   }
   // Remove individual loops if they are annoying to target,
   // but importantly add Human unload loop.
-  for (int i = 0; i < 16; i++) {
-    UnloadTexture(texHuman[i]);
+  // Unload Human Arrays
+  for (int s = 0; s < 3; s++) {
+    for (int d = 0; d < 4; d++) {
+      for (int f = 0; f < 4; f++) {
+        UnloadTexture(texHumanUnarmed[s][d][f]);
+        UnloadTexture(texHumanArmed[s][d][f]);
+      }
+    }
   }
 
   // Unload Animal Textures
@@ -616,13 +787,4 @@ Texture2D ResourceManager::GetTextureForUI(DecorationType type) {
   default:
     return {0};
   }
-}
-
-Texture2D ResourceManager::GetHumanTexture(bool isWalking, int direction) {
-  if (!texturesLoaded)
-    return {0};
-
-  // Always return the global sprite sheet (256x384)
-  // Slicing handles animation state
-  return texHumanIdle;
 }

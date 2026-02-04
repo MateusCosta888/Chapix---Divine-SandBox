@@ -2,6 +2,17 @@
 #include "../world/World.h"
 #include "raylib.h"
 
+#include <vector>
+
+struct RenderItem {
+  Texture2D texture;
+  Rectangle src;
+  Rectangle dest;
+  Vector2 origin;
+  Color tint;
+  float sortY;
+};
+
 class WorldRenderer {
 public:
   WorldRenderer(World &world);

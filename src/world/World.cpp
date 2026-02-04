@@ -93,7 +93,7 @@ TileType GetTerrainForBiome(BiomeType biome, float height) {
       return TileType::Snow;
     }
     // Coastal check for Plains/Forest
-    if (height < 0.45f) {
+    if (height < 0.42f) {    // Thinner beach (0.40 - 0.42)
       return TileType::Sand; // Beach just above water
     }
     if (biome == BiomeType::Forest) {
@@ -102,9 +102,13 @@ TileType GetTerrainForBiome(BiomeType biome, float height) {
     return TileType::Grass; // Default land
   }
 
-  // 5. Mountain Layer (Highest)
-  // This is the blocking layer
-  return TileType::Mountain;
+  if (biome == BiomeType::Snow)
+    return TileType::Snow;
+  if (biome == BiomeType::Desert)
+    return TileType::DesertSand;
+  if (biome == BiomeType::Forest)
+    return TileType::Forest;
+  return TileType::Grass;
 }
 
 bool World::IsWalkable(int x, int y) const {
@@ -123,6 +127,20 @@ bool World::IsWalkable(int x, int y) const {
   if (t.type == TileType::DeepOcean || t.type == TileType::Ocean ||
       t.type == TileType::ShallowOcean) {
     return false; // Requires swimming
+  }
+
+  // Check blocking decorations
+  if (t.decoration == DecorationType::Tree ||
+      t.decoration == DecorationType::PineTree ||
+      t.decoration == DecorationType::PalmTree ||
+      t.decoration == DecorationType::Rock ||
+      t.decoration == DecorationType::BigRock ||
+      t.decoration == DecorationType::SmallRock ||
+      t.decoration == DecorationType::MediumRock ||
+      t.decoration == DecorationType::Crystal ||
+      t.decoration == DecorationType::Cactus ||
+      t.decoration == DecorationType::DesertPlant) {
+    return false;
   }
 
   return true;
@@ -147,6 +165,7 @@ void World::Generate() {
   Noise heightNoise(seed_);
   Noise tempNoise(seed_ + 1000);     // Offset seed for variation
   Noise humidityNoise(seed_ + 2000); // Different offset
+  Noise mountainNoise(seed_ + 3000); // New independent noise for mountains
 
   int padding = 10; // Safe zone padding
 
@@ -206,6 +225,72 @@ void World::Generate() {
       // 5. Get terrain type based on biome and height
       tile.type = GetTerrainForBiome(tile.biome, h);
 
+      // 6. Independent Mountain Generation (Constrained Regions)
+      // Pick 3 Mountain Centers randomly based on seed
+      // We do this procedurally per pixel, but that's expensive/tricky for
+      // "global" centers. Better to define them statically based on seed at the
+      // start of Generate? Since we are in the loop, we can just hash the seed
+      // to get 3 fixed points (relative to map size).
+
+      // Pseudo-random centers based on world seed
+      float mCenters[3][2];
+      float mRadii[3];
+
+      std::mt19937 mRng(seed_ ^ 9999);
+      std::uniform_real_distribution<float> distX(0, (float)width);
+      std::uniform_real_distribution<float> distY(0, (float)height);
+
+      // 1 Major Region
+      mCenters[0][0] = distX(mRng);
+      mCenters[0][1] = distY(mRng);
+      mRadii[0] =
+          std::min(width, height) * 0.35f; // Large radius (35% of map size)
+
+      // 2 Minor Regions
+      mCenters[1][0] = distX(mRng);
+      mCenters[1][1] = distY(mRng);
+      mRadii[1] = std::min(width, height) * 0.15f;
+
+      mCenters[2][0] = distX(mRng);
+      mCenters[2][1] = distY(mRng);
+      mRadii[2] = std::min(width, height) * 0.15f;
+
+      // Check if current point (x, y) is inside any mountain region
+      bool inMountainRegion = false;
+      float distanceFade = 0.0f; // 0 edge, 1 center
+
+      for (int i = 0; i < 3; i++) {
+        float dx = x - mCenters[i][0];
+        float dy = y - mCenters[i][1];
+        float dist = std::sqrt(dx * dx + dy * dy);
+        if (dist < mRadii[i]) {
+          inMountainRegion = true;
+          // Simple fade factor for blending?
+          // For now, hard boolean mask is what user asked ("max 3 biomes").
+          // But let's attenuate edges slightly for smoothness?
+          // Actually user wants "distinct", so let's keep boolean but rely on
+          // noise to shape it.
+          break;
+        }
+      }
+
+      if (h > 0.0f &&
+          inMountainRegion) { // Land only AND inside one of the 3 circles
+        // Ridge Noise Logic...
+        float mVal = mountainNoise.GetFractal(nx, ny, 4, 2.5f, 0.5f);
+        float ridge = 1.0f - (std::abs(mVal - 0.5f) * 2.0f);
+        ridge = ridge * ridge * ridge * ridge;
+
+        float threshold = 0.85f;
+        if (tile.type == TileType::Grass)
+          threshold = 0.80f;
+
+        if (ridge > threshold) {
+          tile.type = TileType::Mountain;
+          tile.height += 0.5f;
+        }
+      }
+
       // Pre-calculate visual variants
       tile.variant = x * 73856093 ^ y * 19349663;
       tile.decorationVariant = (tile.variant ^ seed_) % 4;
@@ -213,15 +298,73 @@ void World::Generate() {
   }
 
   // ==========================================================================
-  // EDGE MASK CALCULATION (post-process after all tiles generated)
+  // MOUNTAIN FILTERING (Despeckle)
+  // Remove small mountain clusters to enforce minimum size roughly 10x10
+  // perception. We do this by checking neighbor count.
+  // ==========================================================================
+  for (int minSizePass = 0; minSizePass < 3;
+       minSizePass++) { // Multiple passes to erode small bits
+    std::vector<TileType> newTypes(width * height);
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        newTypes[y * width + x] = GetTile(x, y).type;
+      }
+    }
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        Tile &tile = GetTile(x, y);
+        if (tile.type == TileType::Mountain) {
+          int mountainNeighbors = 0;
+          // Check 5x5 area (radius 2)
+          for (int dy = -2; dy <= 2; dy++) {
+            for (int dx = -2; dx <= 2; dx++) {
+              if (dx == 0 && dy == 0)
+                continue;
+              int nx = x + dx;
+              int ny = y + dy;
+              if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                if (GetTile(nx, ny).type == TileType::Mountain)
+                  mountainNeighbors++;
+              }
+            }
+          }
+          // Max neighbors in 5x5 is 24.
+          // If isolated or thin strip, remove.
+          // Require strong support (e.g., > 15) to survive.
+          if (mountainNeighbors < 15) {
+            // Revert to underlying biome logic (approximate)
+            // Just make it the neighbor's generic type (Grass/Forest) or
+            // re-calc Simplest: Set to Grass or closest non-mountain neighbor?
+            // Let's just set to Grass (default land) or Forest if biome
+            // matches.
+            if (tile.biome == BiomeType::Forest)
+              newTypes[y * width + x] = TileType::Forest;
+            else if (tile.biome == BiomeType::Desert)
+              newTypes[y * width + x] = TileType::DesertSand;
+            else if (tile.biome == BiomeType::Snow)
+              newTypes[y * width + x] = TileType::Snow;
+            else
+              newTypes[y * width + x] = TileType::Grass;
+          }
+        }
+      }
+    }
+
+    // Apply changes
+    for (int i = 0; i < width * height; i++) {
+      tiles[i].type = newTypes[i];
+    }
+  }
+
+  // ==========================================================================
+  // EDGE MASK CALCULATION
   // ==========================================================================
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
       Tile &tile = GetTile(x, y);
       tile.edgeMask = 0;
 
-      // Check each direction for different terrain
-      // Bit 0 = North, Bit 1 = East, Bit 2 = South, Bit 3 = West
       if (y > 0 && GetTile(x, y - 1).type != tile.type)
         tile.edgeMask |= 0x01;
       if (x < width - 1 && GetTile(x + 1, y).type != tile.type)
@@ -230,6 +373,138 @@ void World::Generate() {
         tile.edgeMask |= 0x04;
       if (x > 0 && GetTile(x - 1, y).type != tile.type)
         tile.edgeMask |= 0x08;
+    }
+  }
+
+  // ==========================================================================
+  // PROCEDURAL DECORATION GENERATION (Baking visuals into logic)
+  // ==========================================================================
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      Tile &tile = GetTile(x, y);
+
+      // Skip if already decorated (manual or water safety)
+      if (tile.decoration != DecorationType::None)
+        continue;
+      if (IsSwimmable(x, y))
+        continue;
+
+      unsigned int seed = tile.variant ^ seed_ ^ 9284387;
+      int tileHash = tile.variant;
+
+      // 1. TREES
+      bool hasTree = false;
+      if (tile.type == TileType::Forest) {
+        if ((seed % 100) < 20) { // Reduced from 30% to 20%
+          tile.decoration = DecorationType::Tree;
+          // Variant logic: 0=Fruit, 1=Normal, 2=Moss.
+          // We store specific type in variant? Or just generic Tree and
+          // renderer handles? Rendering used complex logic. For simple
+          // collision, DecorationType::Tree is enough. We can use
+          // decorationVariant to store the specific subtype if needed.
+          // WorldRenderer manual pass used decorationVariant directly.
+          // Let's store a random variant 0-100 and let renderer map it.
+          tile.decorationVariant = seed % 100;
+          hasTree = true;
+        }
+      } else if (tile.type == TileType::Snow) {
+        if ((seed % 100) < 15) { // 15% Snow
+          tile.decoration = DecorationType::PineTree;
+          tile.decorationVariant = seed % 100;
+          hasTree = true;
+        }
+      } else if (tile.type == TileType::Sand) { // Beach
+        if ((seed % 100) < 5) {                 // 5% Palm Trees on Beach
+          tile.decoration = DecorationType::PalmTree;
+          tile.decorationVariant = seed % 100;
+          hasTree = true;
+        }
+      } else if (tile.type == TileType::DesertSand) {
+        if ((seed % 100) < 5) { // 5% Desert Plants
+          tile.decoration = DecorationType::DesertPlant;
+          tile.decorationVariant =
+              seed %
+              100; // Will map to 0,1,2 in Renderer (Rock, Cactus1, Cactus2)
+          hasTree = true; // Use hasTree flag to skip other decorations
+        }
+      }
+
+      if (hasTree)
+        continue;
+
+      // 2. CRYSTALS (Mountain)
+      if (tile.type == TileType::Mountain && tile.height > 0.65f) {
+        unsigned int crySeed = tile.variant ^ 0x111 ^ seed_ ^ 33333;
+        if ((crySeed % 1000) < 15) { // 1.5%
+          tile.decoration = DecorationType::Crystal;
+          tile.decorationVariant = crySeed % 100;
+          continue;
+        }
+      }
+
+      // 3. ROCKS (Mountain)
+      if (tile.type == TileType::Mountain) {
+        unsigned int rockSeed = tile.variant ^ seed_ ^ 1234567;
+        if ((rockSeed % 100) < 10) { // Reduced to 10% (was 30%)
+          tile.decoration =
+              DecorationType::Rock; // Maps to Rock1/Rock2 in Renderer
+          // Use decorationVariant to select between Rock1 and Rock2?
+          // We have NUM_MOUNTAIN_DECORATIONS = 2.
+          tile.decorationVariant = rockSeed % 2;
+          continue;
+        }
+      }
+
+      // 4. BIG ROCKS (Scattered)
+      if (tile.type == TileType::Grass || tile.type == TileType::Forest ||
+          tile.type == TileType::Snow || tile.type == TileType::DesertSand) {
+        unsigned int bigRockSeed = tile.variant ^ 0x999 ^ seed_ ^ 77777;
+        if ((bigRockSeed % 1000) < 5) { // 0.5%
+          tile.decoration = DecorationType::BigRock;
+          tile.decorationVariant = bigRockSeed % 100;
+          continue;
+        }
+      }
+
+      // 5. BUSHES & CACTI
+      unsigned int bushSeed = tile.variant ^ 0x876 ^ seed_ ^ 55555;
+
+      // Removed standard bushes per user request
+      /*
+      if (tile.type == TileType::Forest || tile.type == TileType::Grass) {
+        if ((bushSeed % 100) < 20) { // 20%
+          tile.decoration = DecorationType::Bush;
+          tile.decorationVariant = bushSeed % 100;
+          continue;
+        }
+      } else
+      */
+
+      if (tile.type == TileType::Snow) {
+        if ((bushSeed % 100) < 5) {               // 5%
+          tile.decoration = DecorationType::Bush; // Snow bush
+          tile.decorationVariant = bushSeed % 100;
+          continue;
+        }
+      } else if (tile.type == TileType::DesertSand) {
+        if ((bushSeed % 100) < 3) { // 3%
+          tile.decoration = DecorationType::Cactus;
+          tile.decorationVariant = bushSeed % 100;
+          continue;
+        }
+      }
+
+      // 6. GRASS TUFTS (Forest1 only)
+      if (tile.type == TileType::Forest) {
+        if ((tileHash % 100) < 60) { // Only on Forest1
+          unsigned int grassSeed = tile.variant ^ 0x444 ^ seed_ ^ 66666;
+          if ((grassSeed % 100) < 25) { // 25%
+            tile.decoration = DecorationType::GrassTuft;
+            tile.decorationVariant = grassSeed % 100;
+            continue;
+          }
+        }
+      }
     }
   }
 
@@ -475,8 +750,16 @@ Texture2D World::GetTextureForUI(DecorationType type) {
 }
 
 Texture2D World::GetTextureForUI(EntityType type) {
-  if (type == EntityType::Human) {
-    return resourceManager.texHuman[0]; // First frame
+  if (type == EntityType::HumanUnarmed) {
+    return resourceManager.texHumanUnarmed[0][0][0]; // Idle Down Frame 0
+  }
+  if (type == EntityType::HumanArmed) {
+    return resourceManager.texHumanArmed[0][0][0];
+  }
+  if (type == EntityType::Boar) {
+    if (!resourceManager.texBoarIdle.empty())
+      return resourceManager.texBoarIdle[0];
+    return {0};
   }
   if (type == EntityType::Cow) {
     return resourceManager.texCow[0];
@@ -546,10 +829,19 @@ void World::AddEntity(EntityType type, Vector2 pos) {
   e.hasTarget = false;
 
   // Set speed based on creature type
-  if (type == EntityType::Human) {
+  // Set speed and health based on creature type
+  if (type == EntityType::HumanUnarmed) {
     e.speed = 2.0f;
+    e.health = 15.0f;
+  } else if (type == EntityType::HumanArmed) {
+    e.speed = 2.0f;
+    e.health = 20.0f;
+  } else if (type == EntityType::Boar) {
+    e.speed = 2.5f; // Faster
+    e.health = 15.0f;
   } else if (type == EntityType::Cow || type == EntityType::Bull) {
     e.speed = 0.5f;
+    e.health = 10.0f;
   } else if (type == EntityType::Chicken || type == EntityType::Chicken2 ||
              type == EntityType::Turkey) {
     e.speed = 0.8f;
@@ -567,77 +859,291 @@ void World::AddEntity(EntityType type, Vector2 pos) {
 }
 
 void World::UpdateEntities(float deltaTime) {
-  for (auto &e : entities) {
+  for (size_t i = 0; i < entities.size(); i++) {
+    Entity &e = entities[i];
+
     // Basic AI
-    if (e.type == EntityType::Human) {
-      if (e.hasTarget) {
-        // Move towards target
-        Vector2 dir = Vector2Subtract(e.targetPos, e.position);
-        float dist = Vector2Length(dir);
-
-        if (dist < 0.1f) {
-          e.hasTarget = false;
-          e.state = EntityState::Idle;
-          e.currentFrame = 0; // Reset to standing frame
-        } else {
-          e.state = EntityState::Walking;
-          float speed = 2.0f; // tiles per second
-          Vector2 move = Vector2Scale(Vector2Normalize(dir), speed * deltaTime);
-          e.position = Vector2Add(e.position, move);
-
-          // Update Direction
-          if (fabs(dir.x) > fabs(dir.y)) {
-            // Horizontal preference
-            e.facingDirection = (dir.x > 0) ? 1 : -1; // 1=Right, -1=Left
-          } else {
-            // Vertical preference
-            e.facingDirection =
-                (dir.y > 0) ? 0
-                            : 2; // 0=Down, 2=Up (Mapped to Row 3 in Renderer)
-          }
+    // === BOAR AI ===
+    if (e.type == EntityType::Boar) {
+      if (e.state == EntityState::Die) {
+        e.animTime += deltaTime;
+        if (e.animTime >= 0.15f) {
+          e.animTime = 0.0f;
+          e.currentFrame++;
         }
-      } else {
-        // Idle Behavior
-        e.state = EntityState::Idle;
-        // Chance to pick new target
-        // Increased to 5% for more activity
-        if (rng_.Int(0, 100) < 5) {
-          float range = 5.0f;
-          float tx = e.position.x;
-          float ty = e.position.y;
+        if (e.currentFrame >= 6)
+          entities.erase(entities.begin() + i--);
+        continue;
+      }
+      if (e.state == EntityState::Hurt) {
+        e.animTime += deltaTime;
+        if (e.animTime >= 0.1f) {
+          e.animTime = 0.0f;
+          e.currentFrame++;
+          if (e.currentFrame >= 4)
+            e.state = EntityState::Idle;
+        }
+        continue;
+      }
 
-          int moveDir = rng_.Int(0, 4); // 0:Up, 1:Down, 2:Left, 3:Right
-          float dist = 2.0f + (rng_.Float() * 3.0f); // Move 2-5 tiles
+      // Attack Logic
+      if (e.state == EntityState::Attack) {
+        e.animTime += deltaTime;
+        if (e.animTime >= 0.1f) {
+          e.animTime = 0.0f;
+          e.currentFrame++;
+          if (e.currentFrame == 3) { // Impact
+            for (auto &target : entities) {
+              if ((target.type == EntityType::HumanArmed ||
+                   target.type == EntityType::HumanUnarmed) &&
+                  target.health > 0) {
+                if (Vector2Distance(e.position, target.position) < 1.5f) {
+                  float dmg = 5.0f;
+                  if (target.type == EntityType::HumanArmed &&
+                      rng_.Int(0, 100) < 20) {
+                    dmg *= 0.5f;
+                    target.state = EntityState::Block;
+                    target.currentFrame = 0;
+                    TraceLog(LOG_INFO, "COMBAT: Human BLOCKED Boar!");
+                  }
+                  target.health -= dmg;
+                  if (target.health <= 0)
+                    target.state = EntityState::Die;
+                }
+              }
+            }
+          }
+          if (e.currentFrame >= 5)
+            e.state = EntityState::Idle;
+        }
+        continue;
+      }
 
-          if (moveDir == 0)
-            ty -= dist; // Up
-          else if (moveDir == 1)
-            ty += dist; // Down
-          else if (moveDir == 2)
-            tx -= dist; // Left
-          else if (moveDir == 3)
-            tx += dist; // Right
-
-          // Clamp
-          tx = std::max(0.0f, std::min((float)width - 1, tx));
-          ty = std::max(0.0f, std::min((float)height - 1, ty));
-          e.targetPos = {tx, ty};
-          e.hasTarget = true;
-          TraceLog(LOG_INFO,
-                   "AI: Entity Human picked CARDINAL target %.2f, %.2f", tx,
-                   ty);
+      // Hunt Humans
+      bool targetFound = false;
+      Vector2 targetPos = e.position;
+      for (const auto &target : entities) {
+        if ((target.type == EntityType::HumanArmed ||
+             target.type == EntityType::HumanUnarmed) &&
+            target.health > 0) {
+          if (Vector2Distance(e.position, target.position) < 6.0f) {
+            targetPos = target.position;
+            targetFound = true;
+            break;
+          }
         }
       }
 
-      // Animation
+      if (targetFound) {
+        e.state = EntityState::Run;
+        if (Vector2Distance(e.position, targetPos) < 1.0f) {
+          e.state = EntityState::Attack;
+          e.currentFrame = 0;
+        } else {
+          Vector2 dir =
+              Vector2Normalize(Vector2Subtract(targetPos, e.position));
+          e.position = Vector2Add(
+              e.position, Vector2Scale(dir, e.speed * 1.5f * deltaTime));
+          // Facing
+          if (fabs(dir.x) > fabs(dir.y))
+            e.facingDirection = (dir.x > 0) ? 1 : -1;
+          else
+            e.facingDirection = (dir.y > 0) ? 0 : 2;
+        }
+      } else {
+        // Random Wander
+        if (e.state != EntityState::Walking)
+          e.state = EntityState::Walking;
+
+        // Randomly change direction
+        if (rng_.Int(0, 50) == 0) {
+          int r = rng_.Int(0, 4);
+          if (r == 0)
+            e.facingDirection = 0;
+          else if (r == 1)
+            e.facingDirection = 1;
+          else if (r == 2)
+            e.facingDirection = -1;
+          else
+            e.facingDirection = 2;
+        }
+
+        Vector2 dir = {0, 0};
+        if (e.facingDirection == 0)
+          dir.y = 1;
+        else if (e.facingDirection == 1)
+          dir.x = 1;
+        else if (e.facingDirection == -1)
+          dir.x = -1;
+        else
+          dir.y = -1;
+
+        if (rng_.Int(0, 10) > 1) { // Move 80% of time
+          Vector2 next = Vector2Add(
+              e.position, Vector2Scale(dir, e.speed * 0.5f * deltaTime));
+          if (IsWalkable((int)next.x, (int)next.y))
+            e.position = next;
+          else {
+            // Hit wall, turn
+            e.facingDirection = (e.facingDirection + 1) % 4; // Simple turn
+          }
+        }
+      }
+
+      // Anim Ticker
+      e.animTime += deltaTime;
+      if (e.animTime > 0.1f) {
+        e.animTime = 0.0f;
+        e.currentFrame++;
+      }
+      continue;
+    }
+
+    // === HUMAN AI ===
+    else if (e.type == EntityType::HumanUnarmed ||
+             e.type == EntityType::HumanArmed) {
+      // Death
+      if (e.state == EntityState::Die) {
+        e.animTime += deltaTime;
+        if (e.animTime >= 0.2f) {
+          e.animTime = 0.0f;
+          e.currentFrame++;
+        }
+        if (e.currentFrame >= 4)
+          entities.erase(entities.begin() + i--);
+        continue;
+      }
+      // Block
+      if (e.state == EntityState::Block) {
+        e.animTime += deltaTime;
+        if (e.animTime >= 0.3f)
+          e.state = EntityState::Idle;
+        continue;
+      }
+
+      // Attack
+      if (e.state == EntityState::Attack) {
+        e.animTime += deltaTime;
+        if (e.animTime >= 0.30f) { // Slow attack
+          e.animTime = 0.0f;
+          e.currentFrame++;
+          if (e.currentFrame == 2) {
+            for (auto &target : entities) {
+              if (target.type == EntityType::Boar && target.health > 0) {
+                float dist = Vector2Distance(e.position, target.position);
+                if (dist < 1.5f) {
+                  Vector2 dirTo = Vector2Normalize(
+                      Vector2Subtract(target.position, e.position));
+                  bool facing = false;
+                  if (e.facingDirection == 0 && dirTo.y > 0.5f)
+                    facing = true;
+                  else if (e.facingDirection == 1 && dirTo.x > 0.5f)
+                    facing = true;
+                  else if (e.facingDirection == -1 && dirTo.x < -0.5f)
+                    facing = true;
+                  else if (e.facingDirection == 2 && dirTo.y < -0.5f)
+                    facing = true;
+
+                  if (facing) {
+                    float dmg =
+                        (e.type == EntityType::HumanArmed) ? 5.0f : 2.0f;
+                    target.health -= dmg;
+                    target.state = EntityState::Hurt;
+                    target.currentFrame = 0;
+                    if (target.health <= 0)
+                      target.state = EntityState::Die;
+                    TraceLog(LOG_INFO, "COMBAT: Human Hit Boar!");
+                  }
+                }
+              }
+            }
+          }
+          if (e.currentFrame >= 4)
+            e.state = EntityState::Idle;
+        }
+        continue;
+      }
+
+      // Hunt Boars
+      bool foundTarget = false;
+      Vector2 targetPos = e.position;
+      float minDist = 10.0f;
+      for (const auto &target : entities) {
+        if (target.type == EntityType::Boar && target.health > 0) {
+          float d = Vector2Distance(e.position, target.position);
+          if (d < minDist) {
+            minDist = d;
+            targetPos = target.position;
+            foundTarget = true;
+          }
+        }
+      }
+
+      if (foundTarget) {
+        if (minDist < 1.0f) {
+          e.state = EntityState::Attack;
+          e.currentFrame = 0;
+          e.animTime = 0.0f;
+          e.hasTarget = false;
+
+          // Still allow facing update
+          Vector2 dir = Vector2Subtract(targetPos, e.position);
+          if (fabs(dir.x) > fabs(dir.y))
+            e.facingDirection = (dir.x > 0) ? 1 : -1;
+          else
+            e.facingDirection = (dir.y > 0) ? 0 : 2;
+
+        } else {
+          // Move logic
+          e.state = EntityState::Walking;
+          Vector2 dir =
+              Vector2Normalize(Vector2Subtract(targetPos, e.position));
+          e.position = Vector2Add(
+              e.position, Vector2Scale(dir, 2.0f * deltaTime)); // Speed 2.0
+          if (fabs(dir.x) > fabs(dir.y))
+            e.facingDirection = (dir.x > 0) ? 1 : -1;
+          else
+            e.facingDirection = (dir.y > 0) ? 0 : 2;
+        }
+      } else {
+        // Wander
+        bool isIdle = (e.state == EntityState::Idle);
+        if (rng_.Int(0, 100) < 2) {
+          float tx = e.position.x + rng_.Float() * 10 - 5;
+          float ty = e.position.y + rng_.Float() * 10 - 5;
+          if (IsWalkable((int)tx, (int)ty)) {
+            e.targetPos = {tx, ty};
+            e.hasTarget = true;
+          }
+        }
+
+        if (e.hasTarget && !foundTarget) { // Wander target
+          Vector2 dir = Vector2Subtract(e.targetPos, e.position);
+          if (Vector2Length(dir) < 0.1f) {
+            e.hasTarget = false;
+            e.state = EntityState::Idle;
+          } else {
+            e.state = EntityState::Walking;
+            e.position = Vector2Add(
+                e.position, Vector2Scale(Vector2Normalize(dir),
+                                         1.0f * deltaTime)); // Slow wander
+            if (fabs(dir.x) > fabs(dir.y))
+              e.facingDirection = (dir.x > 0) ? 1 : -1;
+            else
+              e.facingDirection = (dir.y > 0) ? 0 : 2;
+          }
+        } else if (!foundTarget) {
+          e.state = EntityState::Idle;
+        }
+      }
+
+      // Anim
       if (e.state == EntityState::Walking) {
         e.animTime += deltaTime;
         if (e.animTime >= 0.15f) {
           e.animTime = 0.0f;
           e.currentFrame = (e.currentFrame + 1) % 4;
         }
-      } else {
-        e.currentFrame = 0; // Idle frame (col 0)
       }
     }
 

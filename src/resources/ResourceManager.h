@@ -23,8 +23,9 @@ public:
   // Tile Decorations
   static const int NUM_GRASS_DECORATIONS = 4;  // 2 mushrooms + 1 rock + 1 trunk
   static const int NUM_FOREST_DECORATIONS = 3; // bushes + little plants
-  static const int NUM_SAND_DECORATIONS = 1;   // 1 rock
+  static const int NUM_SAND_DECORATIONS = 3;   // 1 rock + 2 cacti
   static const int NUM_SNOW_DECORATIONS = 2;   // snow rocks + snowman
+  static const int NUM_MOUNTAIN_DECORATIONS = 2; // Rock + Rock2
 
   // Trees
   static const int NUM_TREE_TYPES = 4;
@@ -71,6 +72,7 @@ public:
   Texture2D texForestDecorations[NUM_FOREST_DECORATIONS];
   Texture2D texSandDecorations[NUM_SAND_DECORATIONS];
   Texture2D texSnowDecorations[NUM_SNOW_DECORATIONS];
+  Texture2D texMountainDecorations[NUM_MOUNTAIN_DECORATIONS];
 
   // -- Decoration Textures --
   Texture2D texTrees[NUM_TREE_TYPES];
@@ -105,18 +107,25 @@ public:
   Texture2D GetTextureForUI(DecorationType type);
   Texture2D GetHumanTexture(bool isWalking, int direction); // New Helper
 
-  // Human Assets
-  Texture2D texHumanIdle; // global.png
-  // For GIFs, Raylib usually splits them into textures or we just use
-  // `LoadImageAnim` logic, but for simplicity in this ResourceManager which
-  // returns Texture2D, we might load them as simple textures if they were
-  // sprite sheets, but user said GIFs. Raylib loads GIFs as an Image with
-  // frames. For now, let's store the raw Texture2D of the first frame or manage
-  // animation separately? Simpler: Just load them as Textures (static) if the
-  // user converted them, but user said GIFs. Actually, Raylib's `LoadTexture`
-  // only loads the first frame of a GIF. To handle resizing/animation properly
-  // we might need `Image`. But let's assume we load them as textures for now
-  Texture2D texHuman[16]; // 0-3: Down, 4-7: Right, 8-11: Left, 12-15: Up
+  // Human Assets (3 States: Idle, Walk, Attack | 4 Directions | 4 Frames)
+  // Directions: 0:Down, 1:Right, 2:Left, 3:Up (Matches standard order)
+  // Dimensions vary per state/frame, so we load them all as separate Texture2D.
+  Texture2D texHumanUnarmed[3][4][4];
+  Texture2D texHumanArmed[3][4][4];
+
+  // Human Extras
+  Texture2D texHumanUnarmedSwim[4][4];
+  Texture2D texHumanArmedSwim[4][4];
+  Texture2D texHumanArmedBlock[4];
+  Texture2D texHumanDeath[4];
+
+  // Boar
+  std::vector<Texture2D> texBoarIdle;
+  std::vector<Texture2D> texBoarWalk;
+  std::vector<Texture2D> texBoarRun;
+  std::vector<Texture2D> texBoarAttack;
+  std::vector<Texture2D> texBoarHurt;
+  std::vector<Texture2D> texBoarDeath;
 
   // Animal textures (24 frames each: 6 per direction - Down, Up, Left, Right)
   Texture2D texCow[24];

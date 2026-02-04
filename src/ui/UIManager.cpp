@@ -160,10 +160,15 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
         } else if (currentTab == UIState::Creatures) {
           // Creature Placement
           EntityType creatureTypesForPlacement[] = {
-              EntityType::Human, EntityType::Cow,  EntityType::Chicken,
-              EntityType::Sheep, EntityType::Bull, EntityType::Chicken2,
-              EntityType::Lamb,  EntityType::Pig,  EntityType::Turkey};
-          if (selectedToolIndex >= 0 && selectedToolIndex < 9) {
+              EntityType::HumanUnarmed, EntityType::HumanArmed,
+              EntityType::Boar,         EntityType::Cow,
+              EntityType::Chicken,      EntityType::Sheep,
+              EntityType::Bull,         EntityType::Chicken2,
+              EntityType::Lamb,         EntityType::Pig,
+              EntityType::Turkey};
+
+          // Updated size to 11
+          if (selectedToolIndex >= 0 && selectedToolIndex < 11) {
             // Only place on click (not hold) to avoid spamming
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
               world.AddEntity(creatureTypesForPlacement[selectedToolIndex],
@@ -467,12 +472,12 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Creatures) {
-    numTools =
-        9; // Human, Cow, Chicken, Sheep, Bull, Chicken2, Lamb, Pig, Turkey
+    numTools = 10; // Updated count
     EntityType creatureTypes[] = {
-        EntityType::Human, EntityType::Cow,  EntityType::Chicken,
-        EntityType::Sheep, EntityType::Bull, EntityType::Chicken2,
-        EntityType::Lamb,  EntityType::Pig,  EntityType::Turkey};
+        EntityType::HumanUnarmed, EntityType::HumanArmed, // New Types
+        EntityType::Cow,          EntityType::Chicken,    EntityType::Sheep,
+        EntityType::Bull,         EntityType::Chicken2,   EntityType::Lamb,
+        EntityType::Pig,          EntityType::Turkey};
 
     for (int i = 0; i < numTools; i++) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,

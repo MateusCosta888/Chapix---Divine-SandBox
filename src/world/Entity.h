@@ -2,7 +2,9 @@
 #include "raylib.h"
 
 enum class EntityType {
-  Human,
+  HumanUnarmed, // Replaces Generic Human
+  HumanArmed,   // New Armed Variant
+  Boar,         // New Enemy
   Cow,
   Chicken,
   Sheep,
@@ -13,7 +15,7 @@ enum class EntityType {
   Turkey
 };
 
-enum class EntityState { Idle, Walking };
+enum class EntityState { Idle, Walking, Attack, Run, Hurt, Die, Swim, Block };
 
 struct Entity {
   int id;

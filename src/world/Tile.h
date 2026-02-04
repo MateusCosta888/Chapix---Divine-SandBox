@@ -39,8 +39,12 @@ enum class DecorationType {
   BigRock, // Existing big rock
   Flower,
   Mushroom,
-  SmallRock, // New distinct type (Rock2)
-  MediumRock // New distinct type (Rock3)
+  SmallRock,  // New distinct type (Rock2)
+  MediumRock, // New distinct type (Rock3)
+  Crystal,    // Mountain crystals
+  GrassTuft,  // "Graminhas"
+  Cactus,     // Desert Cacti (Old, maybe keep for compat or replace)
+  DesertPlant // New Desert decorations (Cactus, Rock)
 };
 
 struct Tile {

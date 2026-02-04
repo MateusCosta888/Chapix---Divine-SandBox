@@ -287,414 +287,354 @@ void WorldRenderer::Draw() {
     }
   }
 
-  // PASS 2: Draw Trees (Objects)
+  // PASS 2: Collect Renderable Items (Decorations & Entities)
+  std::vector<RenderItem> items;
   if (resourceManager.IsLoaded()) {
     for (int y = 0; y < height; y++) {
       for (int x = 0; x < width; x++) {
         Tile &tile = world.GetTile(x, y);
-        if (tile.decoration != DecorationType::None)
-          continue; // Skip procedural if manual set
-        unsigned int seed = tile.variant ^ world.GetSeed() ^ 9284387;
 
-        Texture2D *treeTex = nullptr;
-        bool hasTree = false;
-
-        // Forest Trees - Use mix of tree types for variety
-        if (tile.type == TileType::Forest) {
-          hasTree = (seed % 100) < 30;
-          if (hasTree) {
-            int treeType = (seed / 100) % 3; // 0=Fruit, 1=Normal, 2=Moss
-            int treeIdx = (seed / 1000) % 3; // Variant within each type
-
-            switch (treeType) {
-            case 0:
-              treeTex =
-                  &resourceManager
-                       .texFruitTrees[treeIdx %
-                                      ResourceManager::NUM_FRUIT_TREE_TYPES];
-              break;
-            case 1:
-              treeTex =
-                  &resourceManager
-                       .texNormalTrees[treeIdx %
-                                       ResourceManager::NUM_NORMAL_TREE_TYPES];
-              break;
-            case 2:
-              treeTex =
-                  &resourceManager
-                       .texMossTrees[treeIdx %
-                                     ResourceManager::NUM_MOSS_TREE_TYPES];
-              break;
-            }
-          }
-        }
-        // Snow Trees
-        else if (tile.type == TileType::Snow) {
-          hasTree = (seed % 100) < 15; // Lower density in snow
-          if (hasTree) {
-            // 10% chance for xmas tree, 90% normal snow tree
-            if ((seed % 1000) < 100) {
-              treeTex =
-                  &resourceManager
-                       .texXmasTrees[(seed / 100) %
-                                     ResourceManager::NUM_XMAS_TREE_TYPES];
-            } else {
-              treeTex =
-                  &resourceManager
-                       .texSnowTrees[(seed / 10) %
-                                     ResourceManager::NUM_SNOW_TREE_TYPES];
-            }
-          }
-        }
-        // Desert Trees (Palms)
-        else if (tile.type == TileType::DesertSand) {
-          hasTree = (seed % 100) < 2; // Very rare (oasis feel)
-          if (hasTree) {
-            treeTex =
-                &resourceManager
-                     .texPalmTrees[seed % ResourceManager::NUM_PALM_TREE_TYPES];
-          }
-        }
-
-        if (hasTree && treeTex && treeTex->id > 0) {
-          Rectangle treeSrc = {0, 0, (float)treeTex->width,
-                               (float)treeTex->height};
-          float treeScale = 3.0f;
-          float treeW = tileSize * treeScale;
-          float treeH =
-              treeW * ((float)treeTex->height / (float)treeTex->width);
-          float offX = ((seed % 20) - 10) / 10.0f * (tileSize * 0.3f);
-          float offY = (((seed / 20) % 20) - 10) / 10.0f * (tileSize * 0.3f);
-
-          Rectangle treeDest = {(float)(x * tileSize + tileSize / 2 + offX),
-                                (float)(y * tileSize + tileSize / 2 + offY),
-                                treeW, treeH};
-          Vector2 treeOrigin = {treeW / 2, treeH * 0.85f};
-          DrawTexturePro(*treeTex, treeSrc, treeDest, treeOrigin, 0.0f, WHITE);
-        }
-      }
-    }
-  }
-
-  // PASS 3: Draw Mountain Rocks (Decorations)
-  if (resourceManager.IsLoaded()) {
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        Tile &tile = world.GetTile(x, y);
-        if (tile.decoration != DecorationType::None)
-          continue;
-        if (tile.type == TileType::Mountain) {
-          unsigned int seed = tile.variant ^ world.GetSeed() ^ 1234567;
-          bool hasRock = (seed % 100) < 20; // 20% chance as requested
-          if (hasRock) {
-            Texture2D &rockTex = resourceManager.texMountainRocks;
-            Rectangle rockSrc = {0, 0, (float)rockTex.width,
-                                 (float)rockTex.height};
-            float rockScale = 1.0f;
-            float rockW = tileSize * rockScale;
-            float rockH =
-                rockW * ((float)rockTex.height / (float)rockTex.width);
-
-            float offX = ((seed % 10) - 5) / 10.0f * (tileSize * 0.2f);
-            float offY = (((seed / 10) % 10) - 5) / 10.0f * (tileSize * 0.2f);
-
-            Rectangle rockDest = {(float)(x * tileSize + tileSize / 2 + offX),
-                                  (float)(y * tileSize + tileSize / 2 + offY),
-                                  rockW, rockH};
-            Vector2 rockOrigin = {rockW / 2, rockH / 2};
-            DrawTexturePro(rockTex, rockSrc, rockDest, rockOrigin, 0.0f,
-                           LIGHTGRAY); // Lighter tint for contrast
-          }
-        }
-      }
-    }
-  }
-
-  // PASS 3.5: Graminhas (Forest decoration, only on floresta1 tiles)
-  if (resourceManager.IsLoaded() && resourceManager.texGraminhas.id > 0) {
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        Tile &tile = world.GetTile(x, y);
-        if (tile.type == TileType::Forest) {
-          unsigned int tileHash = tile.variant;
-          int forestProb = tileHash % 100;
-          // Only spawn graminhas on floresta1 tiles (first 60%)
-          if (forestProb < 60) {
-            unsigned int seed = tile.variant ^ 0x444 ^ world.GetSeed() ^ 66666;
-
-            // Skip if this tile has a tree (using same tree seed logic)
-            unsigned int treeSeed = tile.variant ^ world.GetSeed() ^ 9284387;
-            bool hasTree = (treeSeed % 100) < 30;
-            if (hasTree)
-              continue; // Don't draw graminhas under trees
-
-            if ((seed % 100) < 25) { // 25% chance on floresta1
-              float w = tileSize * 0.8f;
-              float h = w * ((float)resourceManager.texGraminhas.height /
-                             (float)resourceManager.texGraminhas.width);
-              float offX = ((seed % 20) - 10) / 10.0f * (tileSize * 0.2f);
-              float offY =
-                  (((seed / 20) % 20) - 10) / 10.0f * (tileSize * 0.2f);
-
-              Rectangle src = {0, 0, (float)resourceManager.texGraminhas.width,
-                               (float)resourceManager.texGraminhas.height};
-              Rectangle dest = {(float)(x * tileSize + tileSize / 2 + offX),
-                                (float)(y * tileSize + tileSize / 2 + offY), w,
-                                h};
-              Vector2 origin = {w / 2, h / 2};
-              DrawTexturePro(resourceManager.texGraminhas, src, dest, origin,
-                             0.0f, WHITE);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // PASS 4: Bushes & Cacti
-  if (resourceManager.IsLoaded()) {
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        Tile &tile = world.GetTile(x, y);
-        if (tile.decoration != DecorationType::None)
-          continue;
-        unsigned int seed = tile.variant ^ 0x876 ^ world.GetSeed() ^ 55555;
-        Texture2D *bushTex = nullptr;
-
-        // Normal Bushes (Forest/Grass)
-        if (tile.type == TileType::Forest || tile.type == TileType::Grass) {
-          if ((seed % 100) < 20) { // 20% chance for better visibility
-            bushTex = &resourceManager
-                           .texBushes[seed % ResourceManager::NUM_BUSH_TYPES];
-          }
-        }
-        // Snow Bushes
-        else if (tile.type == TileType::Snow) {
-          if ((seed % 100) < 5) { // 5% chance
-            bushTex = &resourceManager
-                           .texSnowBushes[seed %
-                                          ResourceManager::NUM_SNOW_BUSH_TYPES];
-          }
-        }
-        // Desert Cacti
-        else if (tile.type == TileType::DesertSand) {
-          if ((seed % 100) < 3) { // 3% chance
-            bushTex = &resourceManager
-                           .texCactus[seed % ResourceManager::NUM_CACTUS_TYPES];
-          }
-        }
-
-        if (bushTex && bushTex->id > 0) {
-          Rectangle src = {0, 0, (float)bushTex->width, (float)bushTex->height};
-          float scale = 1.0f;
-          float w = tileSize * scale;
-          float h = w * ((float)bushTex->height / (float)bushTex->width);
-
-          // Random offset
-          float offX = ((seed % 20) - 10) / 10.0f * (tileSize * 0.2f);
-          float offY = (((seed / 20) % 20) - 10) / 10.0f * (tileSize * 0.2f);
-
-          Rectangle dest = {(float)(x * tileSize + tileSize / 2 + offX),
-                            (float)(y * tileSize + tileSize / 2 + offY), w, h};
-          Vector2 origin = {w / 2, h * 0.8f}; // Pivot at bottom center
-          DrawTexturePro(*bushTex, src, dest, origin, 0.0f, WHITE);
-        }
-      }
-    }
-  }
-
-  // PASS 5: Crystals (Rare, Mountains)
-  if (resourceManager.IsLoaded()) {
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        Tile &tile = world.GetTile(x, y);
-        if (tile.decoration != DecorationType::None)
-          continue;
-        if (tile.type == TileType::Mountain &&
-            tile.height > 0.65f) { // High mountains
-          unsigned int seed = tile.variant ^ 0x111 ^ world.GetSeed() ^ 33333;
-          if ((seed % 1000) < 15) { // 1.5% chance
-            Texture2D *crystalTex = nullptr;
-            int type = seed % 3;
-            if (type == 0)
-              crystalTex =
-                  &resourceManager
-                       .texCrystalsBlue[seed %
-                                        ResourceManager::NUM_CRYSTAL_VARIANTS];
-            else if (type == 1)
-              crystalTex =
-                  &resourceManager
-                       .texCrystalsGreen[seed %
-                                         ResourceManager::NUM_CRYSTAL_VARIANTS];
-            else
-              crystalTex =
-                  &resourceManager
-                       .texCrystalsRed[seed %
-                                       ResourceManager::NUM_CRYSTAL_VARIANTS];
-
-            if (crystalTex && crystalTex->id > 0) {
-              Rectangle src = {0, 0, (float)crystalTex->width,
-                               (float)crystalTex->height};
-              float scale = 1.0f;
-              float w = tileSize * scale;
-              float h =
-                  w * ((float)crystalTex->height / (float)crystalTex->width);
-
-              Rectangle dest = {(float)(x * tileSize + tileSize / 2),
-                                (float)(y * tileSize + tileSize / 2), w, h};
-              Vector2 origin = {w / 2, h / 2};
-              DrawTexturePro(*crystalTex, src, dest, origin, 0.0f, WHITE);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // PASS 6: Big Rocks (Scattered)
-  if (resourceManager.IsLoaded()) {
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        Tile &tile = world.GetTile(x, y);
-        if (tile.decoration != DecorationType::None)
-          continue;
-        unsigned int seed = tile.variant ^ 0x999 ^ world.GetSeed() ^ 77777;
-        Texture2D *rockTex = nullptr;
-
-        // Skip tiles that have trees (using same seed logic as Pass 2)
-        unsigned int treeSeed = tile.variant ^ world.GetSeed() ^ 9284387;
-        bool hasTree = false;
-        if (tile.type == TileType::Forest) {
-          hasTree = (treeSeed % 100) < 30;
-        } else if (tile.type == TileType::Snow) {
-          hasTree = (treeSeed % 100) < 15;
-        } else if (tile.type == TileType::DesertSand) {
-          hasTree = (treeSeed % 100) < 2;
-        }
-
-        if (hasTree)
-          continue; // Skip this tile if it has a tree
-
-        if (tile.type == TileType::Grass || tile.type == TileType::Forest) {
-          if ((seed % 1000) < 5) { // 0.5% chance
-            rockTex =
-                &resourceManager
-                     .texBigRocks[seed % ResourceManager::NUM_BIG_ROCK_TYPES];
-          }
-        } else if (tile.type == TileType::Snow) {
-          if ((seed % 1000) < 5) {
-            rockTex = &resourceManager.texSnowRockShadows
-                           [seed % ResourceManager::NUM_SNOW_ROCK_SHADOWS];
-          }
-        } else if (tile.type == TileType::DesertSand) {
-          if ((seed % 1000) < 5) {
-            rockTex = &resourceManager.texDesertRockShadows
-                           [seed % ResourceManager::NUM_DESERT_ROCK_SHADOWS];
-          }
-        }
-
-        if (rockTex && rockTex->id > 0) {
-          Rectangle src = {0, 0, (float)rockTex->width, (float)rockTex->height};
-          float scale = 1.0f; // Reduced to prevent overlap
-          float w = tileSize * scale;
-          float h = w * ((float)rockTex->height / (float)rockTex->width);
-
-          Rectangle dest = {(float)(x * tileSize + tileSize / 2),
-                            (float)(y * tileSize + tileSize / 2), w, h};
-          Vector2 origin = {w / 2, h / 2};
-          DrawTexturePro(*rockTex, src, dest, origin, 0.0f, WHITE);
-        }
-      }
-    }
-  }
-
-  // PASS 7: Manual Decorations
-  if (resourceManager.IsLoaded()) {
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        Tile &tile = world.GetTile(x, y);
         if (tile.decoration == DecorationType::None)
           continue;
 
-        Texture2D *decTex = nullptr;
-        int v = tile.decorationVariant;
+        Texture2D *tex = nullptr;
         float scale = 1.0f;
+        int v = tile.decorationVariant;
 
         switch (tile.decoration) {
         case DecorationType::Tree:
-          decTex =
+          tex =
               &resourceManager
                    .texNormalTrees[v % ResourceManager::NUM_NORMAL_TREE_TYPES];
+          // Use Fruit or Moss if we want variety? WorldRenderer pass 2 had
+          // logic. Since we just stored "Tree", let's use the variant to pick
+          // different sets? Or just stick to NormalTrees for simplicity as
+          // "Generic Tree". For better fidelity, check variant range or map
+          // consistently. Pass 2 logic: 0=Fruit, 1=Normal, 2=Moss.
+          {
+            int treeType = (v / 10) % 3;
+            int treeIdx = v % 3;
+            if (treeType == 0 && ResourceManager::NUM_FRUIT_TREE_TYPES > 0)
+              tex = &resourceManager
+                         .texFruitTrees[treeIdx %
+                                        ResourceManager::NUM_FRUIT_TREE_TYPES];
+            else if (treeType == 2 && ResourceManager::NUM_MOSS_TREE_TYPES > 0)
+              tex = &resourceManager
+                         .texMossTrees[treeIdx %
+                                       ResourceManager::NUM_MOSS_TREE_TYPES];
+            else
+              tex =
+                  &resourceManager
+                       .texNormalTrees[v %
+                                       ResourceManager::NUM_NORMAL_TREE_TYPES];
+          }
           scale = 3.0f;
           break;
-        case DecorationType::PineTree: // Map to Snow/Xmas
-          decTex = &resourceManager
-                        .texSnowTrees[v % ResourceManager::NUM_SNOW_TREE_TYPES];
+        case DecorationType::PineTree:
+          // Check for Xmas variant? Pass 2: (seed % 1000) < 100 -> Xmas
+          if ((v % 10) == 0 && ResourceManager::NUM_XMAS_TREE_TYPES > 0) {
+            tex = &resourceManager
+                       .texXmasTrees[(v / 10) %
+                                     ResourceManager::NUM_XMAS_TREE_TYPES];
+          } else {
+            tex = &resourceManager
+                       .texSnowTrees[v % ResourceManager::NUM_SNOW_TREE_TYPES];
+          }
           scale = 3.0f;
           break;
         case DecorationType::PalmTree:
-          decTex = &resourceManager
-                        .texPalmTrees[v % ResourceManager::NUM_PALM_TREE_TYPES];
+          tex = &resourceManager
+                     .texPalmTrees[v % ResourceManager::NUM_PALM_TREE_TYPES];
           scale = 3.0f;
           break;
         case DecorationType::Bush:
-          decTex =
-              &resourceManager.texBushes[v % ResourceManager::NUM_BUSH_TYPES];
+          if (tile.type == TileType::Snow)
+            tex = &resourceManager
+                       .texSnowBushes[v % ResourceManager::NUM_SNOW_BUSH_TYPES];
+          else
+            tex =
+                &resourceManager.texBushes[v % ResourceManager::NUM_BUSH_TYPES];
           scale = 1.0f;
           break;
-        case DecorationType::Rock: // User wants "pedrinhas" removed from UI
-                                   // but if kept, use small rock tex
-          decTex =
-              &resourceManager
-                   .texSmallRocks[v % ResourceManager::NUM_SMALL_ROCK_TYPES];
+        case DecorationType::Cactus:
+          tex =
+              &resourceManager.texCactus[v % ResourceManager::NUM_CACTUS_TYPES];
           scale = 1.0f;
-          break; // Use new small rock
+          break;
+        case DecorationType::DesertPlant: // New mixed desert deco
+          tex = &resourceManager
+                     .texSandDecorations[v %
+                                         ResourceManager::NUM_SAND_DECORATIONS];
+          scale = 1.0f;
+          break;
+        case DecorationType::Rock: // Mountain Rocks
+          tex = &resourceManager.texMountainDecorations
+                     [v % ResourceManager::NUM_MOUNTAIN_DECORATIONS];
+          if ((v % ResourceManager::NUM_MOUNTAIN_DECORATIONS) == 0)
+            scale = 2.0f; // User requested "Rock(decoration).png" (Index 0) to
+                          // be bigger
+          else
+            scale = 1.0f;
+          break;
+        case DecorationType::BigRock:
+          // Logic from Pass 6: Check shading based on biome
+          if (tile.type == TileType::Snow &&
+              ResourceManager::NUM_SNOW_ROCK_SHADOWS > 0)
+            tex = &resourceManager.texSnowRockShadows
+                       [v % ResourceManager::NUM_SNOW_ROCK_SHADOWS];
+          else if (tile.type == TileType::DesertSand &&
+                   ResourceManager::NUM_DESERT_ROCK_SHADOWS > 0)
+            tex = &resourceManager.texDesertRockShadows
+                       [v % ResourceManager::NUM_DESERT_ROCK_SHADOWS];
+          else
+            tex = &resourceManager
+                       .texBigRocks[v % ResourceManager::NUM_BIG_ROCK_TYPES];
+          scale = 1.0f;
+          break;
         case DecorationType::SmallRock:
-          decTex =
-              &resourceManager
-                   .texSmallRocks[v % ResourceManager::NUM_SMALL_ROCK_TYPES];
+          tex = &resourceManager
+                     .texSmallRocks[v % ResourceManager::NUM_SMALL_ROCK_TYPES];
           scale = 1.0f;
           break;
         case DecorationType::MediumRock:
-          // Use MediumRock textures (Rock3)
-          decTex =
+          tex =
               &resourceManager
                    .texMediumRocks[v % ResourceManager::NUM_MEDIUM_ROCK_TYPES];
           scale = 1.0f;
           break;
+        case DecorationType::Crystal: {
+          int type = v % 3;
+          if (type == 0)
+            tex = &resourceManager
+                       .texCrystalsBlue[v %
+                                        ResourceManager::NUM_CRYSTAL_VARIANTS];
+          else if (type == 1)
+            tex = &resourceManager
+                       .texCrystalsGreen[v %
+                                         ResourceManager::NUM_CRYSTAL_VARIANTS];
+          else
+            tex =
+                &resourceManager
+                     .texCrystalsRed[v % ResourceManager::NUM_CRYSTAL_VARIANTS];
+        }
+          scale = 1.0f;
+          break;
+        case DecorationType::GrassTuft:
+          tex = &resourceManager.texGraminhas;
+          scale = 0.8f;
+          break;
         case DecorationType::Flower:
-          decTex = &resourceManager
-                        .texFlowers[v % ResourceManager::NUM_FLOWER_TYPES];
+          tex = &resourceManager
+                     .texFlowers[v % ResourceManager::NUM_FLOWER_TYPES];
           scale = 1.0f;
           break;
         case DecorationType::Mushroom:
-          decTex = &resourceManager
-                        .texMushrooms[v % ResourceManager::NUM_MUSHROOM_TYPES];
+          tex = &resourceManager
+                     .texMushrooms[v % ResourceManager::NUM_MUSHROOM_TYPES];
           scale = 0.8f;
           break;
-        case DecorationType::BigRock:
-          // Use BigRock (Rock1)
-          decTex = &resourceManager
-                        .texBigRocks[v % ResourceManager::NUM_BIG_ROCK_TYPES];
-          scale = 1.0f;
-          break;
-
         default:
           break;
         }
 
-        if (decTex && decTex->id > 0) {
-          Rectangle src = {0, 0, (float)decTex->width, (float)decTex->height};
+        if (tex && tex->id > 0) {
           float w = tileSize * scale;
-          float h = w * ((float)decTex->height / (float)decTex->width);
-          // Centered bottom
-          Rectangle dest = {(float)(x * tileSize + tileSize / 2),
-                            (float)(y * tileSize + tileSize / 2), w, h};
-          Vector2 origin = {w / 2, h * 0.9f};
-          DrawTexturePro(*decTex, src, dest, origin, 0.0f, WHITE);
+          float h = w * ((float)tex->height / (float)tex->width);
+
+          // Randomized offset used in original renderer
+          float offX = ((v % 20) - 10) / 10.0f * (tileSize * 0.2f);
+          float offY = (((v / 20) % 20) - 10) / 10.0f * (tileSize * 0.2f);
+          if (tile.decoration == DecorationType::Tree ||
+              tile.decoration == DecorationType::PineTree ||
+              tile.decoration == DecorationType::PalmTree) {
+            offX = ((v % 20) - 10) / 10.0f * (tileSize * 0.3f);
+            offY = (((v / 20) % 20) - 10) / 10.0f * (tileSize * 0.3f);
+          }
+
+          Rectangle src = {0, 0, (float)tex->width, (float)tex->height};
+          Rectangle dest = {(float)(x * tileSize + tileSize / 2 + offX),
+                            (float)(y * tileSize + tileSize / 2 + offY), w, h};
+
+          // Origin sets the "pivot" point. For sorting, we want Y to be the
+          // bottom. Trees: Pivot near bottom.
+          Vector2 origin = {w / 2, h * 0.85f};
+          if (tile.decoration == DecorationType::Rock ||
+              tile.decoration == DecorationType::BigRock)
+            origin = {w / 2, h / 2};
+          else if (tile.decoration == DecorationType::DesertPlant &&
+                   (tile.decorationVariant % 3) == 0) // Rock variant
+            origin = {w / 2, h / 2};
+          else if (tile.decoration == DecorationType::GrassTuft)
+            origin = {w / 2, h / 2};
+          else if (tile.decoration == DecorationType::Crystal)
+            origin = {w / 2, h / 2};
+
+          Color tColor = WHITE;
+          if (tile.decoration == DecorationType::Rock)
+            tColor = LIGHTGRAY;
+
+          // Sort Y is the visual bottom of the object
+          float sortY = dest.y + h / 2; // Approximate center/bottom
+          if (tile.decoration == DecorationType::Tree ||
+              tile.decoration == DecorationType::PineTree ||
+              tile.decoration == DecorationType::PalmTree ||
+              (tile.decoration == DecorationType::DesertPlant &&
+               (tile.decorationVariant % 3) != 0)) // Cactus variants
+            sortY = dest.y + h * 0.85f;
+
+          items.push_back({*tex, src, dest, origin, tColor, sortY});
         }
       }
     }
+  }
+
+  // Entities
+  const std::vector<Entity> &entities = world.GetEntities();
+  for (const Entity &e : entities) {
+    if (!resourceManager.IsLoaded())
+      continue;
+
+    Texture2D tex;
+    // === HUMAN DRAWING ===
+    if (e.type == EntityType::HumanUnarmed ||
+        e.type == EntityType::HumanArmed) {
+      // Determine Direction Index (0:Down, 1:Right, 2:Left, 3:Up)
+      int dirIdx = 0;
+      if (e.facingDirection == 1)
+        dirIdx = 1;
+      else if (e.facingDirection == -1)
+        dirIdx = 2;
+      else if (e.facingDirection == 2)
+        dirIdx = 3;
+      else
+        dirIdx = 0;
+
+      int frame = e.currentFrame % 4; // Default 4 frames
+
+      if (e.state == EntityState::Swim) {
+        if (e.type == EntityType::HumanUnarmed)
+          tex = resourceManager.texHumanUnarmedSwim[dirIdx][frame];
+        else
+          tex = resourceManager.texHumanArmedSwim[dirIdx][frame];
+      } else if (e.state == EntityState::Die) {
+        tex = resourceManager.texHumanDeath[frame];
+      } else if (e.state == EntityState::Block &&
+                 e.type == EntityType::HumanArmed) {
+        tex = resourceManager.texHumanArmedBlock[dirIdx];
+      } else {
+        // Standard States (Idle, Walk, Attack)
+        int stateIdx = 0;
+        if (e.state == EntityState::Walking)
+          stateIdx = 1;
+        else if (e.state == EntityState::Attack)
+          stateIdx = 2;
+
+        if (e.type == EntityType::HumanUnarmed)
+          tex = resourceManager.texHumanUnarmed[stateIdx][dirIdx][frame];
+        else
+          tex = resourceManager.texHumanArmed[stateIdx][dirIdx][frame];
+      }
+    }
+    // === BOAR DRAWING ===
+    else if (e.type == EntityType::Boar) {
+      // Determine Direction Index: 0:Down, 1:Right, 2:Left, 3:Up
+      int dirIdx = 0;
+      if (e.facingDirection == 1)
+        dirIdx = 1;
+      else if (e.facingDirection == -1)
+        dirIdx = 2;
+      else if (e.facingDirection == 2)
+        dirIdx = 3;
+      else
+        dirIdx = 0;
+
+      // Helper to get safe index
+      auto getIdx = [&](const std::vector<Texture2D> &vec, int framesPerDir) {
+        if (vec.empty())
+          return (Texture2D){0};
+        int frame = e.currentFrame % framesPerDir;
+        int idx = (dirIdx * framesPerDir) + frame;
+        if (idx >= (int)vec.size())
+          idx = 0; // Safety
+        return vec[idx];
+      };
+
+      if (e.state == EntityState::Idle)
+        tex = getIdx(resourceManager.texBoarIdle, 4);
+      else if (e.state == EntityState::Walking)
+        tex = getIdx(resourceManager.texBoarWalk, 6);
+      else if (e.state == EntityState::Run)
+        tex = getIdx(resourceManager.texBoarRun, 5);
+      else if (e.state == EntityState::Attack)
+        tex = getIdx(resourceManager.texBoarAttack, 5);
+      else if (e.state == EntityState::Hurt)
+        tex = getIdx(resourceManager.texBoarHurt, 4);
+      else if (e.state == EntityState::Die)
+        tex = getIdx(resourceManager.texBoarDeath, 6);
+      else
+        tex = getIdx(resourceManager.texBoarIdle, 4);
+    } else {
+      // Animals (Cow, Chicken, Sheep, etc)
+      int base = 0;
+      if (e.facingDirection == 2)
+        base = 6;
+      else if (e.facingDirection == -1)
+        base = 12;
+      else if (e.facingDirection == 1)
+        base = 18;
+      int idx = base + (e.currentFrame % 6);
+
+      if (e.type == EntityType::Cow)
+        tex = resourceManager.texCow[idx];
+      else if (e.type == EntityType::Chicken)
+        tex = resourceManager.texChicken[idx];
+      else if (e.type == EntityType::Sheep)
+        tex = resourceManager.texSheep[idx];
+      else if (e.type == EntityType::Bull)
+        tex = resourceManager.texBull[idx];
+      else if (e.type == EntityType::Chicken2)
+        tex = resourceManager.texChicken2[idx];
+      else if (e.type == EntityType::Lamb)
+        tex = resourceManager.texLamb[idx];
+      else if (e.type == EntityType::Pig)
+        tex = resourceManager.texPig[idx];
+      else if (e.type == EntityType::Turkey)
+        tex = resourceManager.texTurkey[idx];
+    }
+
+    if (tex.id > 0) {
+      float destW = tex.width * 0.5f;
+      float destH = tex.height * 0.5f;
+      // Maintain scale from original
+
+      Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+
+      // Flip Boar if facing Left (Direction 2)
+      if (e.type == EntityType::Boar && e.facingDirection == 2) {
+        src.width = -src.width;
+      }
+      Rectangle dest = {e.position.x * tileSize, e.position.y * tileSize, destW,
+                        destH};
+      Vector2 origin = {destW / 2, destH * 0.9f};
+
+      items.push_back({tex, src, dest, origin, WHITE, dest.y + destH * 0.9f});
+    } else {
+      // Fallback circle drawn immediately (rare)
+      DrawCircle((int)(e.position.x * tileSize), (int)(e.position.y * tileSize),
+                 tileSize / 2, RED);
+    }
+  }
+
+  // SORT
+  std::sort(items.begin(), items.end(),
+            [](const RenderItem &a, const RenderItem &b) {
+              return a.sortY < b.sortY;
+            });
+
+  // DRAW
+  for (const auto &item : items) {
+    DrawTexturePro(item.texture, item.src, item.dest, item.origin, 0.0f,
+                   item.tint);
   }
 
   // Draw Visual Boundaries
@@ -710,9 +650,6 @@ void WorldRenderer::Draw() {
   for (float py = startY; py < endY; py += dashLen + gapLen)
     DrawRectangle((int)endX, (int)py, 4, (int)std::min(dashLen, endY - py),
                   boundaryColor);
-
-  // PASS 8: Entities
-  DrawEntities();
 }
 
 void WorldRenderer::DrawEntities() {
@@ -724,124 +661,108 @@ void WorldRenderer::DrawEntities() {
   const std::vector<Entity> &entities = world.GetEntities();
 
   for (const Entity &e : entities) {
-    if (e.type == EntityType::Human) {
-      // Human Drawing with 16 Sprites
-      // Mapping:
-      // 00-03: Down (Dir 0)
-      // 04-07: Right (Dir 1)
-      // 08-11: Left (Dir -1)
-      // 12-15: Up (Dir 2)
+    if (e.type == EntityType::HumanUnarmed ||
+        e.type == EntityType::HumanArmed) {
+      // Determine State Index (0:Idle, 1:Walk, 2:Attack)
+      int stateIdx = 0;
+      if (e.state == EntityState::Walking)
+        stateIdx = 1;
+      else if (e.state == EntityState::Attack)
+        stateIdx = 2;
 
-      int baseIndex = 0; // Default Down
+      // Determine Direction Index (0:Down, 1:Right, 2:Left, 3:Up)
+      int dirIdx = 0;
       if (e.facingDirection == 1)
-        baseIndex = 4; // Right
+        dirIdx = 1; // Right
       else if (e.facingDirection == -1)
-        baseIndex = 8; // Left
+        dirIdx = 2; // Left
       else if (e.facingDirection == 2)
-        baseIndex = 12; // Up
+        dirIdx = 3; // Up
+      else
+        dirIdx = 0; // Down
 
+      // Determine Frame (0-3)
       int frame = e.currentFrame % 4;
-      int finalIndex = baseIndex + frame;
 
-      // Access public array directly (assuming it's public)
-      Texture2D tex = resourceManager.texHuman[finalIndex];
+      Texture2D tex;
+      if (e.type == EntityType::HumanUnarmed) {
+        tex = resourceManager.texHumanUnarmed[stateIdx][dirIdx][frame];
+      } else {
+        tex = resourceManager.texHumanArmed[stateIdx][dirIdx][frame];
+      }
 
       if (tex.id > 0) {
-        // Draw full texture (no sprite sheet slicing needed as they are
-        // individual files) Adjust sizing: Files are likely small. Let's assume
-        // we maintain the same visual size on screen. Previous sheet logic:
-        // frame 64x96, scale 0.5 -> 32x48. If individual files are same
-        // resolution (64x96 per file), use same sizing.
+        float destW = tex.width * 0.7f; // Scale
+        float destH = tex.height * 0.7f;
 
-        float destW = tex.width * 0.5f;
-        float destH = tex.height * 0.5f;
-
-        // Center feet at position
+        // Center at position
         float screenX = e.position.x * tileSize;
         float screenY = e.position.y * tileSize;
 
-        // Source is full image
         Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
         Rectangle dest = {screenX, screenY, destW, destH};
-        Vector2 origin = {destW / 2, destH * 0.9f}; // Pivot at feet
+        Vector2 origin = {destW / 2, destH * 0.8f}; // Pivot near feet
 
         DrawTexturePro(tex, src, dest, origin, 0.0f, WHITE);
-      } else {
-        // Fallback
-        DrawCircle((int)(e.position.x * tileSize),
-                   (int)(e.position.y * tileSize), tileSize / 2, RED);
       }
     } else if (e.type == EntityType::Cow || e.type == EntityType::Chicken ||
                e.type == EntityType::Sheep || e.type == EntityType::Bull ||
                e.type == EntityType::Chicken2 || e.type == EntityType::Lamb ||
                e.type == EntityType::Pig || e.type == EntityType::Turkey) {
-      // Animal Drawing with 24 Sprites
-      // Correct mapping based on actual sprite files:
-      // 00-05: Down (Dir 0) - facing camera
-      // 06-11: Up (Dir 2) - facing away
-      // 12-17: Left (Dir -1)
-      // 18-23: Right (Dir 1)
-
-      int baseIndex = 0; // Default Down
-      if (e.facingDirection == 2)
-        baseIndex = 6; // Up
+      // Animal Logic
+      int baseIndex = 0;
+      if (e.facingDirection == 1)
+        baseIndex = 18; // Right (Row 3)
       else if (e.facingDirection == -1)
-        baseIndex = 12; // Left
-      else if (e.facingDirection == 1)
-        baseIndex = 18; // Right
+        baseIndex = 12; // Left (Row 2)
+      else if (e.facingDirection == 2)
+        baseIndex = 6; // Up (Row 1)
+      else
+        baseIndex = 0; // Down (Row 0)
 
       int frame = e.currentFrame % 6;
       int finalIndex = baseIndex + frame;
 
-      // Get appropriate texture array
       Texture2D tex;
-      if (e.type == EntityType::Cow) {
+      if (e.type == EntityType::Cow)
         tex = resourceManager.texCow[finalIndex];
-      } else if (e.type == EntityType::Chicken) {
+      else if (e.type == EntityType::Chicken)
         tex = resourceManager.texChicken[finalIndex];
-      } else if (e.type == EntityType::Sheep) {
+      else if (e.type == EntityType::Sheep)
         tex = resourceManager.texSheep[finalIndex];
-      } else if (e.type == EntityType::Bull) {
+      else if (e.type == EntityType::Bull)
         tex = resourceManager.texBull[finalIndex];
-      } else if (e.type == EntityType::Chicken2) {
+      else if (e.type == EntityType::Chicken2)
         tex = resourceManager.texChicken2[finalIndex];
-      } else if (e.type == EntityType::Lamb) {
+      else if (e.type == EntityType::Lamb)
         tex = resourceManager.texLamb[finalIndex];
-      } else if (e.type == EntityType::Pig) {
+      else if (e.type == EntityType::Pig)
         tex = resourceManager.texPig[finalIndex];
-      } else {
+      else
         tex = resourceManager.texTurkey[finalIndex];
-      }
 
       if (tex.id > 0) {
-        // Adjust scale: Chickens should be smaller
-        float scale = (e.type == EntityType::Chicken) ? 0.4f : 0.5f;
+        float scale =
+            (e.type == EntityType::Chicken || e.type == EntityType::Chicken2)
+                ? 0.4f
+                : 0.5f;
         float destW = tex.width * scale;
         float destH = tex.height * scale;
-
         float screenX = e.position.x * tileSize;
         float screenY = e.position.y * tileSize;
 
         Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
         Rectangle dest = {screenX, screenY, destW, destH};
         Vector2 origin = {destW / 2, destH * 0.9f};
-
         DrawTexturePro(tex, src, dest, origin, 0.0f, WHITE);
-      } else {
-        // Fallback
-        Color fallbackColor = (e.type == EntityType::Cow)       ? BROWN
-                              : (e.type == EntityType::Chicken) ? ORANGE
-                                                                : LIGHTGRAY;
-        DrawCircle((int)(e.position.x * tileSize),
-                   (int)(e.position.y * tileSize), tileSize / 2, fallbackColor);
       }
     } else {
-      // Other entities
+      // Fallback
       DrawCircle((int)(e.position.x * tileSize), (int)(e.position.y * tileSize),
                  tileSize / 2, BLUE);
     }
   }
-}
+} // End DrawEntities
 
 // ============================================================================
 // WATER EFFECTS - Procedural rendering for waves, sparkles, and foam
