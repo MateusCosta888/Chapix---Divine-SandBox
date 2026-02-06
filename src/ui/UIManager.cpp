@@ -24,7 +24,37 @@ void UIManager::Load() {
   texTabButton = LoadTexture("assets/UI/TaskBar/Botoes/ButtomAbas.png");
 
   // Load Font
-  uiFont = LoadFontEx("assets/UI/Font/DungeonFont.ttf", 32, 0, 250);
+  // Load Font
+  uiFont = LoadFontEx("assets/UI/Font/BoldPixels.ttf", 40, 0, 250);
+
+  // Set default cursor size
+  cursorScale = 0.20f;
+
+  // Load Circle Mask Shader
+  const char *fsCode = R"(
+      #version 330
+      in vec2 fragTexCoord;
+      in vec4 fragColor;
+      out vec4 finalColor;
+      uniform sampler2D texture0;
+      uniform vec4 colDiffuse;
+
+      void main()
+      {
+          vec4 texelColor = texture(texture0, fragTexCoord);
+          vec2 center = vec2(0.5, 0.5);
+          float dist = distance(fragTexCoord, center);
+          if (dist > 0.49) discard; 
+          finalColor = texelColor * colDiffuse * fragColor;
+      }
+  )";
+  circleMaskShader = LoadShaderFromMemory(0, fsCode);
+
+  // Load Custom Icons
+  texEraser = LoadTexture("assets/UI/Icons/Itens/Eraser.png");
+  texIconWaterDeep = LoadTexture("assets/UI/Icons/water/funda agua.png");
+  texIconWaterOcean = LoadTexture("assets/UI/Icons/water/media agua.png");
+  texIconWaterShallow = LoadTexture("assets/UI/Icons/water/rasa agua.png");
 }
 
 void UIManager::Unload() {
@@ -40,7 +70,12 @@ void UIManager::Unload() {
   UnloadTexture(texPanelBR);
   UnloadTexture(texButton);
   UnloadTexture(texTabButton);
+  UnloadTexture(texEraser);
+  UnloadTexture(texIconWaterDeep);
+  UnloadTexture(texIconWaterOcean);
+  UnloadTexture(texIconWaterShallow);
   UnloadFont(uiFont);
+  UnloadShader(circleMaskShader);
 }
 
 bool UIManager::IsPointerOnUI() const {
@@ -256,10 +291,9 @@ void UIManager::DrawToolbar(const World &world) {
   Rectangle tabArea = {0, fullTaskbarRect.y, (float)SCREEN_WIDTH,
                        (float)TAB_HEIGHT};
 
-  const char *tabNames[] = {"Terrains", "Nature", "Rocks", "Creatures",
-                            "Settings"};
+  const char *tabNames[] = {"Terrains", "Nature", "Rocks", "Creatures", "..."};
   for (int i = 0; i < 5; i++) {
-    float tabW = 150;
+    float tabW = 170;
     Rectangle tabRect = {i * tabW + 5, tabArea.y + 5, tabW - 5,
                          tabArea.height - 5};
     bool isHover = CheckCollisionPointRec(GetMousePosition(), tabRect);
@@ -269,24 +303,67 @@ void UIManager::DrawToolbar(const World &world) {
     DrawTexturedButton(texTabButton, tabRect, isActive, isHover);
 
     // Centered Text
-    Vector2 textSize = MeasureTextEx(uiFont, tabNames[i], 20, 1);
+    Vector2 textSize = MeasureTextEx(uiFont, tabNames[i], 20, 2); // Size 20
     Vector2 textPos = {tabRect.x + (tabRect.width - textSize.x) / 2,
-                       tabRect.y + (tabRect.height - textSize.y) / 2};
+                       tabRect.y + (tabRect.height - textSize.y) / 2 -
+                           5}; // Raised by 5px
 
-    DrawTextEx(uiFont, tabNames[i], textPos, 20, 1,
+    DrawTextEx(uiFont, tabNames[i], textPos, 20, 2,
                isActive ? WHITE : LIGHTGRAY);
 
     if (isHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !showBrushPopup) {
-      currentTab = (UIState)i;
-      selectedToolIndex = 0;
+      if (currentTab != (UIState)i) {
+        currentTab = (UIState)i;
+        selectedToolIndex = 0;
+        scrollOffset = 0.0f; // Reset scroll on tab change
+      }
     }
   }
 
   // Content based on Tab
   float startX = 25;
-  float startY = SCREEN_HEIGHT - TOOLBAR_HEIGHT + 20;
-  float btnSize = 60;
-  float padding = 15;
+  float visibleWidth = SCREEN_WIDTH - 50; // Padding on sides
+  float startY =
+      SCREEN_HEIGHT - TOOLBAR_HEIGHT + (TOOLBAR_HEIGHT - 80) / 2; // Centered
+  float btnSize = 80;
+  float padding = 12;
+
+  // SCROLLING LOGIC
+  // Only apply scrolling if we are in a tool tab (Terrain, Nature, Creatures)
+  // Settings tab has its own layout.
+  if (currentTab == UIState::Terrain || currentTab == UIState::Creatures ||
+      currentTab == UIState::Nature) {
+
+    int itemCount = 0;
+    if (currentTab == UIState::Terrain)
+      itemCount = 9;
+    else if (currentTab == UIState::Creatures)
+      itemCount = 11; // Updated Boar
+
+    if (itemCount > 0) {
+      float totalContentWidth =
+          itemCount * (btnSize + padding) - padding; // Remove last padding
+      float maxScrollVal = std::max(0.0f, totalContentWidth - visibleWidth);
+
+      // Input
+      // Check if mouse is over the toolbar area to enable scrolling
+      if (mousePos.y > SCREEN_HEIGHT - TOOLBAR_HEIGHT) {
+        float wheel = GetMouseWheelMove();
+        if (wheel != 0) {
+          scrollOffset -= wheel * 40.0f; // Scroll speed
+          if (scrollOffset < 0)
+            scrollOffset = 0;
+          if (scrollOffset > maxScrollVal)
+            scrollOffset = maxScrollVal;
+        }
+      }
+    }
+  }
+
+  // Define Scissor Area
+  // We want to clip content that flows outside startX -> startX + visibleWidth
+  BeginScissorMode((int)startX, (int)(SCREEN_HEIGHT - TOOLBAR_HEIGHT),
+                   (int)visibleWidth, TOOLBAR_HEIGHT);
 
   // Arrays for rendering buttons...
 
@@ -296,14 +373,29 @@ void UIManager::DrawToolbar(const World &world) {
   if (currentTab == UIState::Terrain) {
     numTools = 9; // 8 types + eraser
     for (int i = 0; i < numTools; i++) {
-      Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
-                           btnSize};
+      // Apply Scroll Offset to X position
+      float btnX = startX + i * (btnSize + padding) - scrollOffset;
+
+      // Optimization: Don't draw if completely out of view
+      if (btnX + btnSize < startX || btnX > startX + visibleWidth)
+        continue;
+
+      Rectangle btnRect = {btnX, startY, btnSize, btnSize};
       if (i == 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         TraceLog(LOG_INFO,
                  "DEBUG: Button 0 Rect Y: %f, Mouse Y: %f, ScreenH: %d",
                  btnRect.y, GetMousePosition().y, SCREEN_HEIGHT);
       }
-      bool isHover = CheckCollisionPointRec(mousePos, btnRect);
+
+      // Check collision with the SCROLLED rect, but strictly within the visible
+      // area logic Since we are optimizing above, this is mostly fine, but
+      // let's ensure we don't click "invisible" buttons if the scissor didn't
+      // work (it only clips drawing) CheckCollisionPointRec works on logic
+      // coordinates. So detailed check: Mouse must be within the scissor area
+      // AND the button rect.
+      bool isHover =
+          CheckCollisionPointRec(mousePos, btnRect) &&
+          (mousePos.x >= startX && mousePos.x <= startX + visibleWidth);
 
       // Button Background
       // Button Background
@@ -320,16 +412,25 @@ void UIManager::DrawToolbar(const World &world) {
                             TileType::Grass,        TileType::Forest,
                             TileType::Mountain,     TileType::Snow};
 
-        Texture2D tex = const_cast<World &>(world).GetTextureForUI(types[i]);
+        Texture2D tex = {0};
+        if (i == 0)
+          tex = texIconWaterDeep;
+        else if (i == 1)
+          tex = texIconWaterOcean;
+        else if (i == 2)
+          tex = texIconWaterShallow;
+        else
+          tex = const_cast<World &>(world).GetTextureForUI(types[i]);
 
         if (tex.id > 0) {
-          // Center and fit - use integer scale for pixel-perfect scaling
-          float availableSize =
-              btnSize - 20; // Increased padding for better fit
-          float rawScale =
-              availableSize / (float)std::max(tex.width, tex.height);
-          float scale =
-              std::max(1.0f, std::floor(rawScale)); // Pixel scale, at least 1x
+          // Center and fit
+          float availableSize = btnSize - 10;
+          float scale = availableSize / (float)std::max(tex.width, tex.height);
+
+          // Only floor if we are upscaling significantly (pixel art look)
+          // If scaling down or close to 1, keep float precision
+          if (scale > 1.0f)
+            scale = std::floor(scale);
 
           float scaledW = tex.width * scale;
           float scaledH = tex.height * scale;
@@ -341,25 +442,33 @@ void UIManager::DrawToolbar(const World &world) {
           Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
           Rectangle dest = {btnRect.x + offsetX, btnRect.y + offsetY, scaledW,
                             scaledH};
+
+          BeginShaderMode(circleMaskShader);
           DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
+          EndShaderMode();
         }
       } else {
-        // Procedural Eraser Icon
-        float pad = 15;
-        Rectangle eraserRect = {btnRect.x + pad, btnRect.y + pad,
-                                btnSize - pad * 2, btnSize - pad * 2};
-        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
-                          eraserRect.y + eraserRect.height / 2,
-                          eraserRect.width, eraserRect.height},
-                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
-                         WHITE);
-        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
-                          eraserRect.y + eraserRect.height / 2,
-                          eraserRect.width, eraserRect.height / 2},
-                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
-                         PINK);
-        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10,
-        // RED);
+        // Eraser Icon (Custom)
+        if (texEraser.id > 0) {
+          float availableSize = btnSize - 10;
+          float rawScale = availableSize /
+                           (float)std::max(texEraser.width, texEraser.height);
+          float scale = rawScale; // Allow downscaling
+          if (scale > 1.0f)
+            scale = std::floor(scale);
+
+          float scaledW = texEraser.width * scale;
+          float scaledH = texEraser.height * scale;
+          float offsetX = (btnSize - scaledW) / 2.0f;
+          float offsetY = (btnSize - scaledH) / 2.0f;
+
+          Rectangle src = {0, 0, (float)texEraser.width,
+                           (float)texEraser.height};
+          Rectangle dest = {btnRect.x + offsetX, btnRect.y + offsetY, scaledW,
+                            scaledH};
+
+          DrawTexturePro(texEraser, src, dest, {0, 0}, 0.0f, WHITE);
+        }
       }
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
@@ -391,29 +500,41 @@ void UIManager::DrawToolbar(const World &world) {
         Texture2D tex = const_cast<World &>(world).GetTextureForUI(decs[i]);
         if (tex.id > 0) {
           float scale =
-              std::min((btnSize - 20) / tex.width, (btnSize - 20) / tex.height);
+              std::min((btnSize - 10) / tex.width, (btnSize - 10) / tex.height);
+          // Standard scaling for nature shouldn't need floor logic if we trust
+          // it, but let's keep it safe or use the new standard. Nature items
+          // are usually small pixel art, so floor is good, but let's just use
+          // the safer logic:
+          if (scale > 1.0f)
+            scale = std::floor(scale);
+
           Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
           Rectangle dest = {btnRect.x + 5, btnRect.y + 5, tex.width * scale,
                             tex.height * scale};
           DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
         }
       } else {
-        // Procedural Eraser Icon
-        float pad = 15;
-        Rectangle eraserRect = {btnRect.x + pad, btnRect.y + pad,
-                                btnSize - pad * 2, btnSize - pad * 2};
-        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
-                          eraserRect.y + eraserRect.height / 2,
-                          eraserRect.width, eraserRect.height},
-                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
-                         WHITE);
-        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
-                          eraserRect.y + eraserRect.height / 2,
-                          eraserRect.width, eraserRect.height / 2},
-                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
-                         PINK);
-        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10,
-        // RED);
+        // Eraser Icon (Custom)
+        if (texEraser.id > 0) {
+          float availableSize = btnSize - 10;
+          float rawScale = availableSize /
+                           (float)std::max(texEraser.width, texEraser.height);
+          float scale = rawScale;
+          if (scale > 1.0f)
+            scale = std::floor(scale);
+
+          float scaledW = texEraser.width * scale;
+          float scaledH = texEraser.height * scale;
+          float offsetX = (btnSize - scaledW) / 2.0f;
+          float offsetY = (btnSize - scaledH) / 2.0f;
+
+          Rectangle src = {0, 0, (float)texEraser.width,
+                           (float)texEraser.height};
+          Rectangle dest = {btnRect.x + offsetX, btnRect.y + offsetY, scaledW,
+                            scaledH};
+
+          DrawTexturePro(texEraser, src, dest, {0, 0}, 0.0f, WHITE);
+        }
       }
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
@@ -440,29 +561,41 @@ void UIManager::DrawToolbar(const World &world) {
         Texture2D tex = const_cast<World &>(world).GetTextureForUI(decs[i]);
         if (tex.id > 0) {
           float scale =
-              std::min((btnSize - 20) / tex.width, (btnSize - 20) / tex.height);
+              std::min((btnSize - 10) / tex.width, (btnSize - 10) / tex.height);
+          // Standard scaling for nature shouldn't need floor logic if we trust
+          // it, but let's keep it safe or use the new standard. Nature items
+          // are usually small pixel art, so floor is good, but let's just use
+          // the safer logic:
+          if (scale > 1.0f)
+            scale = std::floor(scale);
+
           Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
           Rectangle dest = {btnRect.x + 5, btnRect.y + 5, tex.width * scale,
                             tex.height * scale};
           DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
         }
       } else {
-        // Procedural Eraser Icon
-        float pad = 15;
-        Rectangle eraserRect = {btnRect.x + pad, btnRect.y + pad,
-                                btnSize - pad * 2, btnSize - pad * 2};
-        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
-                          eraserRect.y + eraserRect.height / 2,
-                          eraserRect.width, eraserRect.height},
-                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
-                         WHITE);
-        DrawRectanglePro({eraserRect.x + eraserRect.width / 2,
-                          eraserRect.y + eraserRect.height / 2,
-                          eraserRect.width, eraserRect.height / 2},
-                         {eraserRect.width / 2, eraserRect.height / 2}, 30.0f,
-                         PINK);
-        // DrawText("Eraser", (int)btnRect.x + 5, (int)btnRect.y + 40, 10,
-        // RED);
+        // Eraser Icon (Custom)
+        if (texEraser.id > 0) {
+          float availableSize = btnSize - 10;
+          float rawScale = availableSize /
+                           (float)std::max(texEraser.width, texEraser.height);
+          float scale = rawScale;
+          if (scale > 1.0f)
+            scale = std::floor(scale);
+
+          float scaledW = texEraser.width * scale;
+          float scaledH = texEraser.height * scale;
+          float offsetX = (btnSize - scaledW) / 2.0f;
+          float offsetY = (btnSize - scaledH) / 2.0f;
+
+          Rectangle src = {0, 0, (float)texEraser.width,
+                           (float)texEraser.height};
+          Rectangle dest = {btnRect.x + offsetX, btnRect.y + offsetY, scaledW,
+                            scaledH};
+
+          DrawTexturePro(texEraser, src, dest, {0, 0}, 0.0f, WHITE);
+        }
       }
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
@@ -472,17 +605,29 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Creatures) {
-    numTools = 10; // Updated count
+    numTools = 11; // Updated count (Added Boar)
     EntityType creatureTypes[] = {
-        EntityType::HumanUnarmed, EntityType::HumanArmed, // New Types
+        EntityType::HumanUnarmed, EntityType::HumanArmed,
+        EntityType::Boar, // Added Boar
         EntityType::Cow,          EntityType::Chicken,    EntityType::Sheep,
         EntityType::Bull,         EntityType::Chicken2,   EntityType::Lamb,
         EntityType::Pig,          EntityType::Turkey};
 
     for (int i = 0; i < numTools; i++) {
-      Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
-                           btnSize};
-      bool isHover = CheckCollisionPointRec(mousePos, btnRect);
+      // Apply Scroll Offset to X position
+      float btnX = startX + i * (btnSize + padding) - scrollOffset;
+
+      // Optimization: Don't draw if completely out of view
+      if (btnX + btnSize < startX || btnX > startX + visibleWidth)
+        continue;
+
+      Rectangle btnRect = {btnX, startY, btnSize, btnSize};
+
+      // Check collision with the SCROLLED rect, but strictly within the visible
+      // area logic
+      bool isHover =
+          CheckCollisionPointRec(mousePos, btnRect) &&
+          (mousePos.x >= startX && mousePos.x <= startX + visibleWidth);
 
       DrawTexturedButton(texButton, btnRect, selectedToolIndex == i, isHover);
 
@@ -493,20 +638,44 @@ void UIManager::DrawToolbar(const World &world) {
       Texture2D tex =
           const_cast<World &>(world).GetTextureForUI(creatureTypes[i]);
       if (tex.id > 0) {
-        // Center and fit - use integer scale for pixel-perfect scaling
-        float availableSize = btnSize - 20; // Increased padding
-        float rawScale = availableSize / (float)std::max(tex.width, tex.height);
-        float scale =
-            std::max(1.0f, std::floor(rawScale)); // Pixel scale, at least 1x
+        // Center and fit
+        float availableSize =
+            btnSize - 4; // Reduced padding to allow 1.5x scale (76px available
+                         // > 72px needed)
+        float scale = availableSize / (float)std::max(tex.width, tex.height);
+        if (scale > 1.0f)
+          scale = std::floor(scale * 2.0f) /
+                  2.0f; // Allow 0.5x increments (e.g. 1.5x)
 
         float scaledW = tex.width * scale;
         float scaledH = tex.height * scale;
+
+        Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+
+        if (creatureTypes[i] == EntityType::HumanUnarmed ||
+            creatureTypes[i] == EntityType::HumanArmed) {
+          // Define a crop area (e.g., 32x36 centered horizontally,
+          // bottom-aligned but cutting off footer variance)
+          // Original: 64x64. Center X = 32. Bottom Y = 64.
+          // Crop W=32, H=36. X = 16, Y = 14.
+          // This range [14, 50] captures the body/head while cutting empty
+          // space, allowing 'scale' to reach 2.0x within 74px height.
+          src = {16, 14, 32, 36};
+
+          // Recalculate scale for the CROPPED size
+          float availableSize = btnSize - 6; // Padding
+          scale = availableSize / (float)std::max(src.width, src.height);
+          if (scale > 1.0f)
+            scale = std::floor(scale * 2.0f) / 2.0f;
+
+          scaledW = src.width * scale;
+          scaledH = src.height * scale;
+        }
 
         // Center in button
         float offsetX = (btnSize - scaledW) / 2.0f;
         float offsetY = (btnSize - scaledH) / 2.0f;
 
-        Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
         Rectangle dest = {btnRect.x + offsetX, btnRect.y + offsetY, scaledW,
                           scaledH};
         DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
@@ -517,87 +686,64 @@ void UIManager::DrawToolbar(const World &world) {
         selectedToolIndex = i;
       }
     }
-  } else if (currentTab == UIState::Settings) {
-    DrawTextEx(uiFont, "Press 'R' in game to Regenerate",
-               {(float)startX, (float)startY + 20}, 20, 1, WHITE);
-
-    // Cursor Size Button
-    Rectangle cursorBtn = {startX, startY + 50, 200, 40};
-    bool isHover = CheckCollisionPointRec(mousePos, cursorBtn);
-    DrawRectangleRec(cursorBtn,
-                     isHover ? GetColor(0x1a1a2eFF) : GetColor(0x0f3460FF));
-    DrawRectangleLinesEx(cursorBtn, 2, WHITE);
-
-    // Display Current Size
-    const char *sizeText = "Cursor: 0.5x";
-    if (cursorScale == 0.25f)
-      sizeText = "Cursor: 0.25x";
-    else if (cursorScale == 0.75f)
-      sizeText = "Cursor: 0.75x";
-    else if (cursorScale == 1.0f)
-      sizeText = "Cursor: 1.0x";
-
-    Vector2 sizeTextDims = MeasureTextEx(uiFont, sizeText, 20, 1);
-    DrawTextEx(uiFont, sizeText,
-               {cursorBtn.x + (cursorBtn.width - sizeTextDims.x) / 2,
-                cursorBtn.y + (cursorBtn.height - sizeTextDims.y) / 2},
-               20, 1, WHITE);
-
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover) {
-      // Cycle logic: 1.0 -> 0.75 -> 0.5 -> 0.25 -> 1.0 (Decreasing as
-      // requested or simply smaller range) Let's cycle up for intuition: 0.25
-      // -> 0.5 -> 0.75 -> 1.0
-      if (cursorScale == 0.25f)
-        cursorScale = 0.5f;
-      else if (cursorScale == 0.5f)
-        cursorScale = 0.75f;
-      else if (cursorScale == 0.75f)
-        cursorScale = 1.0f;
-      else
-        cursorScale = 0.25f;
-    }
   }
 
-  // Brush Size Toggle Button (Right Side)
-  float toggleW = 120;
-  Rectangle toggleRect = {(float)SCREEN_WIDTH - toggleW - 20, startY, toggleW,
-                          btnSize};
-  bool isToggleHover = CheckCollisionPointRec(mousePos, toggleRect);
+  EndScissorMode(); // End Clipping
 
-  DrawTexturedButton(texButton, toggleRect, false, isToggleHover);
+  if (currentTab == UIState::Settings) {
+    // === HOME / SETTINGS TAB ===
 
-  const char *sizeNames[] = {"Single", "Small", "Medium", "Large", "X-Large"};
-  // Convert enum to index for display
-  int sizeIndex = 0;
-  if (currentBrushSize == BrushSize::S)
-    sizeIndex = 1;
-  else if (currentBrushSize == BrushSize::M)
-    sizeIndex = 2;
-  else if (currentBrushSize == BrushSize::L)
-    sizeIndex = 3;
-  else if (currentBrushSize == BrushSize::XL)
-    sizeIndex = 4;
+    // 1. Brush Size Control (Moved here)
+    DrawTextEx(uiFont, "Brush Size:", {(float)startX, (float)startY}, 20, 1,
+               WHITE);
 
-  DrawTextEx(uiFont,
-             "Size:", {(float)toggleRect.x + 10, (float)toggleRect.y + 5}, 16,
-             1, LIGHTGRAY); // Smaller label
-  DrawTextEx(uiFont, sizeNames[sizeIndex],
-             {(float)toggleRect.x + 10, (float)toggleRect.y + 25}, 20, 1,
-             WHITE);
+    float toggleW = 120;
+    Rectangle toggleRect = {startX, startY + 30, toggleW, 40}; // Below label
+    bool isToggleHover = CheckCollisionPointRec(mousePos, toggleRect);
 
-  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isToggleHover) {
-    // Cycle size
-    if (currentBrushSize == BrushSize::Single)
-      currentBrushSize = BrushSize::S;
-    else if (currentBrushSize == BrushSize::S)
-      currentBrushSize = BrushSize::M;
+    DrawTexturedButton(texButton, toggleRect, false, isToggleHover);
+
+    const char *sizeNames[] = {"Single", "Small", "Medium", "Large", "X-Large"};
+    int sizeIndex = 0;
+    if (currentBrushSize == BrushSize::S)
+      sizeIndex = 1;
     else if (currentBrushSize == BrushSize::M)
-      currentBrushSize = BrushSize::L;
+      sizeIndex = 2;
     else if (currentBrushSize == BrushSize::L)
-      currentBrushSize = BrushSize::XL;
-    else
-      currentBrushSize = BrushSize::Single;
+      sizeIndex = 3;
+    else if (currentBrushSize == BrushSize::XL)
+      sizeIndex = 4;
 
-    TraceLog(LOG_INFO, "UI: Changed Brush Size to %d", (int)currentBrushSize);
+    // Draw Size Text inside button
+    Vector2 szTextSize = MeasureTextEx(uiFont, sizeNames[sizeIndex], 20, 1);
+    DrawTextEx(uiFont, sizeNames[sizeIndex],
+               {toggleRect.x + (toggleRect.width - szTextSize.x) / 2,
+                toggleRect.y + (toggleRect.height - szTextSize.y) / 2},
+               20, 1, WHITE);
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isToggleHover) {
+      if (currentBrushSize == BrushSize::Single)
+        currentBrushSize = BrushSize::S;
+      else if (currentBrushSize == BrushSize::S)
+        currentBrushSize = BrushSize::M;
+      else if (currentBrushSize == BrushSize::M)
+        currentBrushSize = BrushSize::L;
+      else if (currentBrushSize == BrushSize::L)
+        currentBrushSize = BrushSize::XL;
+      else
+        currentBrushSize = BrushSize::Single;
+      TraceLog(LOG_INFO, "UI: Changed Brush Size to %d", (int)currentBrushSize);
+    }
+
+    // 2. Settings Button (Placeholder)
+    Rectangle setBtnRect = {startX + 150, startY + 30, 120, 40};
+    bool isSetHover = CheckCollisionPointRec(mousePos, setBtnRect);
+    DrawTexturedButton(texButton, setBtnRect, false, isSetHover);
+
+    Vector2 setTextSize = MeasureTextEx(uiFont, "Settings", 20, 1);
+    DrawTextEx(uiFont, "Settings",
+               {setBtnRect.x + (setBtnRect.width - setTextSize.x) / 2,
+                setBtnRect.y + (setBtnRect.height - setTextSize.y) / 2},
+               20, 1, WHITE);
   }
 }

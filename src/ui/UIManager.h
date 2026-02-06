@@ -47,9 +47,24 @@ private:
   // Font
   Font uiFont;
 
+  // Shader
+  Shader circleMaskShader;
+
+  // Scrolling State
+  float scrollOffset = 0.0f;
+  float maxScroll = 0.0f;
+  float contentWidth = 0.0f;
+  float visibleWidth = 0.0f;
+
   // Button Texture
   Texture2D texButton;    // Using boto003.png as requested
   Texture2D texTabButton; // Using ButtomAbas.png
+
+  // Custom Icons
+  Texture2D texEraser;
+  Texture2D texIconWaterDeep;
+  Texture2D texIconWaterOcean;
+  Texture2D texIconWaterShallow;
 
   UIState currentTab = UIState::Terrain;
   BrushSize currentBrushSize = BrushSize::S;
@@ -59,8 +74,8 @@ private:
   // Constants (Internal to UI)
   static const int SCREEN_WIDTH = 1024;
   static const int SCREEN_HEIGHT = 768;
-  static const int TOOLBAR_HEIGHT = 100;
-  static const int TAB_HEIGHT = 30;
+  static const int TOOLBAR_HEIGHT = 120;
+  static const int TAB_HEIGHT = 50;
 
   // Helper methods
   void DrawToolbar(const World &world);
