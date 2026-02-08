@@ -70,6 +70,11 @@ struct Tile {
 
   // Liquid simulation
   float liquidLevel = 0.0f; // 0.0 = dry, 1.0 = full block of water
+
+  // Farming system
+  bool isPlanted = false;      // Has crops planted
+  float growthProgress = 0.0f; // 0.0 = just planted, 100.0 = ready to harvest
+  int farmOwnerCityID = -1;    // Which city owns this farm tile
 };
 
 #endif // TILE_H

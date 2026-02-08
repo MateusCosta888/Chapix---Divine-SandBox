@@ -110,7 +110,8 @@ public:
   // Human Assets (3 States: Idle, Walk, Attack | 4 Directions | Variable
   // Frames) Directions: 0:Down, 1:Right, 2:Left, 3:Up (Matches standard order)
   std::vector<Texture2D> texHumanUnarmed[3][4];
-  Texture2D texHumanArmed[3][4][4];
+  std::vector<Texture2D>
+      texHumanArmed[3][4]; // Changed to vector for variable frames
 
   // Human Extras
   Texture2D texHumanUnarmedSwim[4][4];

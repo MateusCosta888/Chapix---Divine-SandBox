@@ -366,7 +366,7 @@ void ResourceManager::Load() {
   // Right: 40-41
   // Left: 14-15
   // Back (Up): 01-02
-  const char *idlePrefix = "assets/char/New Main Human/IDLE/Idle";
+  const char *idlePrefix = "assets/char/New Main Human/No Sword/IDLE/Idle";
   // Down
   texHumanUnarmed[0][0].push_back(
       LoadTexture(TextFormat("%s027.png", idlePrefix)));
@@ -393,7 +393,7 @@ void ResourceManager::Load() {
   // Right: 40-48
   // Left: 14-22
   // Back (Up): 01-09
-  const char *walkPrefix = "assets/char/New Main Human/walk/walk";
+  const char *walkPrefix = "assets/char/New Main Human/No Sword/walk/walk";
   // Down
   for (int i = 27; i <= 34; i++)
     texHumanUnarmed[1][0].push_back(
@@ -416,7 +416,7 @@ void ResourceManager::Load() {
   // Right: 40-45
   // Left: 14-19
   // Back (Up): 01-06
-  const char *punchPrefix = "assets/char/New Main Human/Punch/punch";
+  const char *punchPrefix = "assets/char/New Main Human/No Sword/Punch/punch";
   // Down
   for (int i = 28; i <= 31; i++)
     texHumanUnarmed[2][0].push_back(
@@ -443,18 +443,83 @@ void ResourceManager::Load() {
     }
   }
 
-  // ARMED
-  for (int s = 0; s < 3; s++) {     // State
-    for (int d = 0; d < 4; d++) {   // Direction
-      for (int f = 0; f < 4; f++) { // Frame
-        std::string folder =
-            basePath + "Character with sword and shield/" + states[s] + "/";
-        // Same structure
-        std::string filename =
-            states[s] + " " + dirs[d] + std::to_string(f + 1) + ".png";
+  // ARMED (With Sword - New Main Human)
+  // Directions: 0:Down (Front), 1:Right, 2:Left, 3:Up (Back)
+  // Files numbered: Back (001-xxx), Left (014-xxx), Front (027-xxx), Right
+  // (040-xxx)
 
-        texHumanArmed[s][d][f] = LoadTexture((folder + filename).c_str());
-        SetTextureFilter(texHumanArmed[s][d][f], TEXTURE_FILTER_POINT);
+  // 1. IDLE (2 frames per direction)
+  // Front (Down): 27-28, Right: 40-41, Left: 14-15, Back (Up): 01-02
+  const char *armedIdlePrefix =
+      "assets/char/New Main Human/With Sword/Idle/Idle";
+  // Down
+  texHumanArmed[0][0].push_back(
+      LoadTexture(TextFormat("%s027.png", armedIdlePrefix)));
+  texHumanArmed[0][0].push_back(
+      LoadTexture(TextFormat("%s028.png", armedIdlePrefix)));
+  // Right
+  texHumanArmed[0][1].push_back(
+      LoadTexture(TextFormat("%s040.png", armedIdlePrefix)));
+  texHumanArmed[0][1].push_back(
+      LoadTexture(TextFormat("%s041.png", armedIdlePrefix)));
+  // Left
+  texHumanArmed[0][2].push_back(
+      LoadTexture(TextFormat("%s014.png", armedIdlePrefix)));
+  texHumanArmed[0][2].push_back(
+      LoadTexture(TextFormat("%s015.png", armedIdlePrefix)));
+  // Up
+  texHumanArmed[0][3].push_back(
+      LoadTexture(TextFormat("%s001.png", armedIdlePrefix)));
+  texHumanArmed[0][3].push_back(
+      LoadTexture(TextFormat("%s002.png", armedIdlePrefix)));
+
+  // 2. WALK (9 frames per direction)
+  // Front (Down): 27-35, Right: 40-48, Left: 14-22, Back (Up): 01-09
+  const char *armedWalkPrefix =
+      "assets/char/New Main Human/With Sword/walk/Walk";
+  // Down
+  for (int i = 27; i <= 35; i++)
+    texHumanArmed[1][0].push_back(
+        LoadTexture(TextFormat("%s%03d.png", armedWalkPrefix, i)));
+  // Right
+  for (int i = 40; i <= 48; i++)
+    texHumanArmed[1][1].push_back(
+        LoadTexture(TextFormat("%s%03d.png", armedWalkPrefix, i)));
+  // Left
+  for (int i = 14; i <= 22; i++)
+    texHumanArmed[1][2].push_back(
+        LoadTexture(TextFormat("%s%03d.png", armedWalkPrefix, i)));
+  // Up
+  for (int i = 1; i <= 9; i++)
+    texHumanArmed[1][3].push_back(
+        LoadTexture(TextFormat("%s%03d.png", armedWalkPrefix, i)));
+
+  // 3. ATTACK (Slash - 6 frames per direction)
+  // Back (Up): 01-06, Left: 07-12, Front (Down): 13-18, Right: 19-24
+  const char *armedSlashPrefix =
+      "assets/char/New Main Human/With Sword/Slash/Slash";
+  // Down (Front) - frames 13-18
+  for (int i = 13; i <= 18; i++)
+    texHumanArmed[2][0].push_back(
+        LoadTexture(TextFormat("%s%03d.png", armedSlashPrefix, i)));
+  // Right - frames 19-24
+  for (int i = 19; i <= 24; i++)
+    texHumanArmed[2][1].push_back(
+        LoadTexture(TextFormat("%s%03d.png", armedSlashPrefix, i)));
+  // Left - frames 07-12
+  for (int i = 7; i <= 12; i++)
+    texHumanArmed[2][2].push_back(
+        LoadTexture(TextFormat("%s%03d.png", armedSlashPrefix, i)));
+  // Up (Back) - frames 01-06
+  for (int i = 1; i <= 6; i++)
+    texHumanArmed[2][3].push_back(
+        LoadTexture(TextFormat("%s%03d.png", armedSlashPrefix, i)));
+
+  // Apply Filters for Armed
+  for (int s = 0; s < 3; s++) {
+    for (int d = 0; d < 4; d++) {
+      for (auto &tex : texHumanArmed[s][d]) {
+        SetTextureFilter(tex, TEXTURE_FILTER_POINT);
       }
     }
   }
@@ -569,8 +634,8 @@ void ResourceManager::Load() {
   }
   // Death
   for (int f = 1; f <= 4; f++) {
-    std::string path =
-        basePath + "death animation/death" + std::to_string(f) + ".png";
+    std::string path = "assets/char/New Main Human/death animation/death" +
+                       std::to_string(f) + ".png";
     texHumanDeath[f - 1] = LoadTexture(path.c_str());
     SetTextureFilter(texHumanDeath[f - 1], TEXTURE_FILTER_POINT);
   }
@@ -666,12 +731,14 @@ void ResourceManager::Unload() {
   }
   // Remove individual loops if they are annoying to target,
   // but importantly add Human unload loop.
-  // Unload Human Arrays
+  // Unload Human Arrays (vectors)
   for (int s = 0; s < 3; s++) {
     for (int d = 0; d < 4; d++) {
-      for (int f = 0; f < 4; f++) {
-        UnloadTexture(texHumanUnarmed[s][d][f]);
-        UnloadTexture(texHumanArmed[s][d][f]);
+      for (auto &tex : texHumanUnarmed[s][d]) {
+        UnloadTexture(tex);
+      }
+      for (auto &tex : texHumanArmed[s][d]) {
+        UnloadTexture(tex);
       }
     }
   }

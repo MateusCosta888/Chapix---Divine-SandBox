@@ -1,12 +1,14 @@
 #include "WorldRenderer.h"
 #include "../resources/ResourceManager.h"
+#include "../simulation/Citizen.h"
+#include "../simulation/City.h"
 #include "raylib.h"
 #include <algorithm>
 #include <cmath>
 
 WorldRenderer::WorldRenderer(World &world) : world(world) {}
 
-void WorldRenderer::Draw() {
+void WorldRenderer::Draw(const Camera2D &camera) {
   int tileSize = 10;
   int width = world.GetWidth();
   int height = world.GetHeight();
@@ -529,10 +531,20 @@ void WorldRenderer::Draw() {
         else if (e.state == EntityState::Attack)
           stateIdx = 2;
 
-        if (e.type == EntityType::HumanUnarmed)
-          tex = resourceManager.texHumanUnarmed[stateIdx][dirIdx][frame];
-        else
-          tex = resourceManager.texHumanArmed[stateIdx][dirIdx][frame];
+        if (e.type == EntityType::HumanUnarmed) {
+          const auto &frames =
+              resourceManager.texHumanUnarmed[stateIdx][dirIdx];
+          if (!frames.empty()) {
+            int frame = e.currentFrame % frames.size();
+            tex = frames[frame];
+          }
+        } else {
+          const auto &frames = resourceManager.texHumanArmed[stateIdx][dirIdx];
+          if (!frames.empty()) {
+            int frame = e.currentFrame % frames.size();
+            tex = frames[frame];
+          }
+        }
       }
     }
     // === BOAR DRAWING ===
@@ -606,7 +618,8 @@ void WorldRenderer::Draw() {
       float destW;
       float destH;
 
-      if (e.type == EntityType::HumanUnarmed) {
+      if (e.type == EntityType::HumanUnarmed ||
+          e.type == EntityType::HumanArmed) {
         destW = tex.width * 0.40f; // Adjusted
         destH = tex.height * 0.40f;
       } else {
@@ -657,6 +670,231 @@ void WorldRenderer::Draw() {
   for (float py = startY; py < endY; py += dashLen + gapLen)
     DrawRectangle((int)endX, (int)py, 4, (int)std::min(dashLen, endY - py),
                   boundaryColor);
+
+  // === CITY TERRITORY VISUALIZATION ===
+  // Draw colored overlays for city territories
+  SimulationManager &sim = world.GetSimulation();
+  const auto &cities = sim.GetAllCities();
+
+  // Get mouse position in world coordinates for hover detection
+  Vector2 screenMousePos = GetMousePosition();
+  Vector2 worldMousePos = GetScreenToWorld2D(screenMousePos, camera);
+  int hoveredCityID = -1;
+
+  for (const auto &pair : cities) {
+    const City &city = pair.second;
+    if (!city.isAlive)
+      continue;
+
+    // Draw territory tiles with semi-transparent city color
+    Color territoryColor = city.color;
+    territoryColor.a = 60; // Very transparent
+
+    for (const Vector2 &tile : city.territory) {
+      int tx = static_cast<int>(tile.x);
+      int ty = static_cast<int>(tile.y);
+      DrawRectangle(tx * tileSize, ty * tileSize, tileSize, tileSize,
+                    territoryColor);
+    }
+
+    // Draw city center marker (brighter)
+    Color centerColor = city.color;
+    centerColor.a = 200;
+    int cx = static_cast<int>(city.center.x) * tileSize;
+    int cy = static_cast<int>(city.center.y) * tileSize;
+    DrawRectangle(cx - 2, cy - 2, tileSize + 4, tileSize + 4, centerColor);
+
+    // Draw city name above center
+    DrawText(city.name.c_str(), cx, cy - 15, 10, WHITE);
+
+    // Check if mouse is hovering over city center (in WORLD coordinates)
+    float distToMouse = std::hypot(worldMousePos.x - cx, worldMousePos.y - cy);
+    if (distToMouse < tileSize * 3) {
+      hoveredCityID = city.id;
+    }
+  }
+
+  // === CITY INFO TOOLTIP ===
+  // Draw tooltip for hovered city
+  if (hoveredCityID >= 0) {
+    const City *hoveredCity = sim.GetCity(hoveredCityID);
+    if (hoveredCity) {
+      int tooltipX = static_cast<int>(worldMousePos.x) + 15;
+      int tooltipY = static_cast<int>(worldMousePos.y) - 60;
+
+      // Tooltip background
+      int boxWidth = 150;
+      int boxHeight = 70;
+      DrawRectangle(tooltipX - 5, tooltipY - 5, boxWidth, boxHeight,
+                    (Color){30, 30, 40, 220});
+      DrawRectangleLines(tooltipX - 5, tooltipY - 5, boxWidth, boxHeight,
+                         hoveredCity->color);
+
+      // City name
+      DrawText(hoveredCity->name.c_str(), tooltipX, tooltipY, 14,
+               hoveredCity->color);
+
+      // Population
+      char popText[64];
+      snprintf(popText, sizeof(popText), "Pop: %d / %d",
+               hoveredCity->GetPopulation(), hoveredCity->populationCap);
+      DrawText(popText, tooltipX, tooltipY + 18, 12, WHITE);
+
+      // Food
+      char foodText[64];
+      snprintf(foodText, sizeof(foodText), "Food: %d / %d",
+               hoveredCity->resources.food, hoveredCity->maxStorage);
+      DrawText(foodText, tooltipX, tooltipY + 34, 12, GREEN);
+
+      // Wood
+      char woodText[64];
+      snprintf(woodText, sizeof(woodText), "Wood: %d",
+               hoveredCity->resources.wood);
+      DrawText(woodText, tooltipX, tooltipY + 50, 12, BROWN);
+    }
+  }
+
+  // === CITIZEN SELECTION (Right-click) ===
+  if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+    // Check if clicking on a human entity
+    const std::vector<Entity> &entities = world.GetEntities();
+    int closestCitizenID = -1;
+    float closestDist = 999999.0f;
+    Vector2 closestPos = {0, 0};
+
+    for (const Entity &e : entities) {
+      if (e.type == EntityType::HumanUnarmed ||
+          e.type == EntityType::HumanArmed) {
+        float ex = e.position.x * tileSize;
+        float ey = e.position.y * tileSize;
+        float dist = std::hypot(worldMousePos.x - ex, worldMousePos.y - ey);
+
+        if (dist < tileSize * 2 && dist < closestDist) {
+          closestDist = dist;
+          closestCitizenID = e.citizenID;
+          closestPos = {ex, ey};
+        }
+      }
+    }
+
+    if (closestCitizenID >= 0) {
+      selectedCitizenID = closestCitizenID;
+      selectedCitizenScreenPos = closestPos;
+    } else {
+      selectedCitizenID = -1; // Clicked empty space, deselect
+    }
+  }
+
+  // Left-click anywhere deselects
+  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    selectedCitizenID = -1;
+  }
+
+  // === CITIZEN INFO POPUP ===
+  if (selectedCitizenID >= 0) {
+    Citizen *citizen = sim.GetCitizen(selectedCitizenID);
+    if (citizen && citizen->isAlive) {
+      // Find entity for position update
+      const std::vector<Entity> &entities = world.GetEntities();
+      for (const Entity &e : entities) {
+        if (e.citizenID == selectedCitizenID) {
+          selectedCitizenScreenPos = {e.position.x * tileSize,
+                                      e.position.y * tileSize};
+          break;
+        }
+      }
+
+      // Draw popup above the citizen
+      int popupX = static_cast<int>(selectedCitizenScreenPos.x) - 50;
+      int popupY = static_cast<int>(selectedCitizenScreenPos.y) - 55;
+
+      // Get profession string
+      const char *professionStr = "Unemployed";
+      switch (citizen->profession) {
+      case Profession::Gatherer:
+        professionStr = "Gatherer";
+        break;
+      case Profession::Lumberjack:
+        professionStr = "Lumberjack";
+        break;
+      case Profession::Farmer:
+        professionStr = "Farmer";
+        break;
+      case Profession::Miner:
+        professionStr = "Miner";
+        break;
+      case Profession::Builder:
+        professionStr = "Builder";
+        break;
+      case Profession::Soldier:
+        professionStr = "Soldier";
+        break;
+      case Profession::Leader:
+        professionStr = "Leader";
+        break;
+      default:
+        if (!citizen->isAdult())
+          professionStr = "Child";
+        break;
+      }
+
+      // Calculate box width based on name length
+      int nameWidth = MeasureText(citizen->name.c_str(), 12);
+      int profWidth = MeasureText(professionStr, 10);
+      int boxWidth = (nameWidth > profWidth ? nameWidth : profWidth) + 20;
+      if (boxWidth < 100)
+        boxWidth = 100;
+      int boxHeight = 40;
+
+      // Background
+      DrawRectangle(popupX, popupY, boxWidth, boxHeight,
+                    (Color){20, 20, 30, 230});
+      DrawRectangleLinesEx((Rectangle){(float)popupX, (float)popupY,
+                                       (float)boxWidth, (float)boxHeight},
+                           2, GOLD);
+
+      // Name
+      DrawText(citizen->name.c_str(), popupX + 5, popupY + 5, 12, WHITE);
+
+      // Profession with color
+      Color profColor = GRAY;
+      if (citizen->profession == Profession::Lumberjack)
+        profColor = BROWN;
+      else if (citizen->profession == Profession::Farmer)
+        profColor = GREEN;
+      else if (citizen->profession == Profession::Soldier)
+        profColor = RED;
+
+      DrawText(professionStr, popupX + 5, popupY + 22, 10, profColor);
+
+      // PROGESSION (Level + XP Bar) - Only for adults with jobs
+      if (citizen->isAdult() && citizen->profession != Profession::None) {
+        float skill = 0.0f;
+        if (citizen->profession == Profession::Lumberjack)
+          skill = citizen->skillWoodcutting;
+        else if (citizen->profession == Profession::Farmer)
+          skill = citizen->skillFarming;
+        // Add others as needed
+
+        int level = std::min(10, static_cast<int>(skill / 10) + 1);
+        float xpPct = (skill - (level - 1) * 10) / 10.0f;
+        if (level == 10)
+          xpPct = 1.0f;
+
+        char levelText[32];
+        snprintf(levelText, sizeof(levelText), "Lv. %d", level);
+        DrawText(levelText, popupX + boxWidth - 35, popupY + 22, 10, WHITE);
+
+        // XP Bar
+        DrawRectangle(popupX + 5, popupY + 36, boxWidth - 10, 3, BLACK);
+        DrawRectangle(popupX + 5, popupY + 36,
+                      static_cast<int>((boxWidth - 10) * xpPct), 3,
+                      (Color){100, 200, 255, 255});
+      }
+    } else {
+      selectedCitizenID = -1; // Citizen died, deselect
+    }
+  }
 }
 
 void WorldRenderer::DrawEntities() {
@@ -701,17 +939,32 @@ void WorldRenderer::DrawEntities() {
           tex = {0};
         }
       } else {
-        frame = e.currentFrame % 4;
-        tex = resourceManager.texHumanArmed[stateIdx][dirIdx][frame];
+        const auto &frames = resourceManager.texHumanArmed[stateIdx][dirIdx];
+        if (!frames.empty()) {
+          frame = e.currentFrame % frames.size();
+          tex = frames[frame];
+        } else {
+          tex = {0};
+        }
       }
 
       if (tex.id > 0) {
         float destW;
         float destH;
+        float ageScale = 1.0f;
 
-        if (e.type == EntityType::HumanUnarmed) {
-          destW = tex.width * 0.22f; // Adjusted
-          destH = tex.height * 0.22f;
+        // Apply visual scaling for children
+        if (e.citizenID >= 0) {
+          const Citizen *c = world.GetSimulation().GetCitizen(e.citizenID);
+          if (c && !c->isAdult()) {
+            ageScale = 0.5f + std::min(1.0f, c->age / 18.0f) * 0.5f;
+          }
+        }
+
+        if (e.type == EntityType::HumanUnarmed ||
+            e.type == EntityType::HumanArmed) {
+          destW = tex.width * 0.22f * ageScale; // Adjusted
+          destH = tex.height * 0.22f * ageScale;
         } else {
           destW = tex.width * 0.7f;
           destH = tex.height * 0.7f;

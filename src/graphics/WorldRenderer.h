@@ -16,7 +16,7 @@ struct RenderItem {
 class WorldRenderer {
 public:
   WorldRenderer(World &world);
-  void Draw();
+  void Draw(const Camera2D &camera);
 
 private:
   void DrawEntities();
@@ -33,4 +33,8 @@ private:
   bool IsWaterTile(TileType type) const;
 
   World &world;
+
+  // Citizen popup state (right-click to select)
+  int selectedCitizenID = -1;
+  Vector2 selectedCitizenScreenPos = {0, 0};
 };

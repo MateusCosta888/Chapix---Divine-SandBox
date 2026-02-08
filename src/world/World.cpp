@@ -605,11 +605,25 @@ Tile &World::GetTile(int x, int y) {
   return tiles[y * width + x];
 }
 
+const Tile &World::GetTileConst(int x, int y) const {
+  static Tile empty;
+  if (x < 0 || x >= width || y < 0 || y >= height) {
+    return empty;
+  }
+  return tiles[y * width + x];
+}
+
 void World::Update() {
-  // Run water physics (fixed time step or every frame? Every frame is fine for
-  // now)
-  SimulateWater(GetFrameTime());
-  UpdateEntities(GetFrameTime()); // Update entities here
+  float dt = GetFrameTime();
+
+  // Run water physics
+  SimulateWater(dt);
+
+  // Update entity movement and animations
+  UpdateEntities(dt);
+
+  // Run civilization simulation (citizens, cities, kingdoms)
+  simulation.Update(*this, dt);
 }
 
 void World::SimulateWater(float deltaTime) {
@@ -745,7 +759,9 @@ Texture2D World::GetTextureForUI(EntityType type) {
     return {0};
   }
   if (type == EntityType::HumanArmed) {
-    return resourceManager.texHumanArmed[0][0][0];
+    if (!resourceManager.texHumanArmed[0][0].empty())
+      return resourceManager.texHumanArmed[0][0][0];
+    return {0};
   }
   if (type == EntityType::Boar) {
     if (!resourceManager.texBoarIdle.empty())
@@ -818,6 +834,7 @@ void World::AddEntity(EntityType type, Vector2 pos) {
   e.animTime = 0.0f;
   e.facingDirection = 0; // Down
   e.hasTarget = false;
+  e.citizenID = -1; // Initialize as non-citizen
 
   // Set speed based on creature type
   // Set speed and health based on creature type
@@ -842,6 +859,45 @@ void World::AddEntity(EntityType type, Vector2 pos) {
     e.speed = 0.55f;
   } else {
     e.speed = 1.0f;
+  }
+
+  // For intelligent creatures (humans), create citizen data
+  if (e.IsIntelligent()) {
+    Citizen citizen = CreateRandomCitizen(simulation.GetNextCitizenID());
+    e.citizenID = simulation.AddCitizen(citizen);
+    TraceLog(LOG_INFO, "SIMULATION: Created Citizen %d for Entity %d",
+             e.citizenID, e.id);
+
+    // Check if near an existing city - join it immediately
+    int tx = static_cast<int>(pos.x);
+    int ty = static_cast<int>(pos.y);
+    const auto &cities = simulation.GetAllCities();
+    int nearestCityID = -1;
+    float nearestDist = 999999.0f;
+
+    for (const auto &cityPair : cities) {
+      const City &city = cityPair.second;
+      if (!city.isAlive || !city.HasCapacity())
+        continue;
+
+      float dist = std::hypot(city.center.x - tx, city.center.y - ty);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestCityID = cityPair.first;
+      }
+    }
+
+    // If close to a city (within 10 tiles), join it immediately
+    if (nearestCityID >= 0 && nearestDist <= 10.0f) {
+      Citizen *c = simulation.GetCitizen(e.citizenID);
+      if (c) {
+        c->cityID = nearestCityID;
+        simulation.AddCitizenToCity(nearestCityID, e.citizenID);
+        TraceLog(LOG_INFO,
+                 "SIMULATION: Citizen %d joined City %d on spawn (dist: %.1f)",
+                 e.citizenID, nearestCityID, nearestDist);
+      }
+    }
   }
 
   entities.push_back(e);
@@ -1119,25 +1175,50 @@ void World::UpdateEntities(float deltaTime) {
               e.position, Vector2Scale(dir, 2.0f * deltaTime)); // Speed 2.0
         }
       } else {
-        // Wander
+        // Wander - but stay within city territory if assigned to one
         bool isIdle = (e.state == EntityState::Idle);
         if (rng_.Int(0, 100) < 2) {
-          // Generate cardinal-only wander target
           float tx = e.position.x;
           float ty = e.position.y;
-          int wanderDir = rng_.Int(0, 4);
-          float wanderDist = 2.0f + rng_.Float() * 3.0f; // 2-5 tiles
 
-          if (wanderDir == 0)
-            ty -= wanderDist; // Up
-          else if (wanderDir == 1)
-            ty += wanderDist; // Down
-          else if (wanderDir == 2)
-            tx -= wanderDist; // Left
-          else
-            tx += wanderDist; // Right
+          // Check if this human belongs to a city
+          bool hasValidTarget = false;
+          if (e.citizenID >= 0) {
+            Citizen *citizen = simulation.GetCitizen(e.citizenID);
+            if (citizen && citizen->cityID >= 0) {
+              City *city = simulation.GetCity(citizen->cityID);
+              if (city && !city->territory.empty()) {
+                // Pick a random tile within city territory
+                int randIdx = rng_.Int(0, (int)city->territory.size());
+                tx = city->territory[randIdx].x + 0.5f;
+                ty = city->territory[randIdx].y + 0.5f;
 
-          if (IsWalkable((int)tx, (int)ty)) {
+                // Make sure it's walkable
+                if (IsWalkable((int)tx, (int)ty)) {
+                  hasValidTarget = true;
+                }
+              }
+            }
+          }
+
+          // Fallback to random wandering if no city or invalid target
+          if (!hasValidTarget) {
+            int wanderDir = rng_.Int(0, 4);
+            float wanderDist = 2.0f + rng_.Float() * 3.0f;
+
+            if (wanderDir == 0)
+              ty -= wanderDist;
+            else if (wanderDir == 1)
+              ty += wanderDist;
+            else if (wanderDir == 2)
+              tx -= wanderDist;
+            else
+              tx += wanderDist;
+
+            hasValidTarget = IsWalkable((int)tx, (int)ty);
+          }
+
+          if (hasValidTarget) {
             e.targetPos = {tx, ty};
             e.hasTarget = true;
           }

@@ -1,5 +1,6 @@
 #pragma once
-#include "../resources/ResourceManager.h" // Include ResourceManager
+#include "../resources/ResourceManager.h"    // Include ResourceManager
+#include "../simulation/SimulationManager.h" // Civilization simulation
 #include "../utils/Random.h"
 #include "Entity.h" // Added
 #include "Tile.h"
@@ -21,12 +22,16 @@ public:
   // Entities
   void AddEntity(EntityType type, Vector2 pos);
   const std::vector<Entity> &GetEntities() const { return entities; }
+  std::vector<Entity> &GetEntitiesMutable() {
+    return entities;
+  } // For simulation
 
   void LoadTextures();                   // Load tile textures
   void UnloadTextures();                 // Cleanup textures
   void UpdateAnimation(float deltaTime); // Update GIF animation
 
   Tile &GetTile(int x, int y);
+  const Tile &GetTileConst(int x, int y) const;
   int GetWidth() const { return width; }
   int GetHeight() const { return height; }
   uint32_t GetSeed() const { return seed_; }
@@ -56,6 +61,10 @@ public:
   ResourceManager &GetResourceManager() { return resourceManager; }
   const ResourceManager &GetResourceManager() const { return resourceManager; }
 
+  // Access to SimulationManager for civilization system
+  SimulationManager &GetSimulation() { return simulation; }
+  const SimulationManager &GetSimulation() const { return simulation; }
+
 private:
   int width;
   int height;
@@ -66,6 +75,9 @@ private:
 
   // Resource Manager instance
   ResourceManager resourceManager;
+
+  // Simulation Manager for civilizations
+  SimulationManager simulation;
 
   // Helper to get texture for autotiling
   Texture2D *GetTextureForTile(TileType type);

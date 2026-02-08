@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
     ClearBackground(GetColor(0x1a1a2eFF));
 
     BeginMode2D(camera);
-    worldRenderer.Draw();
+    worldRenderer.Draw(camera);
 
     // Brush Preview
     // Brush Preview
