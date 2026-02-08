@@ -72,15 +72,15 @@ BiomeType DetermineBiome(float temp, float humidity, float latitude,
 
 // Helper: Get terrain type based on height and biome
 TileType GetTerrainForBiome(BiomeType biome, float height) {
-  // STRICT LAYER SYSTEM
-  // 1. Deep Water
-  if (height < 0.20f)
+  // STRICT LAYER SYSTEM (Refined for better gradient)
+  // 1. Deep Water - Only for very low noise (Trenches)
+  if (height < 0.15f)
     return TileType::DeepOcean;
-  // 2. Medium Water
-  if (height < 0.30f)
+  // 2. Medium Water - Standard Ocean
+  if (height < 0.35f)
     return TileType::Ocean;
-  // 3. Shallow Water
-  if (height < 0.40f)
+  // 3. Shallow Water - Coastal areas
+  if (height < 0.42f)
     return TileType::ShallowOcean;
 
   // 4. Land Layer (Sand/Grass/Forest/Snow)
@@ -93,7 +93,7 @@ TileType GetTerrainForBiome(BiomeType biome, float height) {
       return TileType::Snow;
     }
     // Coastal check for Plains/Forest
-    if (height < 0.42f) {    // Thinner beach (0.40 - 0.42)
+    if (height < 0.44f) {    // Thinner beach (0.42 - 0.44)
       return TileType::Sand; // Beach just above water
     }
     if (biome == BiomeType::Forest) {
@@ -509,6 +509,24 @@ void World::Generate() {
   }
 
   // ==========================================================================
+  // LIQUID LEVEL INITIALIZATION - Set water tiles to full liquid
+  // ==========================================================================
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      Tile &tile = GetTile(x, y);
+      if (tile.type == TileType::DeepOcean) {
+        tile.liquidLevel = 1.0f;
+      } else if (tile.type == TileType::Ocean) {
+        tile.liquidLevel = 0.5f; // Matches > 0.3f threshold in SimulateWater
+      } else if (tile.type == TileType::ShallowOcean) {
+        tile.liquidLevel = 0.25f; // Matches > 0.0f threshold in SimulateWater
+      } else {
+        tile.liquidLevel = 0.0f; // Dry land
+      }
+    }
+  }
+
+  // ==========================================================================
   // NATURAL ANIMAL SPAWNING - Sparse population on grasslands
   // ==========================================================================
   entities.clear(); // Clear any existing entities
@@ -595,81 +613,39 @@ void World::Update() {
 }
 
 void World::SimulateWater(float deltaTime) {
-  // Water Flow (Cellular Automata) - Simple "Falling" logic
-  // Iterate from bottom up to avoid cascading in one frame (optional)
-  // Or just top down. Let's do random update or simple scan.
-  // For simplicity: Scan all, build next state buffer?
-  // Doing in-place for chaotic flow (Minecraft style)
+  // STATIC WATER (Painting Mode)
+  // No flow, no gravity. Water stays where it is placed.
+  // We only update the visual type based on the liquidLevel.
 
-  // Note: We are already iterating logic in main via Update().
-  // Let's implement entity update here as well.
-
-  // Simple cellular automata for water flow
-  // Water above sea level (0.40) tries to flow downhill
-
-  // Create a copy or just partial updates?
-  // Partial updates might cause cascading in one frame (teleporting water),
-  // but for simple visual "sliding" it might be okay.
-  // To be safe and prevent infinite flow in one frame, we might limit updates
-  // or iterate randomly. Let's iterate forward for now.
-
+  // Updates per second (less frequent is fine for static, but responsive for
+  // painting)
   static float timer = 0.0f;
   timer += deltaTime;
   if (timer < 0.1f)
-    return; // Update 10 times per second to simulate viscosity
+    return;
   timer = 0.0f;
 
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
       Tile &tile = GetTile(x, y);
+      float level = tile.liquidLevel;
 
-      // Only process water that is ABOVE sea level (placed by user or "stuck")
-      // Sea level is 0.40f as per GetTerrainForBiome logic
-      if (IsSwimmable(x, y) && tile.height >= 0.40f) {
-
-        // Find lowest neighbor
-        float currentH = tile.height;
-        float lowestH = currentH;
-        int targetX = -1;
-        int targetY = -1;
-
-        int dx[] = {0, 0, -1, 1};
-        int dy[] = {-1, 1, 0, 0};
-
-        for (int i = 0; i < 4; i++) {
-          int nx = x + dx[i];
-          int ny = y + dy[i];
-
-          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-            const Tile &neighbor = GetTile(nx, ny);
-            // Can flow into non-water or water that is lower?
-            // Usually flow into Empty (Air), but here we flow into Terrain.
-            // We want to flow DOWNHILL.
-            if (neighbor.height < lowestH) {
-              lowestH = neighbor.height;
-              targetX = nx;
-              targetY = ny;
-            }
-          }
-        }
-
-        // If found a lower spot
-        if (targetX != -1) {
-          // Move water
-          Tile &target = GetTile(targetX, targetY);
-
-          // If target is already water, it just merges (no height change logic
-          // yet) If target is land, it becomes water
-
-          TileType waterType = tile.type; // Carry the type (e.g. DeepOcean)
-
-          // Restore current tile to its natural state (Dry)
+      // Update visual tile type based on liquid level
+      if (level > 0.6f) {
+        if (tile.type != TileType::DeepOcean)
+          tile.type = TileType::DeepOcean;
+      } else if (level > 0.3f) {
+        if (tile.type != TileType::Ocean)
+          tile.type = TileType::Ocean;
+      } else if (level > 0.0f) {
+        if (tile.type != TileType::ShallowOcean)
+          tile.type = TileType::ShallowOcean;
+      } else {
+        // Dry - restore natural terrain if it was water
+        // Only change back if it IS currently a water type
+        if (tile.type == TileType::DeepOcean || tile.type == TileType::Ocean ||
+            tile.type == TileType::ShallowOcean) {
           tile.type = GetTerrainForBiome(tile.biome, tile.height);
-
-          // Set target to water
-          target.type = waterType;
-
-          // Stop processing this drop for this frame (optional, but good)
         }
       }
     }
@@ -724,6 +700,19 @@ void World::SetTileType(int x, int y, TileType newType) {
   Tile &tile = GetTile(x, y);
   TraceLog(LOG_INFO, "WORLD: SetTileType %d,%d to Type %d", x, y, (int)newType);
   tile.type = newType;
+
+  // Sync liquidLevel with water tile types
+  if (newType == TileType::DeepOcean) {
+    tile.liquidLevel = 1.0f;
+  } else if (newType == TileType::Ocean) {
+    tile.liquidLevel = 0.8f;
+  } else if (newType == TileType::ShallowOcean) {
+    tile.liquidLevel = 0.5f;
+  } else {
+    // Non-water tile - clear liquid
+    tile.liquidLevel = 0.0f;
+  }
+
   UpdateNeighborsEdgeMask(x, y);
 }
 
@@ -751,7 +740,9 @@ Texture2D World::GetTextureForUI(DecorationType type) {
 
 Texture2D World::GetTextureForUI(EntityType type) {
   if (type == EntityType::HumanUnarmed) {
-    return resourceManager.texHumanUnarmed[0][0][0]; // Idle Down Frame 0
+    if (!resourceManager.texHumanUnarmed[0][0].empty())
+      return resourceManager.texHumanUnarmed[0][0][0]; // Idle Down Frame 0
+    return {0};
   }
   if (type == EntityType::HumanArmed) {
     return resourceManager.texHumanArmed[0][0][0];
@@ -1058,7 +1049,23 @@ void World::UpdateEntities(float deltaTime) {
               }
             }
           }
-          if (e.currentFrame >= 4)
+          int maxFrames = 4;
+          if (e.type == EntityType::HumanUnarmed) {
+            int dirIdx = 0;
+            if (e.facingDirection == 1)
+              dirIdx = 1;
+            else if (e.facingDirection == -1)
+              dirIdx = 2;
+            else if (e.facingDirection == 2)
+              dirIdx = 3;
+
+            if (!resourceManager.texHumanUnarmed[2][dirIdx].empty()) {
+              maxFrames =
+                  (int)resourceManager.texHumanUnarmed[2][dirIdx].size();
+            }
+          }
+
+          if (e.currentFrame >= maxFrames)
             e.state = EntityState::Idle;
         }
         continue;
@@ -1096,21 +1103,40 @@ void World::UpdateEntities(float deltaTime) {
         } else {
           // Move logic
           e.state = EntityState::Walking;
-          Vector2 dir =
-              Vector2Normalize(Vector2Subtract(targetPos, e.position));
+          Vector2 dir = Vector2Subtract(targetPos, e.position);
+
+          // Force cardinal direction (no diagonal)
+          if (fabs(dir.x) > fabs(dir.y)) {
+            dir.y = 0;
+            e.facingDirection = (dir.x > 0) ? 1 : -1;
+          } else {
+            dir.x = 0;
+            e.facingDirection = (dir.y > 0) ? 0 : 2;
+          }
+
+          dir = Vector2Normalize(dir);
           e.position = Vector2Add(
               e.position, Vector2Scale(dir, 2.0f * deltaTime)); // Speed 2.0
-          if (fabs(dir.x) > fabs(dir.y))
-            e.facingDirection = (dir.x > 0) ? 1 : -1;
-          else
-            e.facingDirection = (dir.y > 0) ? 0 : 2;
         }
       } else {
         // Wander
         bool isIdle = (e.state == EntityState::Idle);
         if (rng_.Int(0, 100) < 2) {
-          float tx = e.position.x + rng_.Float() * 10 - 5;
-          float ty = e.position.y + rng_.Float() * 10 - 5;
+          // Generate cardinal-only wander target
+          float tx = e.position.x;
+          float ty = e.position.y;
+          int wanderDir = rng_.Int(0, 4);
+          float wanderDist = 2.0f + rng_.Float() * 3.0f; // 2-5 tiles
+
+          if (wanderDir == 0)
+            ty -= wanderDist; // Up
+          else if (wanderDir == 1)
+            ty += wanderDist; // Down
+          else if (wanderDir == 2)
+            tx -= wanderDist; // Left
+          else
+            tx += wanderDist; // Right
+
           if (IsWalkable((int)tx, (int)ty)) {
             e.targetPos = {tx, ty};
             e.hasTarget = true;
@@ -1124,13 +1150,19 @@ void World::UpdateEntities(float deltaTime) {
             e.state = EntityState::Idle;
           } else {
             e.state = EntityState::Walking;
-            e.position = Vector2Add(
-                e.position, Vector2Scale(Vector2Normalize(dir),
-                                         1.0f * deltaTime)); // Slow wander
-            if (fabs(dir.x) > fabs(dir.y))
+
+            // Force cardinal direction (no diagonal)
+            if (fabs(dir.x) > fabs(dir.y)) {
+              dir.y = 0;
               e.facingDirection = (dir.x > 0) ? 1 : -1;
-            else
+            } else {
+              dir.x = 0;
               e.facingDirection = (dir.y > 0) ? 0 : 2;
+            }
+
+            dir = Vector2Normalize(dir);
+            e.position = Vector2Add(
+                e.position, Vector2Scale(dir, 1.0f * deltaTime)); // Slow wander
           }
         } else if (!foundTarget) {
           e.state = EntityState::Idle;
@@ -1140,9 +1172,13 @@ void World::UpdateEntities(float deltaTime) {
       // Anim
       if (e.state == EntityState::Walking) {
         e.animTime += deltaTime;
-        if (e.animTime >= 0.15f) {
+        if (e.animTime >= 0.1f) {
           e.animTime = 0.0f;
-          e.currentFrame = (e.currentFrame + 1) % 4;
+          if (e.type == EntityType::HumanUnarmed) {
+            e.currentFrame++;
+          } else {
+            e.currentFrame = (e.currentFrame + 1) % 4;
+          }
         }
       }
     }

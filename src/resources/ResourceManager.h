@@ -107,10 +107,9 @@ public:
   Texture2D GetTextureForUI(DecorationType type);
   Texture2D GetHumanTexture(bool isWalking, int direction); // New Helper
 
-  // Human Assets (3 States: Idle, Walk, Attack | 4 Directions | 4 Frames)
-  // Directions: 0:Down, 1:Right, 2:Left, 3:Up (Matches standard order)
-  // Dimensions vary per state/frame, so we load them all as separate Texture2D.
-  Texture2D texHumanUnarmed[3][4][4];
+  // Human Assets (3 States: Idle, Walk, Attack | 4 Directions | Variable
+  // Frames) Directions: 0:Down, 1:Right, 2:Left, 3:Up (Matches standard order)
+  std::vector<Texture2D> texHumanUnarmed[3][4];
   Texture2D texHumanArmed[3][4][4];
 
   // Human Extras

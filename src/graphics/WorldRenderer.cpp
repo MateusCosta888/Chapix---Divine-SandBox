@@ -603,9 +603,16 @@ void WorldRenderer::Draw() {
     }
 
     if (tex.id > 0) {
-      float destW = tex.width * 0.5f;
-      float destH = tex.height * 0.5f;
-      // Maintain scale from original
+      float destW;
+      float destH;
+
+      if (e.type == EntityType::HumanUnarmed) {
+        destW = tex.width * 0.40f; // Adjusted
+        destH = tex.height * 0.40f;
+      } else {
+        destW = tex.width * 0.5f;
+        destH = tex.height * 0.5f;
+      }
 
       Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
 
@@ -681,19 +688,34 @@ void WorldRenderer::DrawEntities() {
       else
         dirIdx = 0; // Down
 
-      // Determine Frame (0-3)
-      int frame = e.currentFrame % 4;
-
+      // Determine Frame
+      int frame = 0;
       Texture2D tex;
+
       if (e.type == EntityType::HumanUnarmed) {
-        tex = resourceManager.texHumanUnarmed[stateIdx][dirIdx][frame];
+        const auto &frames = resourceManager.texHumanUnarmed[stateIdx][dirIdx];
+        if (!frames.empty()) {
+          frame = e.currentFrame % frames.size();
+          tex = frames[frame];
+        } else {
+          tex = {0};
+        }
       } else {
+        frame = e.currentFrame % 4;
         tex = resourceManager.texHumanArmed[stateIdx][dirIdx][frame];
       }
 
       if (tex.id > 0) {
-        float destW = tex.width * 0.7f; // Scale
-        float destH = tex.height * 0.7f;
+        float destW;
+        float destH;
+
+        if (e.type == EntityType::HumanUnarmed) {
+          destW = tex.width * 0.22f; // Adjusted
+          destH = tex.height * 0.22f;
+        } else {
+          destW = tex.width * 0.7f;
+          destH = tex.height * 0.7f;
+        }
 
         // Center at position
         float screenX = e.position.x * tileSize;

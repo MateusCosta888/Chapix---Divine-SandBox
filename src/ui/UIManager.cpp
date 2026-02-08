@@ -652,8 +652,7 @@ void UIManager::DrawToolbar(const World &world) {
 
         Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
 
-        if (creatureTypes[i] == EntityType::HumanUnarmed ||
-            creatureTypes[i] == EntityType::HumanArmed) {
+        if (creatureTypes[i] == EntityType::HumanArmed) {
           // Define a crop area (e.g., 32x36 centered horizontally,
           // bottom-aligned but cutting off footer variance)
           // Original: 64x64. Center X = 32. Bottom Y = 64.

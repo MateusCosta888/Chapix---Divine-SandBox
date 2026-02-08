@@ -67,6 +67,9 @@ struct Tile {
 
   // Logic flags
   bool hasRiver = false;
+
+  // Liquid simulation
+  float liquidLevel = 0.0f; // 0.0 = dry, 1.0 = full block of water
 };
 
 #endif // TILE_H

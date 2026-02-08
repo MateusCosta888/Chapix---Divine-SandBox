@@ -71,8 +71,8 @@ int main(int argc, char *argv[]) {
     // World Interaction (Painting)
     ui.Update(world, camera);
 
+    world.Update(); // SimulateWater + UpdateEntities
     world.UpdateAnimation(GetFrameTime());
-    world.UpdateEntities(GetFrameTime());
     if (IsKeyPressed(KEY_R)) {
       world.Reset((uint32_t)GetTime());
       world.Generate();

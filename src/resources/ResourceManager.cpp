@@ -358,19 +358,87 @@ void ResourceManager::Load() {
   const std::string dirs[] = {"down", "right", "left", "up"};
   const std::string states[] = {"idle", "walk", "attack"};
 
-  // UNARMED
-  for (int s = 0; s < 3; s++) {     // State
-    for (int d = 0; d < 4; d++) {   // Direction
-      for (int f = 0; f < 4; f++) { // Frame
-        std::string folder =
-            basePath + "Character without weapon/" + states[s] + "/";
-        // Filename e.g. "idle down1.png"
-        // Note: Frame index in file is 1-based
-        std::string filename =
-            states[s] + " " + dirs[d] + std::to_string(f + 1) + ".png";
+  // UNARMED (New Main Human)
+  // Directions: 0:Down, 1:Right, 2:Left, 3:Up
 
-        texHumanUnarmed[s][d][f] = LoadTexture((folder + filename).c_str());
-        SetTextureFilter(texHumanUnarmed[s][d][f], TEXTURE_FILTER_POINT);
+  // 1. IDLE
+  // Front (Down): 27-28
+  // Right: 40-41
+  // Left: 14-15
+  // Back (Up): 01-02
+  const char *idlePrefix = "assets/char/New Main Human/IDLE/Idle";
+  // Down
+  texHumanUnarmed[0][0].push_back(
+      LoadTexture(TextFormat("%s027.png", idlePrefix)));
+  texHumanUnarmed[0][0].push_back(
+      LoadTexture(TextFormat("%s028.png", idlePrefix)));
+  // Right
+  texHumanUnarmed[0][1].push_back(
+      LoadTexture(TextFormat("%s040.png", idlePrefix)));
+  texHumanUnarmed[0][1].push_back(
+      LoadTexture(TextFormat("%s041.png", idlePrefix)));
+  // Left
+  texHumanUnarmed[0][2].push_back(
+      LoadTexture(TextFormat("%s014.png", idlePrefix)));
+  texHumanUnarmed[0][2].push_back(
+      LoadTexture(TextFormat("%s015.png", idlePrefix)));
+  // Up
+  texHumanUnarmed[0][3].push_back(
+      LoadTexture(TextFormat("%s001.png", idlePrefix)));
+  texHumanUnarmed[0][3].push_back(
+      LoadTexture(TextFormat("%s002.png", idlePrefix)));
+
+  // 2. WALK
+  // Front (Down): 27-34
+  // Right: 40-48
+  // Left: 14-22
+  // Back (Up): 01-09
+  const char *walkPrefix = "assets/char/New Main Human/walk/walk";
+  // Down
+  for (int i = 27; i <= 34; i++)
+    texHumanUnarmed[1][0].push_back(
+        LoadTexture(TextFormat("%s%03d.png", walkPrefix, i)));
+  // Right
+  for (int i = 40; i <= 48; i++)
+    texHumanUnarmed[1][1].push_back(
+        LoadTexture(TextFormat("%s%03d.png", walkPrefix, i)));
+  // Left
+  for (int i = 14; i <= 22; i++)
+    texHumanUnarmed[1][2].push_back(
+        LoadTexture(TextFormat("%s%03d.png", walkPrefix, i)));
+  // Up
+  for (int i = 1; i <= 9; i++)
+    texHumanUnarmed[1][3].push_back(
+        LoadTexture(TextFormat("%s%03d.png", walkPrefix, i)));
+
+  // 3. ATTACK (Punch) - Mapped to State 2
+  // Front (Down): 28-31
+  // Right: 40-45
+  // Left: 14-19
+  // Back (Up): 01-06
+  const char *punchPrefix = "assets/char/New Main Human/Punch/punch";
+  // Down
+  for (int i = 28; i <= 31; i++)
+    texHumanUnarmed[2][0].push_back(
+        LoadTexture(TextFormat("%s%03d.png", punchPrefix, i)));
+  // Right
+  for (int i = 40; i <= 45; i++)
+    texHumanUnarmed[2][1].push_back(
+        LoadTexture(TextFormat("%s%03d.png", punchPrefix, i)));
+  // Left
+  for (int i = 14; i <= 19; i++)
+    texHumanUnarmed[2][2].push_back(
+        LoadTexture(TextFormat("%s%03d.png", punchPrefix, i)));
+  // Up
+  for (int i = 1; i <= 6; i++)
+    texHumanUnarmed[2][3].push_back(
+        LoadTexture(TextFormat("%s%03d.png", punchPrefix, i)));
+
+  // Apply Filters
+  for (int s = 0; s < 3; s++) {
+    for (int d = 0; d < 4; d++) {
+      for (auto &tex : texHumanUnarmed[s][d]) {
+        SetTextureFilter(tex, TEXTURE_FILTER_POINT);
       }
     }
   }
