@@ -1,5 +1,6 @@
 #include "World.h"
 #include "../utils/Noise.h"
+#include "../core/TimeManager.h"
 #include "raylib.h"
 #include "raymath.h"
 #include <algorithm>
@@ -614,7 +615,11 @@ const Tile &World::GetTileConst(int x, int y) const {
 }
 
 void World::Update() {
-  float dt = GetFrameTime();
+  // Use TimeManager for pause and speed control
+  float dt = TimeManager::Get().GetDeltaTime();
+  
+  // Skip all updates when paused (dt will be 0)
+  if (dt <= 0.0f) return;
 
   // Run water physics
   SimulateWater(dt);

@@ -37,11 +37,9 @@ void WorldRenderer::Draw(const Camera2D &camera) {
           tex = nullptr;
           break;
         case TileType::Grass: {
-          // Simple grass rendering with 3 variants
+          // Simple grass rendering with 2 working variants (skip broken [0])
           int grassProb = tileHash % 100;
-          if (grassProb < 20) {
-            tex = &resourceManager.texGrass[0];
-          } else if (grassProb < 60) {
+          if (grassProb < 50) {
             tex = &resourceManager.texGrass[1];
           } else {
             tex = &resourceManager.texGrass[2];

@@ -1,4 +1,5 @@
 #pragma once
+#include "../core/TimeManager.h"
 #include "../world/World.h"
 #include "raylib.h"
 
@@ -33,6 +34,7 @@ private:
 public:
   // State - Moved to public for main.cpp access (or use Get/Set)
   bool showBrushPopup = false;
+  bool showTimePopup = false;
   bool popupJustOpened = false;
 
 private:

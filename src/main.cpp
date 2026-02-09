@@ -2,6 +2,7 @@
 #include "raylib.h"
 #include "raymath.h"
 #include "ui/UIManager.h" // Added UIManager
+#include "core/TimeManager.h"
 #include "world/World.h"
 #include <algorithm>
 #include <cstdint>

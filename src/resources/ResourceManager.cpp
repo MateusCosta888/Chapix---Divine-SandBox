@@ -33,6 +33,7 @@ void ResourceManager::Load() {
   texGrass[2] = LoadTexture("assets/tiles/NormalGrass/Grass3.png");
   for (int i = 0; i < NUM_GRASS_VARIANTS; i++) {
     SetTextureFilter(texGrass[i], TEXTURE_FILTER_POINT);
+    TraceLog(LOG_INFO, "DEBUG: texGrass[%d].id = %d, size = %dx%d", i, texGrass[i].id, texGrass[i].width, texGrass[i].height);
   }
 
   // Grass decorations (2 mushrooms + 1 rock + 1 trunk)
@@ -851,7 +852,7 @@ Texture2D ResourceManager::GetTextureForTile(TileType type) {
   case TileType::Sand:
     return texSand[0];
   case TileType::Grass:
-    return texGrass[0];
+    return texGrass[1];
   case TileType::Forest:
     return texForest[0]; // Or texGraminhas depending on context
   case TileType::Mountain:
@@ -878,7 +879,7 @@ Texture2D ResourceManager::GetTextureForUI(TileType type) {
   case TileType::Sand:
     return texSand[0];
   case TileType::Grass:
-    return texGrass[0];
+    return texGrass[1];
   case TileType::Forest:
     return texForest[0];
   case TileType::Mountain:

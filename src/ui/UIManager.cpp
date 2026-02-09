@@ -734,15 +734,107 @@ void UIManager::DrawToolbar(const World &world) {
       TraceLog(LOG_INFO, "UI: Changed Brush Size to %d", (int)currentBrushSize);
     }
 
-    // 2. Settings Button (Placeholder)
-    Rectangle setBtnRect = {startX + 150, startY + 30, 120, 40};
-    bool isSetHover = CheckCollisionPointRec(mousePos, setBtnRect);
-    DrawTexturedButton(texButton, setBtnRect, false, isSetHover);
+    // 2. Time Control Button
+    DrawTextEx(uiFont, "Time Control:", {startX + 150, (float)startY}, 20, 1,
+               WHITE);
 
-    Vector2 setTextSize = MeasureTextEx(uiFont, "Settings", 20, 1);
-    DrawTextEx(uiFont, "Settings",
-               {setBtnRect.x + (setBtnRect.width - setTextSize.x) / 2,
-                setBtnRect.y + (setBtnRect.height - setTextSize.y) / 2},
-               20, 1, WHITE);
+    Rectangle timeBtnRect = {startX + 150, startY + 30, 120, 40};
+    bool isTimeBtnHover = CheckCollisionPointRec(mousePos, timeBtnRect);
+    DrawTexturedButton(texButton, timeBtnRect, showTimePopup, isTimeBtnHover);
+
+    // Show current speed or PAUSED
+    TimeManager &tm = TimeManager::Get();
+    const char *timeLabel =
+        tm.IsPaused() ? "PAUSED" : TextFormat("%.0fx", tm.GetTimeScale());
+    Vector2 timeLabelSize = MeasureTextEx(uiFont, timeLabel, 20, 1);
+    DrawTextEx(uiFont, timeLabel,
+               {timeBtnRect.x + (timeBtnRect.width - timeLabelSize.x) / 2,
+                timeBtnRect.y + (timeBtnRect.height - timeLabelSize.y) / 2},
+               20, 1, tm.IsPaused() ? RED : WHITE);
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isTimeBtnHover) {
+      showTimePopup = !showTimePopup;
+      popupJustOpened = showTimePopup;
+    }
+  }
+
+  // === TIME POPUP (drawn above everything) ===
+  if (showTimePopup) {
+    TimeManager &tm = TimeManager::Get();
+
+    // Popup dimensions
+    float popupW = 280;
+    float popupH = 120;
+    float popupX = (SCREEN_WIDTH - popupW) / 2;
+    float popupY = SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT - popupH - 20;
+
+    // Background
+    DrawRectangle(popupX, popupY, popupW, popupH, ColorAlpha(BLACK, 0.9f));
+    DrawRectangleLinesEx({popupX, popupY, popupW, popupH}, 2, GOLD);
+
+    // Title
+    DrawTextEx(uiFont, "Time Control", {popupX + 10, popupY + 10}, 22, 1, GOLD);
+
+    // Pause/Play Button
+    Rectangle pauseBtn = {popupX + 10, popupY + 45, 80, 35};
+    bool isPauseHover = CheckCollisionPointRec(mousePos, pauseBtn);
+    DrawTexturedButton(texButton, pauseBtn, tm.IsPaused(), isPauseHover);
+
+    const char *pauseText = tm.IsPaused() ? "Play" : "Pause";
+    Vector2 pauseSize = MeasureTextEx(uiFont, pauseText, 18, 1);
+    DrawTextEx(uiFont, pauseText,
+               {pauseBtn.x + (pauseBtn.width - pauseSize.x) / 2,
+                pauseBtn.y + (pauseBtn.height - pauseSize.y) / 2},
+               18, 1, tm.IsPaused() ? GREEN : WHITE);
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isPauseHover &&
+        !popupJustOpened) {
+      tm.TogglePause();
+    }
+
+    // Speed Buttons (1x - 5x)
+    float speedBtnW = 45;
+    float speedStartX = popupX + 100;
+    for (int s = 1; s <= 5; s++) {
+      Rectangle speedBtn = {speedStartX + (s - 1) * (speedBtnW + 5),
+                            popupY + 45, speedBtnW, 35};
+      bool isSpeedHover = CheckCollisionPointRec(mousePos, speedBtn);
+      bool isSelected = (!tm.IsPaused() && (int)tm.GetTimeScale() == s);
+
+      DrawTexturedButton(texButton, speedBtn, isSelected, isSpeedHover);
+
+      const char *speedLabel = TextFormat("%dx", s);
+      Vector2 speedSize = MeasureTextEx(uiFont, speedLabel, 16, 1);
+      DrawTextEx(uiFont, speedLabel,
+                 {speedBtn.x + (speedBtn.width - speedSize.x) / 2,
+                  speedBtn.y + (speedBtn.height - speedSize.y) / 2},
+                 16, 1, isSelected ? YELLOW : WHITE);
+
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isSpeedHover &&
+          !popupJustOpened) {
+        tm.SetTimeScale((float)s);
+        if (tm.IsPaused())
+          tm.SetPaused(false); // Unpause when selecting speed
+      }
+    }
+
+    // Close button (X)
+    Rectangle closeBtn = {popupX + popupW - 30, popupY + 5, 25, 25};
+    bool isCloseHover = CheckCollisionPointRec(mousePos, closeBtn);
+    DrawRectangleRec(closeBtn, isCloseHover ? RED : DARKGRAY);
+    DrawTextEx(uiFont, "X",
+               {closeBtn.x + 7, closeBtn.y + 2}, 18, 1, WHITE);
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isCloseHover) {
+      showTimePopup = false;
+    }
+
+    // Click outside popup closes it
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+        !CheckCollisionPointRec(mousePos,
+                                {popupX, popupY, popupW, popupH}) &&
+        !popupJustOpened) {
+      showTimePopup = false;
+    }
   }
 }
