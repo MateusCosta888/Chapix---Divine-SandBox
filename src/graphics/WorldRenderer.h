@@ -1,7 +1,10 @@
 #pragma once
+#include "../simulation/City.h"
 #include "../world/World.h"
 #include "raylib.h"
 
+
+#include <map>
 #include <vector>
 
 struct RenderItem {
@@ -16,7 +19,8 @@ struct RenderItem {
 class WorldRenderer {
 public:
   WorldRenderer(World &world);
-  void Draw(const Camera2D &camera);
+  void Draw(const Camera2D &camera,
+            const std::map<int, City> *cities = nullptr); // Optional cities
 
 private:
   void DrawEntities();

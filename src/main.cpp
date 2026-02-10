@@ -1,8 +1,8 @@
+#include "core/TimeManager.h"
 #include "graphics/WorldRenderer.h"
 #include "raylib.h"
 #include "raymath.h"
 #include "ui/UIManager.h" // Added UIManager
-#include "core/TimeManager.h"
 #include "world/World.h"
 #include <algorithm>
 #include <cstdint>
@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
     ClearBackground(GetColor(0x1a1a2eFF));
 
     BeginMode2D(camera);
-    worldRenderer.Draw(camera);
+    worldRenderer.Draw(camera, &world.GetSimulation().GetCities());
 
     // Brush Preview
     // Brush Preview

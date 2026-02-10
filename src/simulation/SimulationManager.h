@@ -56,6 +56,9 @@ public:
   // === CITY EXPANSION ===
   void ExpandTerritory(City &city, World &world);
 
+  // === GOVERNMENT SYSTEM ===
+  void AssignJobs(City &city);
+
   // === HELPERS ===
   int GetNextCitizenID() { return nextCitizenID++; }
   int GetNextCityID() { return nextCityID++; }
@@ -66,6 +69,9 @@ public:
   int GetTotalPopulation() const { return static_cast<int>(citizens.size()); }
   int GetTotalCities() const { return static_cast<int>(cities.size()); }
   int GetTotalKingdoms() const { return static_cast<int>(kingdoms.size()); }
+
+  // Access cities map for rendering
+  const std::map<int, City> &GetCities() const { return cities; }
 
 private:
   // === DATA STORAGE ===

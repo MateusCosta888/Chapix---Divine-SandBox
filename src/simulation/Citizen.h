@@ -65,6 +65,17 @@ struct Citizen {
   int kingdomID = -1; // Which kingdom?
   Profession profession = Profession::None;
 
+  // === JOB CONTEXT ===
+  enum class JobType {
+    None,
+    Farming,
+    PlantingTree,
+    Woodcutting,
+    Mining,
+    Building
+  };
+  JobType currentJob = JobType::None;
+
   // === SKILLS (0.0 to 100.0 proficiency) ===
   float skillFarming = 0.0f;
   float skillWoodcutting = 0.0f;
@@ -74,15 +85,18 @@ struct Citizen {
 
   // === WORK STATE ===
   enum class WorkState {
-    Idle,         // Not working, wandering
+    Idle,         // Not working, waiting for task
+    Wandering,    // Moving randomly (because no task found)
     GoingToWork,  // Moving to work target
     Working,      // Actively working (chopping, farming, etc.)
     ReturningHome // Carrying resources back to city
   };
 
   WorkState workState = WorkState::Idle;
+  WorkState lastWorkState = WorkState::Idle; // For state change detection
   bool isWorking = false;
   float workTimer = 0.0f;
+  float stateTimer = 0.0f; // Time in current work state
 
   // Job target (tile coordinates or entity ID)
   int targetTileX = -1;

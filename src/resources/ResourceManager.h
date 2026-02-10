@@ -51,6 +51,12 @@ public:
   static const int NUM_SMALL_ROCK_TYPES = 5;
   static const int NUM_MEDIUM_ROCK_TYPES = 5;
 
+  // Buildings (no color = neutral/first city)
+  static const int NUM_CABANA_VARIANTS = 5;
+  static const int NUM_CASA_VARIANTS = 12;
+  static const int NUM_CASA2_VARIANTS = 5; // estimated
+  static const int NUM_RECURSOS_VARIANTS = 15;
+
   // Textures
   Texture2D texDeepOcean[NUM_WATER_VARIANTS];
   Texture2D texOcean[NUM_WATER_VARIANTS];
@@ -100,6 +106,11 @@ public:
 
   Texture2D texSmallRocks[NUM_SMALL_ROCK_TYPES];
   Texture2D texMediumRocks[NUM_MEDIUM_ROCK_TYPES];
+
+  // Building Textures (neutral/no color)
+  Texture2D texCabanas[NUM_CABANA_VARIANTS];
+  Texture2D texCasas[NUM_CASA_VARIANTS];
+  Texture2D texRecursos[NUM_RECURSOS_VARIANTS];
 
   // Helpers
   Texture2D GetTextureForTile(TileType type);

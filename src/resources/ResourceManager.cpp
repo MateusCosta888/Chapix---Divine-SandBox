@@ -33,7 +33,8 @@ void ResourceManager::Load() {
   texGrass[2] = LoadTexture("assets/tiles/NormalGrass/Grass3.png");
   for (int i = 0; i < NUM_GRASS_VARIANTS; i++) {
     SetTextureFilter(texGrass[i], TEXTURE_FILTER_POINT);
-    TraceLog(LOG_INFO, "DEBUG: texGrass[%d].id = %d, size = %dx%d", i, texGrass[i].id, texGrass[i].width, texGrass[i].height);
+    TraceLog(LOG_INFO, "DEBUG: texGrass[%d].id = %d, size = %dx%d", i,
+             texGrass[i].id, texGrass[i].width, texGrass[i].height);
   }
 
   // Grass decorations (2 mushrooms + 1 rock + 1 trunk)
@@ -132,62 +133,85 @@ void ResourceManager::Load() {
   SetTextureFilter(texGraminhas, TEXTURE_FILTER_POINT);
 
   // --- TREES ---
-  const char *treePath =
-      "assets/top-down-trees-pixel-art/PNGs/Assets_separately/Trees_shadow/";
+  // New location: assets/Trees/ with subfolders
 
-  // Standard Trees (Mapped to Tree1-3)
-  for (int i = 0; i < NUM_TREE_TYPES; i++) {
-    texTrees[i] =
-        LoadTexture(TextFormat("%sTree%d.png", treePath, (i % 3) + 1));
-    SetTextureFilter(texTrees[i], TEXTURE_FILTER_POINT);
-  }
-
-  // Fruit Trees
-  for (int i = 0; i < NUM_FRUIT_TREE_TYPES; i++) {
-    texFruitTrees[i] =
-        LoadTexture(TextFormat("%sFruit_tree%d.png", treePath, i + 1));
-    SetTextureFilter(texFruitTrees[i], TEXTURE_FILTER_POINT);
-  }
-
-  // Normal Trees (Mapped to Tree1-3 as well, or Flower_tree?)
-  // User asked for Tree1-3 to be "principais" (main).
+  // === Forest Trees (from Florest Trees folder) ===
+  // Tree1.png, Tree2.png (standard trees)
+  texNormalTrees[0] = LoadTexture("assets/Trees/Florest Trees/Tree1.png");
+  texNormalTrees[1] = LoadTexture("assets/Trees/Florest Trees/Tree2.png");
+  texNormalTrees[2] = LoadTexture(
+      "assets/Trees/Florest Trees/Tree1.png"); // Repeat for 3rd slot
   for (int i = 0; i < NUM_NORMAL_TREE_TYPES; i++) {
-    texNormalTrees[i] =
-        LoadTexture(TextFormat("%sTree%d.png", treePath, (i % 3) + 1));
     SetTextureFilter(texNormalTrees[i], TEXTURE_FILTER_POINT);
   }
 
-  // Moss Trees
+  // Fruit Tree
+  texFruitTrees[0] = LoadTexture("assets/Trees/Florest Trees/Fruit_tree1.png");
+  texFruitTrees[1] = LoadTexture("assets/Trees/Florest Trees/Fruit_tree1.png");
+  texFruitTrees[2] = LoadTexture("assets/Trees/Florest Trees/Fruit_tree1.png");
+  for (int i = 0; i < NUM_FRUIT_TREE_TYPES; i++) {
+    SetTextureFilter(texFruitTrees[i], TEXTURE_FILTER_POINT);
+  }
+
+  // texTrees (generic array uses the same normal trees)
+  for (int i = 0; i < NUM_TREE_TYPES; i++) {
+    texTrees[i] = texNormalTrees[i % NUM_NORMAL_TREE_TYPES];
+    SetTextureFilter(texTrees[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Moss Trees - using same as normal since moss not available
   for (int i = 0; i < NUM_MOSS_TREE_TYPES; i++) {
-    texMossTrees[i] =
-        LoadTexture(TextFormat("%sMoss_tree%d.png", treePath, i + 1));
+    texMossTrees[i] = texNormalTrees[i % NUM_NORMAL_TREE_TYPES];
     SetTextureFilter(texMossTrees[i], TEXTURE_FILTER_POINT);
   }
 
-  // Snow Trees
+  // === Snow Trees (from Snow Trees folder) ===
+  texSnowTrees[0] = LoadTexture("assets/Trees/Snow Trees/Snow_tree1.png");
+  texSnowTrees[1] = LoadTexture("assets/Trees/Snow Trees/Snow_tree1.png");
+  texSnowTrees[2] = LoadTexture("assets/Trees/Snow Trees/Snow_tree1.png");
   for (int i = 0; i < NUM_SNOW_TREE_TYPES; i++) {
-    texSnowTrees[i] =
-        LoadTexture(TextFormat("%sSnow_tree%d.png", treePath, i + 1));
     SetTextureFilter(texSnowTrees[i], TEXTURE_FILTER_POINT);
   }
 
   // Xmas Trees
+  texXmasTrees[0] =
+      LoadTexture("assets/Trees/Snow Trees/Snow_christmass_tree2.png");
+  texXmasTrees[1] =
+      LoadTexture("assets/Trees/Snow Trees/Snow_christmass_tree2.png");
+  texXmasTrees[2] =
+      LoadTexture("assets/Trees/Snow Trees/Snow_christmass_tree2.png");
   for (int i = 0; i < NUM_XMAS_TREE_TYPES; i++) {
-    texXmasTrees[i] = LoadTexture(
-        TextFormat("%sSnow_christmass_tree%d.png", treePath, i + 1));
     SetTextureFilter(texXmasTrees[i], TEXTURE_FILTER_POINT);
   }
 
-  // Palm Trees (Using Palm_tree1_x and Palm_tree2_x)
+  // === Palm Trees (from Praia Tree folder) ===
+  texPalmTrees[0] = LoadTexture("assets/Trees/Praia Tree/Palm_tree2_1.png");
+  texPalmTrees[1] = LoadTexture("assets/Trees/Praia Tree/Palm_tree2_3.png");
+  texPalmTrees[2] = LoadTexture("assets/Trees/Praia Tree/Palm_tree2_1.png");
+  texPalmTrees[3] = LoadTexture("assets/Trees/Praia Tree/Palm_tree2_3.png");
+  texPalmTrees[4] = LoadTexture("assets/Trees/Praia Tree/Palm_tree2_1.png");
+  texPalmTrees[5] = LoadTexture("assets/Trees/Praia Tree/Palm_tree2_3.png");
   for (int i = 0; i < NUM_PALM_TREE_TYPES; i++) {
-    if (i < 3) {
-      texPalmTrees[i] =
-          LoadTexture(TextFormat("%sPalm_tree1_%d.png", treePath, i + 1));
-    } else {
-      texPalmTrees[i] =
-          LoadTexture(TextFormat("%sPalm_tree2_%d.png", treePath, (i - 3) + 1));
-    }
     SetTextureFilter(texPalmTrees[i], TEXTURE_FILTER_POINT);
+  }
+
+  // --- BUILDINGS (no color = neutral/first city) ---
+  for (int i = 0; i < NUM_CABANA_VARIANTS; i++) {
+    texCabanas[i] = LoadTexture(TextFormat(
+        "assets/builds/no color constructions/cabanas/tile%03d.png", i));
+    SetTextureFilter(texCabanas[i], TEXTURE_FILTER_POINT);
+  }
+
+  for (int i = 0; i < NUM_CASA_VARIANTS; i++) {
+    texCasas[i] = LoadTexture(TextFormat(
+        "assets/builds/no color constructions/casas/tile%03d.png", i));
+    SetTextureFilter(texCasas[i], TEXTURE_FILTER_POINT);
+  }
+
+  for (int i = 0; i < NUM_RECURSOS_VARIANTS; i++) {
+    texRecursos[i] = LoadTexture(TextFormat(
+        "assets/builds/no color constructions/recursos/tile%03d.png", i));
+    SetTextureFilter(texRecursos[i], TEXTURE_FILTER_POINT);
   }
 
   // --- BUSHES ---

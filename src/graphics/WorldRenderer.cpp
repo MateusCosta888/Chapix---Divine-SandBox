@@ -8,7 +8,8 @@
 
 WorldRenderer::WorldRenderer(World &world) : world(world) {}
 
-void WorldRenderer::Draw(const Camera2D &camera) {
+void WorldRenderer::Draw(const Camera2D &camera,
+                         const std::map<int, City> *cities) {
   int tileSize = 10;
   int width = world.GetWidth();
   int height = world.GetHeight();
@@ -328,7 +329,7 @@ void WorldRenderer::Draw(const Camera2D &camera) {
                        .texNormalTrees[v %
                                        ResourceManager::NUM_NORMAL_TREE_TYPES];
           }
-          scale = 3.0f;
+          scale = 5.0f;
           break;
         case DecorationType::PineTree:
           // Check for Xmas variant? Pass 2: (seed % 1000) < 100 -> Xmas
@@ -340,12 +341,12 @@ void WorldRenderer::Draw(const Camera2D &camera) {
             tex = &resourceManager
                        .texSnowTrees[v % ResourceManager::NUM_SNOW_TREE_TYPES];
           }
-          scale = 3.0f;
+          scale = 5.0f;
           break;
         case DecorationType::PalmTree:
           tex = &resourceManager
                      .texPalmTrees[v % ResourceManager::NUM_PALM_TREE_TYPES];
-          scale = 3.0f;
+          scale = 5.0f;
           break;
         case DecorationType::Bush:
           if (tile.type == TileType::Snow)
@@ -487,6 +488,58 @@ void WorldRenderer::Draw(const Camera2D &camera) {
       }
     }
   }
+
+  // BUILDINGS - Render city buildings (if cities pointer provided)
+  if (cities) {
+    const auto &cityMap = *cities;
+    for (const auto &pair : cityMap) {
+      const City &city = pair.second;
+      for (const Building &b : city.buildings) {
+        if (!b.isComplete)
+          continue;
+
+        Texture2D *tex = nullptr;
+        float scale = 2.0f;
+
+        switch (b.type) {
+        case BuildingType::Cabana:
+          tex = &resourceManager
+                     .texCabanas[(b.variant %
+                                  (ResourceManager::NUM_CABANA_VARIANTS - 1)) +
+                                 1]; // Skip variant 0
+          scale = 1.5f;
+          break;
+        case BuildingType::Casa:
+          tex = &resourceManager
+                     .texCasas[b.variant % ResourceManager::NUM_CASA_VARIANTS];
+          scale = 2.0f;
+          break;
+        case BuildingType::Recursos:
+          tex = &resourceManager
+                     .texRecursos[b.variant %
+                                  ResourceManager::NUM_RECURSOS_VARIANTS];
+          scale = 1.5f;
+          break;
+        default:
+          continue;
+        }
+
+        if (tex && tex->id > 0) {
+          float screenX = b.tileX * tileSize + tileSize / 2;
+          float screenY = b.tileY * tileSize + tileSize / 2;
+          float w = tex->width * scale;
+          float h = tex->height * scale;
+
+          Rectangle src = {0, 0, (float)tex->width, (float)tex->height};
+          Rectangle dest = {screenX, screenY, w, h};
+          Vector2 origin = {w / 2, h * 0.85f}; // Bottom center anchor
+
+          float sortY = dest.y + h * 0.5f;
+          items.push_back({*tex, src, dest, origin, WHITE, sortY});
+        }
+      }
+    }
+  } // end if (cities)
 
   // Entities
   const std::vector<Entity> &entities = world.GetEntities();

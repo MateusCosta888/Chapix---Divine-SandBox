@@ -1,12 +1,13 @@
 #include "World.h"
-#include "../utils/Noise.h"
 #include "../core/TimeManager.h"
+#include "../utils/Noise.h"
 #include "raylib.h"
 #include "raymath.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+
 
 World::World(int width, int height, uint32_t seed)
     : width(width), height(height), seed_(seed), rng_(seed) {
@@ -617,9 +618,10 @@ const Tile &World::GetTileConst(int x, int y) const {
 void World::Update() {
   // Use TimeManager for pause and speed control
   float dt = TimeManager::Get().GetDeltaTime();
-  
+
   // Skip all updates when paused (dt will be 0)
-  if (dt <= 0.0f) return;
+  if (dt <= 0.0f)
+    return;
 
   // Run water physics
   SimulateWater(dt);
@@ -1181,8 +1183,18 @@ void World::UpdateEntities(float deltaTime) {
         }
       } else {
         // Wander - but stay within city territory if assigned to one
+        // SKIP wander if citizen is actively working a job (e.g., lumberjack
+        // going to tree)
+        bool skipWander = false;
+        if (e.citizenID >= 0) {
+          Citizen *citizen = simulation.GetCitizen(e.citizenID);
+          if (citizen && citizen->isWorking) {
+            skipWander = true; // Don't override job target with wander
+          }
+        }
+
         bool isIdle = (e.state == EntityState::Idle);
-        if (rng_.Int(0, 100) < 2) {
+        if (!skipWander && rng_.Int(0, 100) < 2) {
           float tx = e.position.x;
           float ty = e.position.y;
 

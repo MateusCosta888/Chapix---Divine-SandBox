@@ -1,10 +1,10 @@
 #pragma once
+#include "Building.h"
 #include "raylib.h"
 #include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
-
 
 // Forward declarations
 struct Citizen;
@@ -18,35 +18,6 @@ struct CityResources {
   int stone = 0;
   int ore = 0;
   int gold = 0;
-};
-
-// ============================================================================
-// BUILDING TYPES
-// ============================================================================
-enum class BuildingType {
-  TownHall,   // City center, required
-  House,      // Increases population cap
-  Farm,       // Produces food
-  Lumberyard, // Increases wood gathering
-  Mine,       // Produces stone/ore
-  Storage,    // Increases resource cap
-  Barracks,   // Trains soldiers
-  Wall,       // Defense
-  Road        // Movement speed bonus
-};
-
-// ============================================================================
-// BUILDING STRUCTURE
-// ============================================================================
-struct Building {
-  int id = -1;
-  BuildingType type = BuildingType::House;
-  Vector2 position = {0, 0};
-  int cityID = -1;
-  float health = 100.0f;
-  float maxHealth = 100.0f;
-  bool isConstructed = false;
-  float constructionProgress = 0.0f; // 0-100
 };
 
 // ============================================================================
@@ -75,7 +46,7 @@ struct City {
   int maxStorage = 200; // Max resources can hold
 
   // === BUILDINGS ===
-  std::vector<int> buildingIDs; // Buildings in this city
+  std::vector<Building> buildings; // Buildings in this city
 
   // === CULTURE TRAITS (0.0 to 1.0) ===
   float cultureAggression = 0.3f; // War tendency
@@ -94,7 +65,7 @@ struct City {
 
   // === HELPERS ===
   int GetPopulation() const { return static_cast<int>(citizenIDs.size()); }
-  bool HasCapacity() const { return GetPopulation() < populationCap; }
+  bool HasCapacity() const { return true; } // No population limit!
 };
 
 // ============================================================================
