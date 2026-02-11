@@ -48,16 +48,11 @@ public:
   const Building *GetBuilding(int id) const;
   void RemoveBuilding(int id);
 
-  // === CITY FOUNDING ===
-  float ScoreTileForCity(World &world, int x, int y) const;
-  int FoundCity(World &world, int founderCitizenID, int x, int y);
+  // Helper to sync collision for existing buildings (e.g. after load)
+  void RebuildOccupationMap(World &world);
+
+  // Expose for World to call when spawning entities
   void AddCitizenToCity(int cityID, int citizenID);
-
-  // === CITY EXPANSION ===
-  void ExpandTerritory(City &city, World &world);
-
-  // === GOVERNMENT SYSTEM ===
-  void AssignJobs(City &city);
 
   // === HELPERS ===
   int GetNextCitizenID() { return nextCitizenID++; }
@@ -72,6 +67,19 @@ public:
 
   // Access cities map for rendering
   const std::map<int, City> &GetCities() const { return cities; }
+
+private:
+  // === CITY FOUNDING ===
+  float ScoreTileForCity(World &world, int x, int y) const;
+  int FoundCity(World &world, int founderCitizenID, int x, int y);
+
+  // === CITY EXPANSION ===
+  // === CITY EXPANSION ===
+  void ExpandTerritory(City &city, World &world);
+  void UpdateBuildingUpgrade(City &city); // New: Evolution System
+
+  // === GOVERNMENT SYSTEM ===
+  void AssignJobs(City &city);
 
 private:
   // === DATA STORAGE ===

@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <cstdlib>
 
-
 World::World(int width, int height, uint32_t seed)
     : width(width), height(height), seed_(seed), rng_(seed) {
   tiles.resize(width * height);
@@ -142,6 +141,11 @@ bool World::IsWalkable(int x, int y) const {
       t.decoration == DecorationType::Crystal ||
       t.decoration == DecorationType::Cactus ||
       t.decoration == DecorationType::DesertPlant) {
+    return false;
+  }
+
+  // Check building occupation
+  if (t.isOccupied) {
     return false;
   }
 
@@ -444,27 +448,51 @@ void World::Generate() {
         }
       }
 
-      // 3. ROCKS (Mountain)
-      if (tile.type == TileType::Mountain) {
+      // 3. ROCKS
+      // Rock 1 (Common - Grass/Forest)
+      if (tile.type == TileType::Grass || tile.type == TileType::Forest) {
         unsigned int rockSeed = tile.variant ^ seed_ ^ 1234567;
-        if ((rockSeed % 100) < 10) { // Reduced to 10% (was 30%)
-          tile.decoration =
-              DecorationType::Rock; // Maps to Rock1/Rock2 in Renderer
-          // Use decorationVariant to select between Rock1 and Rock2?
-          // We have NUM_MOUNTAIN_DECORATIONS = 2.
-          tile.decorationVariant = rockSeed % 2;
+        if ((rockSeed % 1000) < 2) { // 0.2% chance (Drastically reduced)
+          tile.decoration = DecorationType::Rock; // Rock1
+          tile.decorationVariant = 0;
+          tile.resourceAmount = 50.0f; // Durable
           continue;
         }
       }
 
-      // 4. BIG ROCKS (Scattered)
-      if (tile.type == TileType::Grass || tile.type == TileType::Forest ||
-          tile.type == TileType::Snow || tile.type == TileType::DesertSand) {
-        unsigned int bigRockSeed = tile.variant ^ 0x999 ^ seed_ ^ 77777;
-        if ((bigRockSeed % 1000) < 5) { // 0.5%
-          tile.decoration = DecorationType::BigRock;
-          tile.decorationVariant = bigRockSeed % 100;
+      // Rock 2 (Mountain)
+      if (tile.type == TileType::Mountain) {
+        unsigned int rockSeed = tile.variant ^ seed_ ^ 88888;
+        if ((rockSeed % 1000) <
+            5) { // 0.5% chance on mountains (Reduced from 5%)
+          tile.decoration = DecorationType::SmallRock; // Rock2
+          tile.decorationVariant = 0;
+          tile.resourceAmount = 80.0f; // Harder
           continue;
+        }
+      }
+
+      // Rock 3 (Universal - Any land)
+      if (tile.type != TileType::DeepOcean && tile.type != TileType::Ocean &&
+          tile.type != TileType::ShallowOcean) {
+        unsigned int rockSeed = tile.variant ^ seed_ ^ 55555;
+        if ((rockSeed % 10000) <
+            5) { // 0.05% chance anywhere (Reduced from 0.5%)
+          tile.decoration = DecorationType::MediumRock; // Rock3
+          tile.decorationVariant = 0;
+          tile.resourceAmount = 100.0f; // Very Durable
+          continue;
+        }
+      }
+
+      // Rock 4 (Desert)
+      if (tile.type == TileType::DesertSand) {
+        unsigned int rockSeed = tile.variant ^ seed_ ^ 44444;
+        if ((rockSeed % 1000) < 2) { // 0.2% chance (Reduced from 3%)
+          tile.decoration = DecorationType::BigRock; // Rock4
+          tile.decorationVariant = 0;
+          tile.resourceAmount = 60.0f;
+          continue; // Skip cactus if rock
         }
       }
 
@@ -1178,8 +1206,16 @@ void World::UpdateEntities(float deltaTime) {
           }
 
           dir = Vector2Normalize(dir);
-          e.position = Vector2Add(
+          Vector2 nextPos = Vector2Add(
               e.position, Vector2Scale(dir, 2.0f * deltaTime)); // Speed 2.0
+
+          // Collision Check
+          if (IsWalkable((int)nextPos.x, (int)nextPos.y)) {
+            e.position = nextPos;
+          } else {
+            // Stop if hit wall
+            e.state = EntityState::Idle;
+          }
         }
       } else {
         // Wander - but stay within city territory if assigned to one
@@ -1301,7 +1337,15 @@ void World::UpdateEntities(float deltaTime) {
           e.state = EntityState::Walking;
           float speed = e.speed;
           Vector2 move = Vector2Scale(Vector2Normalize(dir), speed * deltaTime);
-          e.position = Vector2Add(e.position, move);
+          Vector2 nextPos = Vector2Add(e.position, move);
+
+          // Collision Check
+          if (IsWalkable((int)nextPos.x, (int)nextPos.y)) {
+            e.position = nextPos;
+          } else {
+            e.hasTarget = false; // Stop if blocked
+            e.state = EntityState::Idle;
+          }
 
           // Update Direction
           if (fabs(dir.x) > fabs(dir.y)) {

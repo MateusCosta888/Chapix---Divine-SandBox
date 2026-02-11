@@ -7,18 +7,19 @@
 // ============================================================================
 enum class BuildingType {
   None = 0,
-  Cabana,   // Basic housing - 2 wood
-  Casa,     // Medium housing - 5 wood, 2 stone
-  Casa2,    // Large housing - 8 wood, 5 stone
-  Recursos, // Storage - 3 wood
-  Mercado,  // Trade - 10 wood, 5 stone
-  Taverna,  // Happiness - 8 wood, 3 stone
-  Workshop, // Crafting - 10 wood, 8 stone
-  Quartel,  // Military - 15 wood, 10 stone
-  Torre,    // Defense - 5 wood, 10 stone
-  Castelo,  // Capital - 50 wood, 40 stone
-  Docks,    // Naval - 20 wood, 5 stone
-  Poco,     // Water well - 5 wood, 3 stone
+  Cabana,         // Basic housing - 2 wood
+  Casa,           // Medium housing - 5 wood, 2 stone
+  Casa2,          // Large housing - 8 wood, 5 stone
+  Recursos,       // Storage - 3 wood
+  Mercado,        // Trade - 10 wood, 5 stone
+  Taverna,        // Happiness - 8 wood, 3 stone
+  Workshop,       // Crafting - 10 wood, 8 stone
+  Quartel,        // Military - 15 wood, 10 stone
+  Torre,          // Defense - 5 wood, 10 stone
+  Castelo,        // Capital - 50 wood, 40 stone
+  Docks,          // Naval - 20 wood, 5 stone
+  Poco,           // Water well - 5 wood, 3 stone
+  StockpileStone, // Stone Storage - 50 wood
   COUNT
 };
 
@@ -58,6 +59,8 @@ inline BuildingCost GetBuildingCost(BuildingType type) {
     return {20, 5, 0};
   case BuildingType::Poco:
     return {5, 3, 0};
+  case BuildingType::StockpileStone:
+    return {50, 0, 0};
   default:
     return {0, 0, 0};
   }
@@ -77,6 +80,44 @@ inline int GetBuildingHousingCapacity(BuildingType type) {
   }
 }
 
+struct BuildingSize {
+  int width;
+  int height;
+};
+
+inline BuildingSize GetBuildingSize(BuildingType type) {
+  switch (type) {
+  case BuildingType::Cabana:
+    return {2, 2};
+  case BuildingType::Casa:
+    return {2, 2};
+  case BuildingType::Casa2:
+    return {3, 3}; // Large house
+  case BuildingType::Recursos:
+    return {2, 2};
+  case BuildingType::StockpileStone:
+    return {2, 2};
+  case BuildingType::Mercado:
+    return {3, 3};
+  case BuildingType::Taverna:
+    return {3, 2};
+  case BuildingType::Workshop:
+    return {3, 3};
+  case BuildingType::Quartel:
+    return {4, 4};
+  case BuildingType::Torre:
+    return {2, 2};
+  case BuildingType::Castelo:
+    return {6, 6};
+  case BuildingType::Docks:
+    return {3, 3};
+  case BuildingType::Poco:
+    return {2, 2};
+  default:
+    return {1, 1};
+  }
+}
+
 // Get the name of a building type
 inline const char *GetBuildingName(BuildingType type) {
   switch (type) {
@@ -88,6 +129,8 @@ inline const char *GetBuildingName(BuildingType type) {
     return "Casa Grande";
   case BuildingType::Recursos:
     return "Armazem";
+  case BuildingType::StockpileStone:
+    return "Estoque de Pedra";
   case BuildingType::Mercado:
     return "Mercado";
   case BuildingType::Taverna:

@@ -35,16 +35,16 @@ enum class DecorationType {
   PineTree, // Snow/Mountain tree
   PalmTree, // Desert/Beach tree
   Bush,
-  Rock,    // Placeholder for generic rock (will map to Rock1)
-  BigRock, // Existing big rock
+  Rock,    // Rock 1 (Common - Grass)
+  BigRock, // Rock 4 (Desert) - Was BigRock
   Flower,
   Mushroom,
-  SmallRock,  // New distinct type (Rock2)
-  MediumRock, // New distinct type (Rock3)
+  SmallRock,  // Rock 2 (Mountain)
+  MediumRock, // Rock 3 (Universal)
   Crystal,    // Mountain crystals
   GrassTuft,  // "Graminhas"
-  Cactus,     // Desert Cacti (Old, maybe keep for compat or replace)
-  DesertPlant // New Desert decorations (Cactus, Rock)
+  Cactus,     // Desert Cacti
+  DesertPlant // New Desert decorations
 };
 
 struct Tile {
@@ -61,6 +61,9 @@ struct Tile {
   float temperature = 0.5f; // 0.0 (cold) - 1.0 (hot)
   float humidity = 0.5f;    // 0.0 (dry) - 1.0 (wet)
 
+  // Mining Resource System
+  float resourceAmount = 0.0f; // Amount of resource left (e.g. 50.0 for a rock)
+
   // Visual transition properties (NEW)
   float biomeDistance = 1.0f; // 0 = at biome edge, 1 = far from edge
   uint8_t edgeMask = 0;       // Bitmask: bit0=N, bit1=E, bit2=S, bit3=W
@@ -75,6 +78,15 @@ struct Tile {
   bool isPlanted = false;      // Has crops planted
   float growthProgress = 0.0f; // 0.0 = just planted, 100.0 = ready to harvest
   int farmOwnerCityID = -1;    // Which city owns this farm tile
+
+  // Reforestation logic
+  bool hasStump = false; // Marked true when a Lumberjack chops a tree
+
+  // Territory Ownership
+  int ownerCityID = -1; // ID of the city that owns this tile (for logic checks)
+
+  // Collision
+  bool isOccupied = false; // If true, entities cannot walk here (Building/Wall)
 };
 
 #endif // TILE_H

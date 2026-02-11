@@ -368,40 +368,21 @@ void WorldRenderer::Draw(const Camera2D &camera,
                                          ResourceManager::NUM_SAND_DECORATIONS];
           scale = 1.0f;
           break;
-        case DecorationType::Rock: // Mountain Rocks
-          tex = &resourceManager.texMountainDecorations
-                     [v % ResourceManager::NUM_MOUNTAIN_DECORATIONS];
-          if ((v % ResourceManager::NUM_MOUNTAIN_DECORATIONS) == 0)
-            scale = 2.0f; // User requested "Rock(decoration).png" (Index 0) to
-                          // be bigger
-          else
-            scale = 1.0f;
+        case DecorationType::Rock: // Rock1
+          tex = &resourceManager.texRock[0];
+          scale = 3.0f; // Increased from 2.5f
           break;
-        case DecorationType::BigRock:
-          // Logic from Pass 6: Check shading based on biome
-          if (tile.type == TileType::Snow &&
-              ResourceManager::NUM_SNOW_ROCK_SHADOWS > 0)
-            tex = &resourceManager.texSnowRockShadows
-                       [v % ResourceManager::NUM_SNOW_ROCK_SHADOWS];
-          else if (tile.type == TileType::DesertSand &&
-                   ResourceManager::NUM_DESERT_ROCK_SHADOWS > 0)
-            tex = &resourceManager.texDesertRockShadows
-                       [v % ResourceManager::NUM_DESERT_ROCK_SHADOWS];
-          else
-            tex = &resourceManager
-                       .texBigRocks[v % ResourceManager::NUM_BIG_ROCK_TYPES];
-          scale = 1.0f;
+        case DecorationType::SmallRock: // Rock2
+          tex = &resourceManager.texRock[1];
+          scale = 3.0f; // Increased from 2.5f
           break;
-        case DecorationType::SmallRock:
-          tex = &resourceManager
-                     .texSmallRocks[v % ResourceManager::NUM_SMALL_ROCK_TYPES];
-          scale = 1.0f;
+        case DecorationType::MediumRock: // Rock3
+          tex = &resourceManager.texRock[2];
+          scale = 3.0f; // Increased from 2.5f
           break;
-        case DecorationType::MediumRock:
-          tex =
-              &resourceManager
-                   .texMediumRocks[v % ResourceManager::NUM_MEDIUM_ROCK_TYPES];
-          scale = 1.0f;
+        case DecorationType::BigRock: // Rock4
+          tex = &resourceManager.texRock[3];
+          scale = 3.0f; // Increased from 2.5f
           break;
         case DecorationType::Crystal: {
           int type = v % 3;
@@ -518,6 +499,10 @@ void WorldRenderer::Draw(const Camera2D &camera,
           tex = &resourceManager
                      .texRecursos[b.variant %
                                   ResourceManager::NUM_RECURSOS_VARIANTS];
+          scale = 1.5f;
+          break;
+        case BuildingType::StockpileStone:
+          tex = &resourceManager.texStockpileStone;
           scale = 1.5f;
           break;
         default:
@@ -802,6 +787,12 @@ void WorldRenderer::Draw(const Camera2D &camera,
       snprintf(woodText, sizeof(woodText), "Wood: %d",
                hoveredCity->resources.wood);
       DrawText(woodText, tooltipX, tooltipY + 50, 12, BROWN);
+
+      // Stone
+      char stoneText[64];
+      snprintf(stoneText, sizeof(stoneText), "Stone: %d",
+               hoveredCity->resources.stone);
+      DrawText(stoneText, tooltipX, tooltipY + 65, 12, DARKGRAY);
     }
   }
 

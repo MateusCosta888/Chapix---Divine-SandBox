@@ -34,9 +34,46 @@ void SimulationManager::Update(World &world, float deltaTime) {
   }
 
   // Update all subsystems
+
+  // Static flag to run collision rebuild once after load / start
+  // This ensures existing buildings in save files get their isOccupied flag set
+  static bool hasRebuiltCollision = false;
+  if (!hasRebuiltCollision) {
+    RebuildOccupationMap(world);
+    hasRebuiltCollision = true;
+  }
+
   UpdateCitizens(world, deltaTime);
   UpdateCities(world, deltaTime);
   UpdateKingdoms(world, deltaTime);
+}
+
+void SimulationManager::RebuildOccupationMap(World &world) {
+  int count = 0;
+  for (const auto &cityPair : cities) {
+    const City &city = cityPair.second;
+    for (const auto &building : city.buildings) {
+      if (building.isComplete || building.constructionProgress >= 0.0f) {
+        // Mark tile as occupied
+        // Check bounds just in case
+        BuildingSize size = GetBuildingSize(building.type);
+        for (int dy = 0; dy < size.height; dy++) {
+          for (int dx = 0; dx < size.width; dx++) {
+            int tx = building.tileX + dx;
+            int ty = building.tileY + dy;
+            if (tx >= 0 && tx < world.GetWidth() && ty >= 0 &&
+                ty < world.GetHeight()) {
+              world.GetTile(tx, ty).isOccupied = true;
+              count++;
+            }
+          }
+        }
+      }
+    }
+  }
+  TraceLog(LOG_INFO,
+           "SIMULATION: Rebuilt occupation map. Marked %d tiles as occupied.",
+           count);
 }
 
 // ============================================================================
@@ -229,6 +266,7 @@ int SimulationManager::FoundCity(World &world, int founderCitizenID, int x,
         if (std::hypot(dx, dy) <= 3.5f) {
           cities[cityID].territory.push_back(
               {static_cast<float>(nx), static_cast<float>(ny)});
+          world.GetTile(nx, ny).ownerCityID = cityID; // Mark ownership
         }
       }
     }
@@ -243,7 +281,9 @@ int SimulationManager::FoundCity(World &world, int founderCitizenID, int x,
   cabana.cityID = cityID;
   cabana.variant = 0; // First cabana variant
   cabana.isComplete = true;
+  cabana.isComplete = true;
   cities[cityID].buildings.push_back(cabana);
+  world.GetTile(x, y).isOccupied = true; // Mark as occupied
 
   // Update housing capacity
   cities[cityID].populationCap =
@@ -480,6 +520,12 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
 
       switch (c.workState) {
       case Citizen::WorkState::Idle: {
+        // Check if city storage is full
+        if (myCity->resources.wood >= myCity->maxStorage) {
+          c.workState = Citizen::WorkState::Wandering;
+          break;
+        }
+
         // Find nearest tree - search in radius around citizen (can leave
         // territory)
         int bestTileX = -1, bestTileY = -1;
@@ -572,6 +618,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           // Tree chopped! Remove decoration and get wood
           Tile &tile = world.GetTile(c.targetTileX, c.targetTileY);
           tile.decoration = DecorationType::None;
+          tile.hasStump = true; // Mark for reforestation
 
           c.carryingResource += 1;
           c.skillWoodcutting += 0.5f; // Gain skill
@@ -662,7 +709,10 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           }
 
           // Check if can plant CROPS (grass tile, not planted, no decoration)
-          bool canPlantCrop = !t.isPlanted && t.type == TileType::Grass &&
+          // NEW LOGIC: Only plant crops if city needs food (< 90% storage)
+          bool needsFood = myCity->resources.food < (myCity->maxStorage * 0.9f);
+          bool canPlantCrop = needsFood && !t.isPlanted &&
+                              t.type == TileType::Grass &&
                               t.decoration == DecorationType::None;
 
           if (canPlantCrop) {
@@ -674,20 +724,41 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
               plantY = ty;
             }
           }
+        }
 
-          // Check if can plant TREES (Forest/Grass, no decoration, not planted)
-          // Lower priority, checks if we failed to find crop work later
-          bool canPlantTree =
-              !t.isPlanted && t.decoration == DecorationType::None &&
-              (t.type == TileType::Grass || t.type == TileType::Forest);
+        // Priority 3: Plant Trees (Reforestation)
+        // If no food work found, OR if food is saturated, look for stumps
+        // globally (50 radius)
+        if (harvestX == -1 && plantX == -1) {
+          int SEARCH_RADIUS = 50;
+          int cx = static_cast<int>(myEntity->position.x);
+          int cy = static_cast<int>(myEntity->position.y);
 
-          if (canPlantTree) {
-            float dist = std::hypot(myEntity->position.x - tx,
-                                    myEntity->position.y - ty);
-            if (dist < closestTree) {
-              closestTree = dist;
-              treePlantX = tx;
-              treePlantY = ty;
+          for (int dy = -SEARCH_RADIUS; dy <= SEARCH_RADIUS; dy++) {
+            for (int dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; dx++) {
+              int tx = cx + dx;
+              int ty = cy + dy;
+
+              if (tx < 0 || ty < 0 || tx >= world.GetWidth() ||
+                  ty >= world.GetHeight())
+                continue;
+
+              Tile &t = world.GetTile(tx, ty);
+
+              // STRICT RULE: Only plant where a tree was chopped (hasStump)
+              bool canPlantTree = !t.isPlanted &&
+                                  t.decoration == DecorationType::None &&
+                                  t.hasStump && t.ownerCityID == -1;
+
+              if (canPlantTree) {
+                float dist = std::hypot(myEntity->position.x - tx,
+                                        myEntity->position.y - ty);
+                if (dist < closestTree) {
+                  closestTree = dist;
+                  treePlantX = tx;
+                  treePlantY = ty;
+                }
+              }
             }
           }
         }
@@ -755,6 +826,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         if (c.currentJob == Citizen::JobType::PlantingTree) {
           if (c.workTimer >= 2.0f) {
             tile.decoration = DecorationType::Tree;
+            tile.hasStump = false; // Reset stump flag
             tile.decorationVariant =
                 rand() % 3; // Random variant (Tree1, Tree2)
 
@@ -851,10 +923,17 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
 
       switch (c.workState) {
       case Citizen::WorkState::Idle: {
+
+        // Check if city stone storage is full
+        if (myCity->resources.stone >= myCity->maxStorage) {
+          c.workState = Citizen::WorkState::Wandering;
+          break;
+        }
+
         // Scan for rocks
         int bestX = -1, bestY = -1;
         float bestDist = 999999.0f;
-        int range = 40;
+        int range = 60; // Increased range
         int cx = (int)myEntity->position.x, cy = (int)myEntity->position.y;
 
         for (int dy = -range; dy <= range; dy++) {
@@ -912,30 +991,53 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       }
       case Citizen::WorkState::Working: {
         c.workTimer += deltaTime;
-        if (c.workTimer >= 4.0f) { // Mining takes 4s
+        if (c.workTimer >= 4.0f) { // Mining takes 4s (hit)
+
+          c.workTimer = 0.0f; // Reset timer for next hit if not full
+
           Tile &t = world.GetTile(c.targetTileX, c.targetTileY);
-          // If it's a decoration rock, remove it. If mountain, keep it
-          // (infinite).
-          if (t.type != TileType::Mountain &&
-              t.decoration != DecorationType::None) {
-            t.decoration = DecorationType::None;
+
+          bool rockExists = (t.decoration != DecorationType::None &&
+                             t.type != TileType::Mountain);
+
+          if (rockExists) {
+            if (t.resourceAmount > 0) {
+              t.resourceAmount -= 1.0f;
+              c.carryingResource += 1;
+              c.skillMining += 0.2f;
+
+              if (t.resourceAmount <= 0) {
+                t.decoration = DecorationType::None; // Destroyed
+              }
+            } else {
+              // Fallback for old rocks without resource amount
+              t.decoration = DecorationType::None;
+              c.carryingResource += 1;
+            }
+          } else if (t.type == TileType::Mountain) {
+            // Infinite mining on mountain tiles?
+            c.carryingResource += 1;
+            c.skillMining += 0.1f;
+          } else {
+            // Rock disappeared
+            c.workState = Citizen::WorkState::Idle;
+            myEntity->state = EntityState::Idle;
+            break;
           }
 
-          c.carryingResource += 1;
-          c.skillMining += 0.4f;
           if (c.skillMining > 100.0f)
             c.skillMining = 100.0f;
 
-          TraceLog(LOG_INFO, "MINER: Citizen %d mined stone at (%d,%d)", c.id,
-                   c.targetTileX, c.targetTileY);
+          // Visual feedback (particle?) in future
+
+          TraceLog(LOG_INFO, "MINER: Citizen %d mined stone (Carrying: %d/%d)",
+                   c.id, c.carryingResource, c.maxCarryCapacity);
 
           if (c.carryingResource >= c.maxCarryCapacity) {
             c.workState = Citizen::WorkState::ReturningHome;
             myEntity->targetPos = myCity->center;
             myEntity->hasTarget = true;
             myEntity->state = EntityState::Walking;
-          } else {
-            c.workState = Citizen::WorkState::Idle;
           }
         }
         break;
@@ -945,6 +1047,9 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
                                 myEntity->position.y - myCity->center.y);
         if (dist < 3.0f) {
           myCity->resources.stone += c.carryingResource;
+          if (myCity->resources.stone > myCity->maxStorage)
+            myCity->resources.stone = myCity->maxStorage;
+
           // Small chance for ore/gold?
           if (rand() % 10 == 0)
             myCity->resources.ore += 1;
@@ -990,15 +1095,38 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         }
 
         if (bestIdx >= 0) {
-          c.targetTileX = myCity->buildings[bestIdx].tileX;
-          c.targetTileY = myCity->buildings[bestIdx].tileY;
+          // Find a walkable spot adjacent to the building site
+          int bx = myCity->buildings[bestIdx].tileX;
+          int by = myCity->buildings[bestIdx].tileY;
+          int tx = bx, ty = by;
+
+          // Try 4 directions
+          if (world.IsWalkable(bx + 1, by) &&
+              !world.GetTileConst(bx + 1, by).isOccupied) {
+            tx = bx + 1;
+          } else if (world.IsWalkable(bx - 1, by) &&
+                     !world.GetTileConst(bx - 1, by).isOccupied) {
+            tx = bx - 1;
+          } else if (world.IsWalkable(bx, by + 1) &&
+                     !world.GetTileConst(bx, by + 1).isOccupied) {
+            ty = by + 1;
+          } else if (world.IsWalkable(bx, by - 1) &&
+                     !world.GetTileConst(bx, by - 1).isOccupied) {
+            ty = by - 1;
+          }
+
+          c.targetTileX = bx; // Job target (building)
+          c.targetTileY = by;
           c.workState = Citizen::WorkState::GoingToWork;
           c.isWorking = true;
-          myEntity->targetPos = {c.targetTileX + 0.5f, c.targetTileY + 0.5f};
+          myEntity->targetPos = {tx + 0.5f,
+                                 ty + 0.5f}; // Move target (next to building)
           myEntity->hasTarget = true;
           myEntity->state = EntityState::Walking;
-          TraceLog(LOG_INFO, "BUILDER: Citizen %d going to build at (%d,%d)",
-                   c.id, c.targetTileX, c.targetTileY);
+          TraceLog(LOG_INFO,
+                   "BUILDER: Citizen %d going to build at (%d,%d), standing at "
+                   "(%d,%d)",
+                   c.id, c.targetTileX, c.targetTileY, tx, ty);
         } else {
           c.workState = Citizen::WorkState::Wandering;
         }
@@ -1007,7 +1135,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       case Citizen::WorkState::GoingToWork: {
         float dist = std::hypot(myEntity->position.x - (c.targetTileX + 0.5f),
                                 myEntity->position.y - (c.targetTileY + 0.5f));
-        if (dist < 1.5f) {
+        if (dist < 2.0f) { // Increased distance to 2.0f for adjacent working
           c.workState = Citizen::WorkState::Working;
           c.workTimer = 0.0f;
           myEntity->state = EntityState::Attack; // Building animation
@@ -1227,97 +1355,245 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
     if (buildTimer >= 10.0f) { // Check every 10 seconds
       buildTimer = 0.0f;
 
+      // 1. Calculate Storage Capacity (Base 200 + 500 per Stockpile)
+      int totalStorage = 200;
+      for (const auto &b : city.buildings) {
+        if (b.isComplete) {
+          if (b.type == BuildingType::Recursos) {
+            totalStorage += 500;
+          } else if (b.type == BuildingType::StockpileStone) {
+            totalStorage += 500;
+          }
+        }
+      }
+      city.maxStorage = totalStorage;
+
       int population = city.GetPopulation();
       int buildingCount = static_cast<int>(city.buildings.size());
 
-      // Build a new cabana when: population >= 3 * buildings, have resources
-      if (population >= (buildingCount + 1) * 3 && city.resources.wood >= 5) {
-        // Pick a random spot in territory for new building
-        if (!city.territory.empty()) {
-          int idx = rand() % city.territory.size();
+      // 2. Decide what to build
+      bool needWoodStorage = city.resources.wood >= (city.maxStorage * 0.8f);
+      bool needStoneStorage = city.resources.stone >= (city.maxStorage * 0.8f);
+      bool needHousing = population >= (buildingCount + 1) * 3;
+
+      BuildingType typeToBuild = BuildingType::None;
+      int woodCost = 0;
+
+      if (needStoneStorage && city.resources.wood >= 50) {
+        typeToBuild = BuildingType::StockpileStone;
+        woodCost = 50;
+      } else if (needWoodStorage && city.resources.wood >= 50) {
+        typeToBuild = BuildingType::Recursos; // Stockpile
+        woodCost = 30;                        // 30 Wood for stockpile
+      } else if (needHousing && city.resources.wood >= 5) {
+        // Upgrade building type based on city size
+        if (city.buildings.size() < 3) {
+          typeToBuild = BuildingType::Cabana;
+          woodCost = 5; // Increased from 2
+        } else if (city.buildings.size() < 8) {
+          typeToBuild = BuildingType::Casa;
+          woodCost = 10; // Increased from 5
+        } else {
+          typeToBuild = BuildingType::Casa2;
+          woodCost = 15; // Increased from 8
+        }
+      }
+
+      // 3. Execute Construction
+      if (typeToBuild != BuildingType::None &&
+          city.resources.wood >= woodCost) {
+
+        // --- IMPROVED CITY LAYOUT ALGORITHM ---
+        // Find the best spot: Closer to center, Walkable, Not Occupied, and
+        // Spaced out
+        int bestBx = -1, bestBy = -1;
+        float bestScore = 999999.0f;
+
+        // Shuffle territory check to avoid bias (start at random index but
+        // check all)
+        int startIdx = rand() % city.territory.size();
+        for (size_t i = 0; i < city.territory.size(); i++) {
+          size_t idx = (startIdx + i) % city.territory.size();
           int bx = static_cast<int>(city.territory[idx].x);
           int by = static_cast<int>(city.territory[idx].y);
 
+          BuildingSize size = GetBuildingSize(typeToBuild);
+
+          // 1. Must be valid ground AND check full footprint
+          bool placeable = true;
+          for (int bdy = 0; bdy < size.height; bdy++) {
+            for (int bdx = 0; bdx < size.width; bdx++) {
+              int tx = bx + bdx;
+              int ty = by + bdy;
+
+              // Out of bounds
+              if (tx < 0 || tx >= world.GetWidth() || ty < 0 ||
+                  ty >= world.GetHeight()) {
+                placeable = false;
+                break;
+              }
+
+              const Tile &tile = world.GetTileConst(tx, ty);
+
+              // Occupied?
+              if (tile.isOccupied) {
+                placeable = false;
+                break;
+              }
+
+              // Walkable? (Only check if not occupied, but we just checked
+              // occupied)
+              if (!world.IsWalkable(tx, ty)) {
+                placeable = false;
+                break;
+              }
+
+              // Invalid terrain types
+              if (tile.type == TileType::DeepOcean ||
+                  tile.type == TileType::Ocean ||
+                  tile.type == TileType::ShallowOcean ||
+                  tile.type == TileType::Mountain) {
+                placeable = false;
+                break;
+              }
+            }
+            if (!placeable)
+              break;
+          }
+          if (!placeable)
+            continue;
+
+          // 2. Check spacing (don't build immediately next to another building)
+          // 4-tile gap rule: Check neighbors
+          bool tooClose = false;
+          int spacing = 4; // Increased from 1 to 4
+          for (int dy = -spacing; dy < size.height + spacing; dy++) {
+            for (int dx = -spacing; dx < size.width + spacing; dx++) {
+              // Skip the building footprint itself (already checked above)
+              if (dx >= 0 && dx < size.width && dy >= 0 && dy < size.height)
+                continue;
+
+              int nx = bx + dx;
+              int ny = by + dy;
+              if (nx >= 0 && nx < world.GetWidth() && ny >= 0 &&
+                  ny < world.GetHeight()) {
+                if (world.GetTileConst(nx, ny).isOccupied) {
+                  tooClose = true;
+                  break;
+                }
+              }
+            }
+            if (tooClose)
+              break;
+          }
+          if (tooClose)
+            continue;
+
+          // 3. Score by distance to city center (Spiral growth)
+          float dist = std::hypot(bx - city.center.x, by - city.center.y);
+
+          // Slight randomization to prevent perfect circles
+          float score = dist + (rand() % 500) / 100.0f;
+
+          if (score < bestScore) {
+            bestScore = score;
+            bestBx = bx;
+            bestBy = by;
+          }
+        }
+
+        if (bestBx != -1) {
           Building newBuilding;
           newBuilding.id = static_cast<int>(city.buildings.size());
           newBuilding.cityID = city.id;
-          newBuilding.tileX = bx;
-          newBuilding.tileY = by;
-          newBuilding.isComplete = true;
-          newBuilding.variant = rand() % 4;
+          newBuilding.tileX = bestBx;
+          newBuilding.tileY = bestBy;
+          newBuilding.isComplete = false; // Builders must build it!
+          newBuilding.constructionProgress = 0.0f;
+          newBuilding.type = typeToBuild;
+          newBuilding.variant = rand() % 3;
 
-          // Upgrade building type based on city size
-          if (city.buildings.size() < 3) {
-            newBuilding.type = BuildingType::Cabana;
-            city.resources.wood -= 2;
-          } else if (city.buildings.size() < 8) {
-            newBuilding.type = BuildingType::Casa;
-            city.resources.wood -= 5;
-          } else {
-            newBuilding.type = BuildingType::Casa2;
-            city.resources.wood -= 8;
-          }
-
+          city.resources.wood -= woodCost;
           city.buildings.push_back(newBuilding);
-          TraceLog(
-              LOG_INFO,
-              "CITY %d: Built new building at (%d,%d), now has %d buildings",
-              city.id, bx, by, static_cast<int>(city.buildings.size()));
-        }
-      }
-    }
 
-    // === TERRITORY EXPANSION ===
-    // Expand territory as population grows
-    int desiredTerritorySize =
-        20 + city.GetPopulation() * 5; // Base 20 + 5 per citizen
-    if (static_cast<int>(city.territory.size()) < desiredTerritorySize) {
-      // Expand outward from existing territory
-      int expansionCount = 0;
-      int maxExpansion = 3; // Max tiles to add per frame
-
-      for (size_t i = 0;
-           i < city.territory.size() && expansionCount < maxExpansion; i++) {
-        const Vector2 &existing = city.territory[i];
-
-        // Try adding adjacent tiles
-        int dirs[4][2] = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
-        for (int d = 0; d < 4 && expansionCount < maxExpansion; d++) {
-          int nx = static_cast<int>(existing.x) + dirs[d][0];
-          int ny = static_cast<int>(existing.y) + dirs[d][1];
-
-          if (nx < 0 || ny < 0 || nx >= world.GetWidth() ||
-              ny >= world.GetHeight())
-            continue;
-
-          // Check if already in territory
-          bool alreadyOwned = false;
-          for (const Vector2 &t : city.territory) {
-            if (static_cast<int>(t.x) == nx && static_cast<int>(t.y) == ny) {
-              alreadyOwned = true;
-              break;
+          // Mark as occupied immediately so no one walks there or builds there
+          BuildingSize size = GetBuildingSize(typeToBuild);
+          for (int dy = 0; dy < size.height; dy++) {
+            for (int dx = 0; dx < size.width; dx++) {
+              int tx = bestBx + dx;
+              int ty = bestBy + dy;
+              if (tx >= 0 && tx < world.GetWidth() && ty >= 0 &&
+                  ty < world.GetHeight()) {
+                world.GetTile(tx, ty).isOccupied = true;
+              }
             }
           }
-          if (alreadyOwned)
-            continue;
 
-          // Check if walkable land
-          const Tile &tile = world.GetTileConst(nx, ny);
-          if (tile.type != TileType::Grass && tile.type != TileType::Forest &&
-              tile.type != TileType::Sand && tile.type != TileType::DesertSand)
-            continue;
-
-          // Add to territory
-          city.territory.push_back(
-              {static_cast<float>(nx), static_cast<float>(ny)});
-          // Territory is tracked in city.territory, no tile ownership field
-          // needed
-          expansionCount++;
+          TraceLog(
+              LOG_INFO,
+              "CITY %d: Started construction of %s at (%d,%d). Storage: %d/%d",
+              city.id,
+              (typeToBuild == BuildingType::Recursos ? "Stockpile" : "Housing"),
+              bestBx, bestBy, city.resources.wood, city.maxStorage);
         }
       }
+
+      // === TERRITORY EXPANSION ===
+      // Expand territory as population grows
+      int desiredTerritorySize =
+          20 + city.GetPopulation() * 5; // Base 20 + 5 per citizen
+      if (static_cast<int>(city.territory.size()) < desiredTerritorySize) {
+        // Expand outward from existing territory
+        int expansionCount = 0;
+        int maxExpansion = 3; // Max tiles to add per frame
+
+        for (size_t i = 0;
+             i < city.territory.size() && expansionCount < maxExpansion; i++) {
+          const Vector2 &existing = city.territory[i];
+
+          // Try adding adjacent tiles
+          int dirs[4][2] = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
+          for (int d = 0; d < 4 && expansionCount < maxExpansion; d++) {
+            int nx = static_cast<int>(existing.x) + dirs[d][0];
+            int ny = static_cast<int>(existing.y) + dirs[d][1];
+
+            if (nx < 0 || ny < 0 || nx >= world.GetWidth() ||
+                ny >= world.GetHeight())
+              continue;
+
+            // Check if already in territory
+            bool alreadyOwned = false;
+            for (const Vector2 &t : city.territory) {
+              if (static_cast<int>(t.x) == nx && static_cast<int>(t.y) == ny) {
+                alreadyOwned = true;
+                break;
+              }
+            }
+            if (alreadyOwned)
+              continue;
+
+            // Check if walkable land
+            const Tile &tile = world.GetTileConst(nx, ny);
+            if (tile.type != TileType::Grass && tile.type != TileType::Forest &&
+                tile.type != TileType::Sand &&
+                tile.type != TileType::DesertSand)
+              continue;
+
+            // Add to territory
+            city.territory.push_back(
+                {static_cast<float>(nx), static_cast<float>(ny)});
+
+            // Mark tile ownership
+            world.GetTile(nx, ny).ownerCityID = city.id;
+            expansionCount++;
+          }
+        }
+      }
+      // Update Building Evolution
+      UpdateBuildingUpgrade(city);
     }
   }
-}
+} // Close UpdateCities
 
 // === ASSIGN JOBS ===
 // Government system to assign professions based on city needs
@@ -1374,10 +1650,25 @@ void SimulationManager::AssignJobs(City &city) {
   if (city.resources.wood < 50)
     desiredLumberjacks += 2; // Need wood!
 
-  int desiredBuilders =
-      std::max(1, static_cast<int>(city.buildings.size()) / 5);
+  // Aggressive Builder Assignment for City Growth
+  int desiredBuilders = 0;
+  if (city.resources.wood > 20 || city.resources.stone > 10) {
+    // If we have resources, we should be building/upgrading!
+    // Assign up to 30% of population as builders
+    desiredBuilders = std::max(1, population / 3);
+  } else {
+    // Maintenance mode (1 builder per 10 buildings)
+    desiredBuilders = std::max(1, static_cast<int>(city.buildings.size()) / 10);
+  }
 
-  int desiredMiners = (population > 15) ? 1 : 0;
+  // More miners earlier (Feedback: "User saw only 1")
+  int desiredMiners = 0;
+  if (population > 5)
+    desiredMiners = 2; // Start with 2 miners
+  if (population > 20)
+    desiredMiners = 3;
+  if (population > 40)
+    desiredMiners = 5;
 
   // Assign based on priority: Food > Wood > Build > Mine
   for (Citizen *c : availableWorkers) {
@@ -1507,6 +1798,7 @@ void SimulationManager::ExpandTerritory(City &city, World &world) {
 
     // Add to territory
     city.territory.push_back(target);
+    world.GetTile((int)target.x, (int)target.y).ownerCityID = city.id;
 
     // Pay the cost
     city.resources.wood -= COST_WOOD;
@@ -1515,5 +1807,80 @@ void SimulationManager::ExpandTerritory(City &city, World &world) {
     TraceLog(LOG_INFO, "EXPANSION: City %s grew to (%d, %d). Size: %d",
              city.name.c_str(), (int)target.x, (int)target.y,
              (int)city.territory.size());
+  }
+}
+
+// === BUILDING EVOLUTION / UPGRADES ===
+void SimulationManager::UpdateBuildingUpgrade(City &city) {
+  // Check if we have minimum resources to even consider upgrading
+  // Cheapest upgrade (Cabana -> Wood Casa) cost 10 Wood
+  if (city.resources.wood < 10 && city.resources.stone < 5)
+    return;
+
+  // Efficiency: Small chance to process upgrade each tick (spread load)
+  // 5% chance per city per frame to check for upgrades
+  if (rand() % 100 > 5)
+    return;
+
+  // Iterate to find a candidate for upgrade
+  for (auto &b : city.buildings) {
+    if (!b.isComplete)
+      continue; // Only completed buildings evolve
+
+    // TIER 0 -> TIER 1 (Cabana/Wood -> MixedCasa)
+    if (b.type == BuildingType::Cabana) {
+      // Upgrade Cabana -> Casa (Wood)
+      // Cost: 10 Wood
+      int costWood = 10;
+      if (city.resources.wood >= costWood) {
+        city.resources.wood -= costWood;
+        b.type = BuildingType::Casa;
+        // Variants 0-5 are Wood Casas (assets/builds/no color
+        // constructions/casas/tile000-005.png)
+        b.variant = rand() % 6;
+        TraceLog(LOG_INFO, "CITY %d: Upgraded Cabana to Wood Casa (Var %d)",
+                 city.id, b.variant);
+        return; // One upgrade per tick
+      }
+    } else if (b.type == BuildingType::Casa) {
+      // Check tier based on variant
+      bool isWoodCasa = (b.variant <= 5);
+      bool isMixedCasa = (b.variant >= 6 && b.variant <= 8);
+
+      if (isWoodCasa) {
+        // Upgrade Wood Casa -> Mixed Casa (Tier 1)
+        // Cost: 15 Wood, 5 Stone
+        int costWood = 15;
+        int costStone = 5;
+        if (city.resources.wood >= costWood &&
+            city.resources.stone >= costStone) {
+          city.resources.wood -= costWood;
+          city.resources.stone -= costStone;
+          // Variants 6-8 are Mixed Casas (tile006-008.png)
+          b.variant = 6 + (rand() % 3);
+          TraceLog(LOG_INFO,
+                   "CITY %d: Upgraded Wood Casa to Mixed Casa (Var %d)",
+                   city.id, b.variant);
+          return;
+        }
+      } else if (isMixedCasa) {
+        // Upgrade Mixed Casa -> Stone Mansion (Tier 2 / Casa2)
+        // Cost: 50 Stone
+        // Note: Casa2 assets are in "casas2" folder
+        int costStone = 50;
+        if (city.resources.stone >= costStone) {
+          city.resources.stone -= costStone;
+          b.type = BuildingType::Casa2;
+          // Assuming Casa2 has ~5 variants.
+          // Using 3 conservatively if we don't know exact count, but usually
+          // it's fine.
+          b.variant = rand() % 3;
+          TraceLog(LOG_INFO,
+                   "CITY %d: Upgraded Mixed Casa to Stone Mansion (Var %d)",
+                   city.id, b.variant);
+          return;
+        }
+      }
+    }
   }
 }

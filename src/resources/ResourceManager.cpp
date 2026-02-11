@@ -214,6 +214,16 @@ void ResourceManager::Load() {
     SetTextureFilter(texRecursos[i], TEXTURE_FILTER_POINT);
   }
 
+  // Stockpile Stone
+  texStockpileStone = LoadTexture("assets/builds/recursos/006.png");
+  SetTextureFilter(texStockpileStone, TEXTURE_FILTER_POINT);
+
+  // Load New Rocks (Rock1 - Rock4)
+  for (int i = 0; i < 4; i++) {
+    texRock[i] = LoadTexture(TextFormat("assets/tiles/Rock/Rock%d.png", i + 1));
+    SetTextureFilter(texRock[i], TEXTURE_FILTER_POINT);
+  }
+
   // --- BUSHES ---
   // Simple Bushes (Mapped to Bush_simple1_x)
   for (int i = 0; i < NUM_BUSH_TYPES; i++) {
@@ -808,6 +818,10 @@ void ResourceManager::Unload() {
     UnloadTexture(texForest[i]);
   UnloadTexture(texGraminhas);
 
+  UnloadTexture(texStockpileStone);
+  for (int i = 0; i < 4; i++)
+    UnloadTexture(texRock[i]);
+
   for (int i = 0; i < NUM_TREE_TYPES; i++)
     UnloadTexture(texTrees[i]);
   for (int i = 0; i < NUM_FRUIT_TREE_TYPES; i++)
@@ -932,14 +946,14 @@ Texture2D ResourceManager::GetTextureForUI(DecorationType type) {
     return texBushes[0];
   // Removed invalid enums (SnowBush, Cactus, Crystal) - they are procedural
   // only
-  case DecorationType::Rock: // Generic rock?
-    return texSmallRocks[0]; // User requested Rock2_1.png
-  case DecorationType::SmallRock:
-    return texSmallRocks[0]; // Rock2
-  case DecorationType::MediumRock:
-    return texMediumRocks[0]; // Rock3
-  case DecorationType::BigRock:
-    return texBigRocks[0]; // Rock1
+  case DecorationType::Rock: // Rock1
+    return texRock[0];
+  case DecorationType::SmallRock: // Rock2
+    return texRock[1];
+  case DecorationType::MediumRock: // Rock3
+    return texRock[2];
+  case DecorationType::BigRock: // Rock4
+    return texRock[3];
   case DecorationType::Flower:
     return texFlowers[0];
   case DecorationType::Mushroom:

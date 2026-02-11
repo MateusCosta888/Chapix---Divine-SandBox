@@ -111,6 +111,10 @@ public:
   Texture2D texCabanas[NUM_CABANA_VARIANTS];
   Texture2D texCasas[NUM_CASA_VARIANTS];
   Texture2D texRecursos[NUM_RECURSOS_VARIANTS];
+  Texture2D texStockpileStone; // New Stockpile Texture
+
+  // New Rocks
+  Texture2D texRock[4]; // Rock1, Rock2, Rock3, Rock4
 
   // Helpers
   Texture2D GetTextureForTile(TileType type);
