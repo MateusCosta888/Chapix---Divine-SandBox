@@ -50,8 +50,7 @@ int main(int argc, char *argv[]) {
     ui.popupJustOpened = false;
 
     Vector2 mousePos = GetMousePosition();
-    bool isPointerOnUI =
-        mousePos.y > (SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT);
+    bool isPointerOnUI = ui.IsPointerOnUI();
 
     // Camera Controls
     if (!isPointerOnUI && !ui.showBrushPopup) {
@@ -66,6 +65,24 @@ int main(int argc, char *argv[]) {
       if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
         Vector2 delta = Vector2Scale(GetMouseDelta(), -1.0f / camera.zoom);
         camera.target = Vector2Add(camera.target, delta);
+      }
+    }
+
+    // Camera Tracking (Human Popup)
+    if (ui.IsHumanPopupOpen() && ui.GetPopupCitizenID() != -1) {
+      // Find entity for this citizen to get position
+      const auto &entities = world.GetEntities();
+      for (const auto &e : entities) {
+        if (e.citizenID == ui.GetPopupCitizenID()) {
+          // Lerp to target for smooth tracking
+          Vector2 targetPos = {e.position.x * 10.0f + 5.0f,
+                               e.position.y * 10.0f + 5.0f};
+          // Simple lerp: current + (target - current) * 0.1
+          camera.target = Vector2Add(
+              camera.target,
+              Vector2Scale(Vector2Subtract(targetPos, camera.target), 0.1f));
+          break;
+        }
       }
     }
 

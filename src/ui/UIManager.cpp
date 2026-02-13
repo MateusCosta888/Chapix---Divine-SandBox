@@ -1,5 +1,8 @@
 #include "UIManager.h"
+#include "../simulation/SimulationManager.h"
 #include "raymath.h"
+#include <algorithm> // for max/min
+#include <cstring>
 #include <string>
 
 UIManager::UIManager() {}
@@ -18,6 +21,46 @@ void UIManager::Load() {
   texPanelBL = LoadTexture("assets/UI/TaskBar/bordas/Inferior Esquerda.png");
   texPanelBC = LoadTexture("assets/UI/TaskBar/bordas/Inferior Central.png");
   texPanelBR = LoadTexture("assets/UI/TaskBar/bordas/Inferior Direita.png");
+
+  // Load City Popup Textures (9-Slice)
+  texPopupTL = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/base Pu-Up/Superior esquerda.png");
+  texPopupTC =
+      LoadTexture("assets/UI/Pup-Up Backgroud/base Pu-Up/Superior Centro.png");
+  texPopupTR =
+      LoadTexture("assets/UI/Pup-Up Backgroud/base Pu-Up/Superior Direita.png");
+  texPopupML =
+      LoadTexture("assets/UI/Pup-Up Backgroud/base Pu-Up/Meio esquerda.png");
+  texPopupMC =
+      LoadTexture("assets/UI/Pup-Up Backgroud/base Pu-Up/Meio Centro.png");
+  texPopupMR =
+      LoadTexture("assets/UI/Pup-Up Backgroud/base Pu-Up/Meio Direita.png");
+  texPopupBL = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/base Pu-Up/Inferior esquerda.png");
+  texPopupBC =
+      LoadTexture("assets/UI/Pup-Up Backgroud/base Pu-Up/Inferior Centro.png");
+  texPopupBR =
+      LoadTexture("assets/UI/Pup-Up Backgroud/base Pu-Up/Inferior direita.png");
+
+  // Load Human Popup Textures (9-Slice Base Pup-Up2)
+  texPopup2TL = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/Base Pup-Up2/Superior Esquerdo.png");
+  texPopup2TC = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/Base Pup-Up2/Superior Centro.png");
+  texPopup2TR = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/Base Pup-Up2/Superior Direita.png");
+  texPopup2ML =
+      LoadTexture("assets/UI/Pup-Up Backgroud/Base Pup-Up2/Meio Esquerdo.png");
+  texPopup2MC =
+      LoadTexture("assets/UI/Pup-Up Backgroud/Base Pup-Up2/Meio Centro.png");
+  texPopup2MR =
+      LoadTexture("assets/UI/Pup-Up Backgroud/Base Pup-Up2/Meio Direita.png");
+  texPopup2BL = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/Base Pup-Up2/Inferior Esquerdo.png");
+  texPopup2BC = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/Base Pup-Up2/Inferior Centro.png");
+  texPopup2BR = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/Base Pup-Up2/Inferior Direita.png");
 
   // Load Button Texture
   texButton = LoadTexture("assets/UI/TaskBar/Botoes/boto004.png");
@@ -68,6 +111,26 @@ void UIManager::Unload() {
   UnloadTexture(texPanelBL);
   UnloadTexture(texPanelBC);
   UnloadTexture(texPanelBR);
+
+  UnloadTexture(texPopupTL);
+  UnloadTexture(texPopupTC);
+  UnloadTexture(texPopupTR);
+  UnloadTexture(texPopupML);
+  UnloadTexture(texPopupMC);
+  UnloadTexture(texPopupMR);
+  UnloadTexture(texPopupBL);
+  UnloadTexture(texPopupBC);
+  UnloadTexture(texPopupBR);
+
+  UnloadTexture(texPopup2TL);
+  UnloadTexture(texPopup2TC);
+  UnloadTexture(texPopup2TR);
+  UnloadTexture(texPopup2ML);
+  UnloadTexture(texPopup2MC);
+  UnloadTexture(texPopup2MR);
+  UnloadTexture(texPopup2BL);
+  UnloadTexture(texPopup2BC);
+  UnloadTexture(texPopup2BR);
   UnloadTexture(texButton);
   UnloadTexture(texTabButton);
   UnloadTexture(texEraser);
@@ -80,14 +143,52 @@ void UIManager::Unload() {
 
 bool UIManager::IsPointerOnUI() const {
   Vector2 mousePos = GetMousePosition();
-  bool onUI = mousePos.y > (SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT);
-  if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-    if (mousePos.y > (SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT)) {
-      return true;
+
+  // 1. Toolbar area
+  if (mousePos.y > (SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT))
+    return true;
+
+  // 2. City Popup
+  if (showCityPopup) {
+    float w = 400;
+    float h = 500;
+    float x = cityPopupPos.x;
+    float y = cityPopupPos.y;
+
+    // Fallback if not initialized yet (first frame)
+    if (x == 0 && y == 0) {
+      x = (SCREEN_WIDTH - w) / 2;
+      y = (SCREEN_HEIGHT - h) / 2;
     }
-    return onUI;
+
+    if (CheckCollisionPointRec(mousePos, {x, y, w, h}))
+      return true;
   }
-  return onUI;
+
+  // 3. Human Popup
+  if (showHumanPopup) {
+    float w = 400;
+    float h = 600;
+    float x = humanPopupPos.x;
+    float y = humanPopupPos.y;
+
+    // Fallback
+    if (x == 0 && y == 0) {
+      x = (SCREEN_WIDTH - w) / 2;
+      y = (SCREEN_HEIGHT - h) / 2;
+    }
+
+    if (CheckCollisionPointRec(mousePos, {x, y, w, h}))
+      return true;
+  }
+
+  // 4. Brush Popup logic (if needed, but usually handled separately)
+  if (showBrushPopup) {
+    // Assuming brush popup is roughly where toolbar is or specific location
+    // For now, toolbar check might cover it or added here if it floats
+  }
+
+  return false;
 }
 
 void UIManager::Update(World &world, Camera2D &camera) {
@@ -97,7 +198,81 @@ void UIManager::Update(World &world, Camera2D &camera) {
 
 void UIManager::HandleInput(World &world, Camera2D &camera) {
   Vector2 mousePos = GetMousePosition();
-  bool isPointerOnUI = IsPointerOnUI();
+  bool isPointerOnUI =
+      IsPointerOnUI() || showCityPopup; // Block clicks if popup is open
+
+  // City Popup Interaction
+  if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !isPointerOnUI) {
+    // Raycast for Cities
+    Vector2 worldPos = GetScreenToWorld2D(mousePos, camera);
+    auto &sim = const_cast<World &>(world).GetSimulation();
+
+    // 1. Check for CITIZENS (Priority over City)
+    int clickedCitizenID = -1;
+    const std::vector<Entity> &entities = world.GetEntities();
+    for (const auto &e : entities) {
+      if (e.citizenID != -1) {
+        // Entity pos is in Grid Coords (e.g. 50.5), TileSize = 10.0f
+        Vector2 entPosPx = {e.position.x * 10.0f, e.position.y * 10.0f};
+        // Hitbox radius ~8px (almost full tile)
+        if (CheckCollisionPointCircle(worldPos, entPosPx, 8.0f)) {
+          clickedCitizenID = e.citizenID;
+          break;
+        }
+      }
+    }
+
+    if (clickedCitizenID != -1) {
+      showHumanPopup = true;
+      popupCitizenID = clickedCitizenID;
+      showCityPopup = false;
+      isRenamingHuman = false;
+      isDraggingHuman = false; // Fix: Reset drag
+      return;                  // Consumed input
+    }
+
+    // 2. Check for CITIES
+    int clickedCityID = -1;
+    float minDist =
+        64.0f; // Click radius around city center (buildings usually close)
+
+    for (const auto &pair : sim.GetCities()) {
+      const City &city = pair.second;
+      // Approximate center by first building or avg position?
+      // Better: Check if any building of this city is clicked
+      for (const auto &b : city.buildings) {
+        float bx = b.tileX * 10.0f + 5.0f;
+        float by = b.tileY * 10.0f + 5.0f;
+        if (CheckCollisionPointCircle(worldPos, {bx, by},
+                                      15.0f)) { // 1.5 tile radius
+          clickedCityID = city.id;
+          break;
+        }
+      }
+      if (clickedCityID != -1)
+        break;
+    }
+
+    if (clickedCityID != -1) {
+      showCityPopup = true;
+      popupCityID = clickedCityID;
+      isRenamingCity = false; // Reset renaming
+      isDraggingCity = false; // Fix: Reset drag
+    }
+  }
+
+  // Close Popup if clicked outside (City)
+  if (showCityPopup && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    float w = 400;
+    float h = 500;
+    float x = cityPopupPos.x != 0 ? cityPopupPos.x : (SCREEN_WIDTH - w) / 2;
+    float y = cityPopupPos.y != 0 ? cityPopupPos.y : (SCREEN_HEIGHT - h) / 2;
+
+    if (!CheckCollisionPointRec(GetMousePosition(), {x, y, w, h})) {
+      showCityPopup = false;
+      isDraggingCity = false; // Ensure drag is reset
+    }
+  }
 
   // World Interaction (Painting)
   if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !isPointerOnUI &&
@@ -221,8 +396,518 @@ void UIManager::Draw(const World &world) {
 
   DrawToolbar(world);
 
-  // Draw Cursor
+  // Draw City Popup
+  if (showCityPopup) {
+    DrawCityPopup(world);
+  }
+
+  // Draw Human Popup
+  if (showHumanPopup) {
+    DrawHumanPopup(world);
+  }
+
+  // Draw Cursor (Always Top)
   DrawTextureEx(texCursor, mousePos, 0.0f, cursorScale, WHITE);
+}
+
+void UIManager::DrawCityPopup(const World &world) {
+  auto &sim = const_cast<World &>(world).GetSimulation(); // Access simulation
+  City *city = sim.GetCity(popupCityID);
+
+  if (!city) {
+    showCityPopup = false;
+    return;
+  }
+
+  // Popup Dimensions
+  float w = 400;
+  float h = 500;
+
+  // Lazy Init Position
+  if (cityPopupPos.x == 0 && cityPopupPos.y == 0) {
+    cityPopupPos.x = (SCREEN_WIDTH - w) / 2;
+    cityPopupPos.y = (SCREEN_HEIGHT - h) / 2;
+  }
+
+  // Drag Logic
+  Vector2 mousePos = GetMousePosition();
+  Rectangle headerRect = {cityPopupPos.x, cityPopupPos.y, w, 40}; // Top 40px
+
+  // Only start drag if NOT renaming
+  if (!isRenamingCity && CheckCollisionPointRec(mousePos, headerRect)) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      isDraggingCity = true;
+      dragOffset.x = mousePos.x - cityPopupPos.x;
+      dragOffset.y = mousePos.y - cityPopupPos.y;
+    }
+  }
+
+  if (isDraggingCity) {
+    cityPopupPos.x = mousePos.x - dragOffset.x;
+    cityPopupPos.y = mousePos.y - dragOffset.y;
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+      isDraggingCity = false;
+    }
+  }
+
+  // Use stored position
+  float x = cityPopupPos.x;
+  float y = cityPopupPos.y;
+  Rectangle rect = {x, y, w, h};
+
+  // 9-Slice Draw (Using Popup Textures)
+  int cw = texPopupTL.width;
+  int ch = texPopupTL.height;
+
+  // Corners
+  DrawTexture(texPopupTL, x, y, WHITE);
+  DrawTexture(texPopupTR, x + w - cw, y, WHITE);
+  DrawTexture(texPopupBL, x, y + h - ch, WHITE);
+  DrawTexture(texPopupBR, x + w - cw, y + h - ch, WHITE);
+
+  // Edges
+  DrawTexturePro(texPopupTC,
+                 {0, 0, (float)texPopupTC.width, (float)texPopupTC.height},
+                 {x + cw, y, w - 2 * cw, (float)ch}, {0, 0}, 0, WHITE);
+  DrawTexturePro(texPopupBC,
+                 {0, 0, (float)texPopupBC.width, (float)texPopupBC.height},
+                 {x + cw, y + h - ch, w - 2 * cw, (float)ch}, {0, 0}, 0, WHITE);
+  DrawTexturePro(texPopupML,
+                 {0, 0, (float)texPopupML.width, (float)texPopupML.height},
+                 {x, y + ch, (float)cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+  DrawTexturePro(texPopupMR,
+                 {0, 0, (float)texPopupMR.width, (float)texPopupMR.height},
+                 {x + w - cw, y + ch, (float)cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+
+  // Center
+  DrawTexturePro(texPopupMC,
+                 {0, 0, (float)texPopupMC.width, (float)texPopupMC.height},
+                 {x + cw, y + ch, w - 2 * cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+
+  // === CONTENT ===
+  float contentX = x + 25;
+  float contentY = y + 10; // Moved up from 25
+
+  // 1. Title (Centered & Editable)
+  const char *displayName =
+      isRenamingCity ? cityRenameBuffer : city->name.c_str();
+  Vector2 textSize = MeasureTextEx(uiFont, displayName, 30, 1);
+  float titleX = x + (w - textSize.x) / 2; // Center horizontally
+
+  if (isRenamingCity) {
+    // Input Handling
+    int key = GetCharPressed();
+    while (key > 0) {
+      if ((key >= 32) && (key <= 125) && (strlen(cityRenameBuffer) < 63)) {
+        int len = strlen(cityRenameBuffer);
+        cityRenameBuffer[len] = (char)key;
+        cityRenameBuffer[len + 1] = '\0';
+      }
+      key = GetCharPressed();
+    }
+
+    if (IsKeyPressed(KEY_BACKSPACE)) {
+      int len = strlen(cityRenameBuffer);
+      if (len > 0)
+        cityRenameBuffer[len - 1] = '\0';
+    }
+
+    if (IsKeyPressed(KEY_ENTER)) {
+      city->name = std::string(cityRenameBuffer);
+      isRenamingCity = false;
+    }
+
+    // Render Text Box
+    DrawRectangleRec({titleX - 5, contentY, textSize.x + 10, 35}, DARKGRAY);
+    DrawTextEx(uiFont, cityRenameBuffer, {titleX, contentY}, 30, 1, WHITE);
+
+    // Blinking Cursor
+    if ((int)(GetTime() * 2) % 2 == 0) {
+      DrawTextEx(uiFont, "_", {titleX + textSize.x + 2, contentY}, 30, 1,
+                 WHITE);
+    }
+  } else {
+    // Render Static Name
+    DrawTextEx(uiFont, city->name.c_str(), {titleX, contentY}, 30, 1, GOLD);
+
+    // Click to Rename
+    Rectangle titleRect = {titleX, contentY, textSize.x, 30};
+    if (CheckCollisionPointRec(GetMousePosition(), titleRect) &&
+        IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      isRenamingCity = true;
+      // Init buffer
+      strncpy(cityRenameBuffer, city->name.c_str(), 63);
+      cityRenameBuffer[63] = '\0'; // Safety
+    }
+  }
+
+  contentY += 50;
+
+  // 2. Resources Grid
+  DrawTextEx(uiFont, "Resources:", {contentX, contentY}, 20, 1, WHITE);
+  contentY += 25;
+
+  // Wood
+  DrawTextEx(uiFont, TextFormat("Wood: %d", city->resources.wood),
+             {contentX, contentY}, 18, 1, BROWN);
+  contentY += 20;
+  // Stone
+  DrawTextEx(uiFont, TextFormat("Stone: %d", city->resources.stone),
+             {contentX, contentY}, 18, 1, GRAY);
+  contentY += 20;
+  // Food
+  DrawTextEx(
+      uiFont,
+      TextFormat("Food: %d / %d", city->resources.food, city->maxStorage),
+      {contentX, contentY}, 18, 1, GREEN);
+
+  contentY += 40;
+
+  // 3. Population List
+  DrawTextEx(uiFont, TextFormat("Population: %d", city->GetPopulation()),
+             {contentX, contentY}, 20, 1, WHITE);
+  contentY += 25;
+
+  // Scroll Logic
+  float listHeight = h - (contentY - y) - 30;
+  float totalContentHeight = city->GetPopulation() * 20.0f;
+  float maxScroll = totalContentHeight - listHeight;
+  if (maxScroll < 0)
+    maxScroll = 0;
+
+  // Mouse Wheel
+  if (CheckCollisionPointRec(GetMousePosition(), {x, y, w, h})) {
+    float wheel = GetMouseWheelMove();
+    if (wheel != 0) {
+      cityPopupScroll -= wheel * 30.0f;
+    }
+  }
+  // Clamp
+  if (cityPopupScroll < 0)
+    cityPopupScroll = 0;
+  if (cityPopupScroll > maxScroll)
+    cityPopupScroll = maxScroll;
+
+  BeginScissorMode((int)contentX, (int)contentY, (int)(w - 40),
+                   (int)listHeight);
+
+  float currentY = contentY - cityPopupScroll;
+
+  for (int id : city->citizenIDs) {
+    Citizen *c = sim.GetCitizen(id);
+    if (!c || !c->isAlive)
+      continue;
+
+    const char *professionName = "Unemployed";
+    Color profColor = WHITE;
+    switch (c->profession) {
+    case Profession::Lumberjack:
+      professionName = "Lumberjack";
+      profColor = BROWN;
+      break;
+    case Profession::Miner:
+      professionName = "Miner";
+      profColor = GRAY;
+      break;
+    case Profession::Farmer:
+      professionName = "Farmer";
+      profColor = GREEN;
+      break;
+    case Profession::Builder:
+      professionName = "Builder";
+      profColor = YELLOW;
+      break;
+    case Profession::Soldier:
+      professionName = "Soldier";
+      profColor = RED;
+      break;
+    }
+
+    // Interaction Line
+    const char *text = TextFormat("- %s (%s)", c->name.c_str(), professionName);
+
+    // Interaction Check (Right Click to Open Status)
+    // Only check if possibly visible to save perf
+    if (currentY + 20 >= contentY && currentY <= contentY + listHeight) {
+      Vector2 textSize = MeasureTextEx(uiFont, text, 16, 1);
+      Rectangle itemRect = {contentX, currentY, textSize.x + 200,
+                            20}; // Full width clickable
+
+      if (CheckCollisionPointRec(GetMousePosition(), itemRect)) {
+        DrawRectangleRec(itemRect, Fade(LIGHTGRAY, 0.2f)); // Hover effect
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+          showHumanPopup = true;
+          popupCitizenID = id;
+          isDraggingHuman = false; // Fix: Reset drag
+        }
+      }
+      DrawTextEx(uiFont, text, {contentX, currentY}, 16, 1, profColor);
+    }
+
+    currentY += 20;
+  }
+  EndScissorMode();
+
+  // Close Button (Small X top right)
+  Rectangle closeBtn = {x + w - 30, y + 10, 20, 20};
+  DrawText("X", (int)closeBtn.x + 5, (int)closeBtn.y + 2, 20, RED);
+
+  // Prevent Drag if hovering Close Button
+  // (Handled by checking close button first or in Drag Logic, but resetting
+  // here is key)
+
+  if (CheckCollisionPointRec(GetMousePosition(), closeBtn) &&
+      IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    showCityPopup = false;
+    isDraggingCity = false; // Fix: Reset drag
+  }
+}
+
+void UIManager::DrawHumanPopup(const World &world) {
+  auto &sim = const_cast<World &>(world).GetSimulation();
+  Citizen *c = sim.GetCitizen(popupCitizenID);
+
+  if (!c || !c->isAlive) {
+    showHumanPopup = false;
+    return;
+  }
+
+  // Popup Dimensions (Base Pup-Up2)
+  float w = 400;
+  float h = 600; // Taller for abilities/inventory
+
+  // Lazy Init Position
+  if (humanPopupPos.x == 0 && humanPopupPos.y == 0) {
+    humanPopupPos.x = (SCREEN_WIDTH - w) / 2;
+    humanPopupPos.y = (SCREEN_HEIGHT - h) / 2;
+  }
+
+  // Drag Logic
+  Vector2 mousePos = GetMousePosition();
+  Rectangle headerRect = {humanPopupPos.x, humanPopupPos.y, w, 40}; // Top 40px
+
+  if (!isRenamingHuman && CheckCollisionPointRec(mousePos, headerRect)) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      isDraggingHuman = true;
+      dragOffset.x = mousePos.x - humanPopupPos.x;
+      dragOffset.y = mousePos.y - humanPopupPos.y;
+    }
+  }
+
+  if (isDraggingHuman) {
+    humanPopupPos.x = mousePos.x - dragOffset.x;
+    humanPopupPos.y = mousePos.y - dragOffset.y;
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+      isDraggingHuman = false;
+    }
+  }
+
+  // Use stored position
+  float x = humanPopupPos.x;
+  float y = humanPopupPos.y;
+
+  // 9-Slice Draw (Base Pup-Up2)
+  int cw = texPopup2TL.width;
+  int ch = texPopup2TL.height;
+
+  // Corners
+  DrawTexture(texPopup2TL, x, y, WHITE);
+  DrawTexture(texPopup2TR, x + w - cw, y, WHITE);
+  DrawTexture(texPopup2BL, x, y + h - ch, WHITE);
+  DrawTexture(texPopup2BR, x + w - cw, y + h - ch, WHITE);
+
+  // Edges
+  DrawTexturePro(texPopup2TC,
+                 {0, 0, (float)texPopup2TC.width, (float)texPopup2TC.height},
+                 {x + cw, y, w - 2 * cw, (float)ch}, {0, 0}, 0, WHITE);
+  DrawTexturePro(texPopup2BC,
+                 {0, 0, (float)texPopup2BC.width, (float)texPopup2BC.height},
+                 {x + cw, y + h - ch, w - 2 * cw, (float)ch}, {0, 0}, 0, WHITE);
+  DrawTexturePro(texPopup2ML,
+                 {0, 0, (float)texPopup2ML.width, (float)texPopup2ML.height},
+                 {x, y + ch, (float)cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+  DrawTexturePro(texPopup2MR,
+                 {0, 0, (float)texPopup2MR.width, (float)texPopup2MR.height},
+                 {x + w - cw, y + ch, (float)cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+
+  // Center
+  DrawTexturePro(texPopup2MC,
+                 {0, 0, (float)texPopup2MC.width, (float)texPopup2MC.height},
+                 {x + cw, y + ch, w - 2 * cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+
+  // === CONTENT ===
+  float contentX = x + 35; // Padding
+  float contentY = y + 25;
+
+  // 1. NAME (Centered & Editable)
+  const char *displayName =
+      isRenamingHuman ? humanRenameBuffer : c->name.c_str();
+  Vector2 textSize = MeasureTextEx(uiFont, displayName, 30, 1);
+  float titleX = x + (w - textSize.x) / 2;
+
+  if (isRenamingHuman) {
+    // Input Handling
+    int key = GetCharPressed();
+    while (key > 0) {
+      if ((key >= 32) && (key <= 125) && (strlen(humanRenameBuffer) < 63)) {
+        int len = strlen(humanRenameBuffer);
+        humanRenameBuffer[len] = (char)key;
+        humanRenameBuffer[len + 1] = '\0';
+      }
+      key = GetCharPressed();
+    }
+    if (IsKeyPressed(KEY_BACKSPACE)) {
+      int len = strlen(humanRenameBuffer);
+      if (len > 0)
+        humanRenameBuffer[len - 1] = '\0';
+    }
+    if (IsKeyPressed(KEY_ENTER)) {
+      c->name = std::string(humanRenameBuffer);
+      isRenamingHuman = false;
+    }
+
+    DrawRectangleRec({titleX - 5, contentY, textSize.x + 10, 35}, DARKGRAY);
+    DrawTextEx(uiFont, humanRenameBuffer, {titleX, contentY}, 30, 1, WHITE);
+    if ((int)(GetTime() * 2) % 2 == 0)
+      DrawTextEx(uiFont, "_", {titleX + textSize.x + 2, contentY}, 30, 1,
+                 WHITE);
+  } else {
+    DrawTextEx(uiFont, c->name.c_str(), {titleX, contentY}, 30, 1, GOLD);
+
+    // Rename click detection
+    Rectangle titleRect = {titleX, contentY, textSize.x, 30};
+    if (CheckCollisionPointRec(GetMousePosition(), titleRect) &&
+        IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      isRenamingHuman = true;
+      strncpy(humanRenameBuffer, c->name.c_str(), 63);
+      humanRenameBuffer[63] = '\0';
+    }
+  }
+  contentY += 60;
+
+  // 2. XP BAR (+/- Buttons)
+  // Center "Level X" text
+  const char *levelText = TextFormat("Level %d", c->level);
+  Vector2 levelSize = MeasureTextEx(uiFont, levelText, 20, 1);
+  DrawTextEx(uiFont, levelText, {x + (w - levelSize.x) / 2, contentY}, 20, 1,
+             WHITE);
+
+  // Buttons [-] [+] (Keep at right for now, or move next to text?)
+  Rectangle btnMinus = {x + w - 90, contentY - 5, 30, 30};
+  Rectangle btnPlus = {x + w - 50, contentY - 5, 30, 30};
+
+  DrawRectangleRec(btnMinus, RED);
+  DrawText("-", (int)btnMinus.x + 10, (int)btnMinus.y + 2, 20, WHITE);
+  if (CheckCollisionPointRec(GetMousePosition(), btnMinus) &&
+      IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    if (c->level > 1)
+      c->level--;
+  }
+
+  DrawRectangleRec(btnPlus, GREEN);
+  DrawText("+", (int)btnPlus.x + 8, (int)btnPlus.y + 2, 20, WHITE);
+  if (CheckCollisionPointRec(GetMousePosition(), btnPlus) &&
+      IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    c->level++;
+  }
+
+  contentY += 35;
+  // XP Bar Visual
+  float barWidth = 330.0f;
+  float barX = x + (w - barWidth) / 2;
+
+  DrawRectangle(barX, contentY, barWidth, 15, BLACK);
+  float xpPct = c->experience / c->maxExperience;
+  if (xpPct > 1.0f)
+    xpPct = 1.0f;
+  DrawRectangle(barX, contentY, (int)(barWidth * xpPct), 15, GREEN);
+  contentY += 30;
+
+  // 3. INVENTORY (6 Slots)
+  const char *invText = "Inventory:";
+  Vector2 invSize = MeasureTextEx(uiFont, invText, 20, 1);
+  DrawTextEx(uiFont, invText, {x + (w - invSize.x) / 2, contentY}, 20, 1,
+             WHITE);
+  contentY += 25;
+
+  // Quick sync: carryingResource to Slot 0 (Visual only for now)
+  c->inventory[0].type =
+      c->carryingResource > 0 ? 1 : 0; // Simplified type assumption
+  c->inventory[0].amount = c->carryingResource;
+
+  // Center Grid: 3 cols * 60px - 10 (last gap) = 170px width
+  // But logic is i%3 * 60. So 0, 60, 120. Rect is 50. End is 120+50 = 170.
+  float invGridWidth = 170.0f;
+  float invStartX = x + (w - invGridWidth) / 2;
+
+  for (int i = 0; i < 6; i++) {
+    float slotX = invStartX + (i % 3) * 60; // 3 per row
+    float slotY = contentY + (i / 3) * 60;
+    DrawRectangleLines(slotX, slotY, 50, 50, LIGHTGRAY);
+
+    if (c->inventory[i].amount > 0) {
+      DrawText(TextFormat("%d", c->inventory[i].amount), (int)slotX + 5,
+               (int)slotY + 5, 20, WHITE);
+      // Draw Icon based on type (TODO: Real icons)
+      DrawCircle((int)slotX + 25, (int)slotY + 25, 10, BROWN);
+    }
+  }
+  contentY += 130;
+
+  // 4. PROFESSION
+  const char *prof = "Unemployed";
+  if (c->profession == Profession::Lumberjack)
+    prof = "Lumberjack";
+  else if (c->profession == Profession::Miner)
+    prof = "Miner";
+  else if (c->profession == Profession::Farmer)
+    prof = "Farmer";
+  else if (c->profession == Profession::Builder)
+    prof = "Builder";
+  else if (c->profession == Profession::Soldier)
+    prof = "Soldier";
+
+  const char *profLabel = TextFormat("Profession: %s", prof);
+  Vector2 profSize = MeasureTextEx(uiFont, profLabel, 20, 1);
+  DrawTextEx(uiFont, profLabel, {x + (w - profSize.x) / 2, contentY}, 20, 1,
+             YELLOW);
+  contentY += 40;
+
+  // 5. ABILITIES (8 Slots)
+  const char *abText = "Abilities:";
+  Vector2 abSize = MeasureTextEx(uiFont, abText, 20, 1);
+  DrawTextEx(uiFont, abText, {x + (w - abSize.x) / 2, contentY}, 20, 1, WHITE);
+  contentY += 25;
+
+  // Center Grid: 4 cols. Width = 3*60 + 50 = 230.
+  float abGridWidth = 230.0f;
+  float abStartX = x + (w - abGridWidth) / 2;
+
+  for (int i = 0; i < 8; i++) {
+    float slotX = abStartX + (i % 4) * 60;
+    float slotY = contentY + (i / 4) * 60;
+
+    Rectangle abRect = {slotX, slotY, 50, 50};
+    Color color = c->abilities[i] ? GOLD : DARKGRAY;
+
+    DrawRectangleRec(abRect, color);
+    DrawRectangleLinesEx(abRect, 2, WHITE);
+
+    // Toggle on click
+    if (CheckCollisionPointRec(GetMousePosition(), abRect) &&
+        IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      c->abilities[i] = !c->abilities[i];
+    }
+  }
+
+  // Close Button
+  Rectangle closeBtn = {x + w - 30, y + 10, 20, 20};
+  DrawText("X", (int)closeBtn.x + 5, (int)closeBtn.y + 2, 20, RED);
+  if (CheckCollisionPointRec(GetMousePosition(), closeBtn) &&
+      IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    showHumanPopup = false;
+    isDraggingHuman = false; // Fix: Reset drag
+  }
 }
 
 void UIManager::DrawToolbar(const World &world) {
@@ -361,7 +1046,8 @@ void UIManager::DrawToolbar(const World &world) {
   }
 
   // Define Scissor Area
-  // We want to clip content that flows outside startX -> startX + visibleWidth
+  // We want to clip content that flows outside startX -> startX +
+  // visibleWidth
   BeginScissorMode((int)startX, (int)(SCREEN_HEIGHT - TOOLBAR_HEIGHT),
                    (int)visibleWidth, TOOLBAR_HEIGHT);
 
@@ -387,12 +1073,12 @@ void UIManager::DrawToolbar(const World &world) {
                  btnRect.y, GetMousePosition().y, SCREEN_HEIGHT);
       }
 
-      // Check collision with the SCROLLED rect, but strictly within the visible
-      // area logic Since we are optimizing above, this is mostly fine, but
-      // let's ensure we don't click "invisible" buttons if the scissor didn't
-      // work (it only clips drawing) CheckCollisionPointRec works on logic
-      // coordinates. So detailed check: Mouse must be within the scissor area
-      // AND the button rect.
+      // Check collision with the SCROLLED rect, but strictly within the
+      // visible area logic Since we are optimizing above, this is mostly
+      // fine, but let's ensure we don't click "invisible" buttons if the
+      // scissor didn't work (it only clips drawing) CheckCollisionPointRec
+      // works on logic coordinates. So detailed check: Mouse must be within
+      // the scissor area AND the button rect.
       bool isHover =
           CheckCollisionPointRec(mousePos, btnRect) &&
           (mousePos.x >= startX && mousePos.x <= startX + visibleWidth);
@@ -501,10 +1187,10 @@ void UIManager::DrawToolbar(const World &world) {
         if (tex.id > 0) {
           float scale =
               std::min((btnSize - 10) / tex.width, (btnSize - 10) / tex.height);
-          // Standard scaling for nature shouldn't need floor logic if we trust
-          // it, but let's keep it safe or use the new standard. Nature items
-          // are usually small pixel art, so floor is good, but let's just use
-          // the safer logic:
+          // Standard scaling for nature shouldn't need floor logic if we
+          // trust it, but let's keep it safe or use the new standard. Nature
+          // items are usually small pixel art, so floor is good, but let's
+          // just use the safer logic:
           if (scale > 1.0f)
             scale = std::floor(scale);
 
@@ -562,10 +1248,10 @@ void UIManager::DrawToolbar(const World &world) {
         if (tex.id > 0) {
           float scale =
               std::min((btnSize - 10) / tex.width, (btnSize - 10) / tex.height);
-          // Standard scaling for nature shouldn't need floor logic if we trust
-          // it, but let's keep it safe or use the new standard. Nature items
-          // are usually small pixel art, so floor is good, but let's just use
-          // the safer logic:
+          // Standard scaling for nature shouldn't need floor logic if we
+          // trust it, but let's keep it safe or use the new standard. Nature
+          // items are usually small pixel art, so floor is good, but let's
+          // just use the safer logic:
           if (scale > 1.0f)
             scale = std::floor(scale);
 
@@ -623,8 +1309,8 @@ void UIManager::DrawToolbar(const World &world) {
 
       Rectangle btnRect = {btnX, startY, btnSize, btnSize};
 
-      // Check collision with the SCROLLED rect, but strictly within the visible
-      // area logic
+      // Check collision with the SCROLLED rect, but strictly within the
+      // visible area logic
       bool isHover =
           CheckCollisionPointRec(mousePos, btnRect) &&
           (mousePos.x >= startX && mousePos.x <= startX + visibleWidth);
@@ -640,8 +1326,8 @@ void UIManager::DrawToolbar(const World &world) {
       if (tex.id > 0) {
         // Center and fit
         float availableSize =
-            btnSize - 4; // Reduced padding to allow 1.5x scale (76px available
-                         // > 72px needed)
+            btnSize - 4; // Reduced padding to allow 1.5x scale (76px
+                         // available > 72px needed)
         float scale = availableSize / (float)std::max(tex.width, tex.height);
         if (scale > 1.0f)
           scale = std::floor(scale * 2.0f) /
@@ -822,8 +1508,7 @@ void UIManager::DrawToolbar(const World &world) {
     Rectangle closeBtn = {popupX + popupW - 30, popupY + 5, 25, 25};
     bool isCloseHover = CheckCollisionPointRec(mousePos, closeBtn);
     DrawRectangleRec(closeBtn, isCloseHover ? RED : DARKGRAY);
-    DrawTextEx(uiFont, "X",
-               {closeBtn.x + 7, closeBtn.y + 2}, 18, 1, WHITE);
+    DrawTextEx(uiFont, "X", {closeBtn.x + 7, closeBtn.y + 2}, 18, 1, WHITE);
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isCloseHover) {
       showTimePopup = false;
@@ -831,8 +1516,7 @@ void UIManager::DrawToolbar(const World &world) {
 
     // Click outside popup closes it
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
-        !CheckCollisionPointRec(mousePos,
-                                {popupX, popupY, popupW, popupH}) &&
+        !CheckCollisionPointRec(mousePos, {popupX, popupY, popupW, popupH}) &&
         !popupJustOpened) {
       showTimePopup = false;
     }

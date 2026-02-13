@@ -11,7 +11,7 @@ g++ src/main.cpp src/world/World.cpp src/utils/Noise.cpp src/resources/ResourceM
 
 if %errorlevel% neq 0 (
     echo Compilation Failed!
-    pause
+
     exit /b %errorlevel%
 )
 

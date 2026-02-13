@@ -57,8 +57,24 @@ struct Citizen {
   float energy = 100.0f; // Fatigue system
 
   // === STATS & GENETICS ===
+  // === STATS & GENETICS ===
   CitizenStats stats;
   CitizenGenetics genes;
+
+  // === RPG PROGRESSION ===
+  int level = 1;
+  float experience = 0.0f;
+  float maxExperience = 100.0f;
+
+  // === INVENTORY (6 Slots) ===
+  struct InventorySlot {
+    int type = 0; // 0:None, 1:Wood, 2:Stone, 3:Food
+    int amount = 0;
+  };
+  InventorySlot inventory[6];
+
+  // === ABILITIES (8 Slots) ===
+  bool abilities[8] = {false}; // true if unlocked/active
 
   // === SOCIAL ===
   int cityID = -1;    // Which city do I belong to?

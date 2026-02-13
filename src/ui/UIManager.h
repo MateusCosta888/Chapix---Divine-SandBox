@@ -30,6 +30,10 @@ public:
   UIState GetCurrentTab() const { return currentTab; }
   BrushSize GetBrushSize() const { return currentBrushSize; }
 
+  // New Accessors
+  bool IsHumanPopupOpen() const { return showHumanPopup; }
+  int GetPopupCitizenID() const { return popupCitizenID; }
+
 private:
 public:
   // State - Moved to public for main.cpp access (or use Get/Set)
@@ -45,6 +49,40 @@ private:
   Texture2D texPanelTL, texPanelTC, texPanelTR;
   Texture2D texPanelML, texPanelMC, texPanelMR;
   Texture2D texPanelBL, texPanelBC, texPanelBR;
+
+  // New Popup Textures (9-slice) for City UI
+  Texture2D texPopupTL, texPopupTC, texPopupTR;
+  Texture2D texPopupML, texPopupMC, texPopupMR;
+  Texture2D texPopupBL, texPopupBC, texPopupBR;
+
+  // City Popup State
+  // City Popup State
+  // City Popup State
+  bool showCityPopup = false;
+  int popupCityID = -1;
+  bool isRenamingCity = false;
+  char cityRenameBuffer[64] = "City Name";
+  float cityPopupScroll = 0.0f;
+
+  // Drag State (City)
+  Vector2 cityPopupPos = {0, 0};
+  bool isDraggingCity = false;
+  Vector2 dragOffset = {0, 0};
+
+  // Human/Creature Popup State
+  bool showHumanPopup = false;
+  int popupCitizenID = -1;
+  char humanRenameBuffer[64] = {0};
+  bool isRenamingHuman = false;
+
+  // Drag State (Human)
+  Vector2 humanPopupPos = {0, 0};
+  bool isDraggingHuman = false;
+
+  // New Human Popup Textures (9-slice Base Pup-Up2)
+  Texture2D texPopup2TL, texPopup2TC, texPopup2TR;
+  Texture2D texPopup2ML, texPopup2MC, texPopup2MR;
+  Texture2D texPopup2BL, texPopup2BC, texPopup2BR;
 
   // Font
   Font uiFont;
@@ -80,6 +118,9 @@ private:
   static const int TAB_HEIGHT = 50;
 
   // Helper methods
+  // Helper methods
   void DrawToolbar(const World &world);
+  void DrawCityPopup(const World &world);  // New City UI
+  void DrawHumanPopup(const World &world); // New Human UI
   void HandleInput(World &world, Camera2D &camera);
 };
