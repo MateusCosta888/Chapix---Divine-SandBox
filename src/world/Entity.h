@@ -7,6 +7,7 @@ struct Citizen;
 enum class EntityType {
   HumanUnarmed, // Replaces Generic Human
   HumanArmed,   // New Armed Variant
+  HumanWoman,   // Female citizen
   Boar,         // New Enemy
   Cow,
   Chicken,
@@ -45,6 +46,7 @@ struct Entity {
 
   // Helper to check if this entity is an intelligent creature
   bool IsIntelligent() const {
-    return type == EntityType::HumanUnarmed || type == EntityType::HumanArmed;
+    return type == EntityType::HumanUnarmed || type == EntityType::HumanArmed ||
+           type == EntityType::HumanWoman;
   }
 };

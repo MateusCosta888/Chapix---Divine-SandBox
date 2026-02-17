@@ -79,7 +79,16 @@ private:
   void UpdateBuildingUpgrade(City &city); // New: Evolution System
 
   // === GOVERNMENT SYSTEM ===
+  // === GOVERNMENT SYSTEM ===
+  // === GOVERNMENT SYSTEM ===
   void AssignJobs(City &city);
+
+  // === CITY EVOLUTION (New) ===
+  void AttemptTerritoryExpansion(City &city, World &world);
+  void AttemptConstruction(City &city, World &world);
+
+  // === HOUSING SYSTEM ===
+  void AssignHousing(City &city);
 
 private:
   // === DATA STORAGE ===

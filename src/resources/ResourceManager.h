@@ -54,7 +54,7 @@ public:
   // Buildings (no color = neutral/first city)
   static const int NUM_CABANA_VARIANTS = 5;
   static const int NUM_CASA_VARIANTS = 12;
-  static const int NUM_CASA2_VARIANTS = 5; // estimated
+  static const int NUM_CASA2_VARIANTS = 3; // Found 3 files (003, 004, 005)
   static const int NUM_RECURSOS_VARIANTS = 15;
 
   // Textures
@@ -110,11 +110,32 @@ public:
   // Building Textures (neutral/no color)
   Texture2D texCabanas[NUM_CABANA_VARIANTS];
   Texture2D texCasas[NUM_CASA_VARIANTS];
+  Texture2D texCasa2[NUM_CASA2_VARIANTS]; // New!
   Texture2D texRecursos[NUM_RECURSOS_VARIANTS];
   Texture2D texStockpileStone; // New Stockpile Texture
 
   // New Rocks
   Texture2D texRock[4]; // Rock1, Rock2, Rock3, Rock4
+
+  // Tree Stumps
+  static const int NUM_STUMP_VARIANTS = 2;
+  Texture2D texStumps[NUM_STUMP_VARIANTS];
+
+  // New Buildings
+  static const int NUM_CASTELO_VARIANTS = 3;
+  Texture2D texCastelo[NUM_CASTELO_VARIANTS];
+
+  static const int NUM_MERCADO_VARIANTS = 12;
+  Texture2D texMercado[NUM_MERCADO_VARIANTS];
+
+  static const int NUM_QUARTEL_VARIANTS = 12;
+  Texture2D texQuartel[NUM_QUARTEL_VARIANTS];
+
+  static const int NUM_TAVERNA_VARIANTS = 9;
+  Texture2D texTaverna[NUM_TAVERNA_VARIANTS];
+
+  static const int NUM_WORKSHOP_VARIANTS = 9;
+  Texture2D texWorkshop[NUM_WORKSHOP_VARIANTS];
 
   // Helpers
   Texture2D GetTextureForTile(TileType type);
@@ -127,6 +148,9 @@ public:
   std::vector<Texture2D> texHumanUnarmed[3][4];
   std::vector<Texture2D>
       texHumanArmed[3][4]; // Changed to vector for variable frames
+
+  // Woman Assets (3 States: Idle, Walk, Farming | 4 Directions)
+  std::vector<Texture2D> texHumanWoman[3][4];
 
   // Human Extras
   Texture2D texHumanUnarmedSwim[4][4];

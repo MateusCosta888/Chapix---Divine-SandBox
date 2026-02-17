@@ -208,6 +208,13 @@ void ResourceManager::Load() {
     SetTextureFilter(texCasas[i], TEXTURE_FILTER_POINT);
   }
 
+  // Load Casa2 (Stone Mansions) - Files are 003, 004, 005
+  for (int i = 0; i < NUM_CASA2_VARIANTS; i++) {
+    texCasa2[i] = LoadTexture(TextFormat(
+        "assets/builds/no color constructions/casas2/tile%03d.png", i + 3));
+    SetTextureFilter(texCasa2[i], TEXTURE_FILTER_POINT);
+  }
+
   for (int i = 0; i < NUM_RECURSOS_VARIANTS; i++) {
     texRecursos[i] = LoadTexture(TextFormat(
         "assets/builds/no color constructions/recursos/tile%03d.png", i));
@@ -222,6 +229,56 @@ void ResourceManager::Load() {
   for (int i = 0; i < 4; i++) {
     texRock[i] = LoadTexture(TextFormat("assets/tiles/Rock/Rock%d.png", i + 1));
     SetTextureFilter(texRock[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Load Tree Stumps
+  for (int i = 0; i < NUM_STUMP_VARIANTS; i++) {
+    texStumps[i] =
+        LoadTexture(TextFormat("assets/Trees/stump/stump%d.png", i + 1));
+    SetTextureFilter(texStumps[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Load Castle textures (tile000-002)
+  for (int i = 0; i < NUM_CASTELO_VARIANTS; i++) {
+    texCastelo[i] = LoadTexture(TextFormat(
+        "assets/builds/no color constructions/castelo/tile%03d.png", i));
+    SetTextureFilter(texCastelo[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Load Market textures (tile000-011)
+  for (int i = 0; i < NUM_MERCADO_VARIANTS; i++) {
+    texMercado[i] = LoadTexture(TextFormat(
+        "assets/builds/no color constructions/mercados/tile%03d.png", i));
+    SetTextureFilter(texMercado[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Load Barracks textures (non-sequential: 1-7,12,15,17-19)
+  {
+    int quartelFiles[] = {1, 2, 3, 4, 5, 6, 7, 12, 15, 17, 18, 19};
+    for (int i = 0; i < NUM_QUARTEL_VARIANTS; i++) {
+      texQuartel[i] = LoadTexture(TextFormat(
+          "assets/builds/no color constructions/quertel/tile%03d.png",
+          quartelFiles[i]));
+      SetTextureFilter(texQuartel[i], TEXTURE_FILTER_POINT);
+    }
+  }
+
+  // Load Tavern textures (non-sequential: 0-2,4-5,7-8,10-11)
+  {
+    int tavernaFiles[] = {0, 1, 2, 4, 5, 7, 8, 10, 11};
+    for (int i = 0; i < NUM_TAVERNA_VARIANTS; i++) {
+      texTaverna[i] = LoadTexture(TextFormat(
+          "assets/builds/no color constructions/tavernas/tile%03d.png",
+          tavernaFiles[i]));
+      SetTextureFilter(texTaverna[i], TEXTURE_FILTER_POINT);
+    }
+  }
+
+  // Load Workshop textures (tile000-008)
+  for (int i = 0; i < NUM_WORKSHOP_VARIANTS; i++) {
+    texWorkshop[i] = LoadTexture(TextFormat(
+        "assets/builds/no color constructions/workshops/tile%03d.png", i));
+    SetTextureFilter(texWorkshop[i], TEXTURE_FILTER_POINT);
   }
 
   // --- BUSHES ---
@@ -473,6 +530,66 @@ void ResourceManager::Load() {
   for (int s = 0; s < 3; s++) {
     for (int d = 0; d < 4; d++) {
       for (auto &tex : texHumanUnarmed[s][d]) {
+        SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      }
+    }
+  }
+
+  // === WOMAN HUMAN ===
+  // Same directional pattern: Up=001, Left=014, Down=027, Right=040
+  // 1. IDLE (2 frames per direction)
+  const char *wIdlePrefix = "assets/char/New Main Human/Woman/Idle/Idle";
+  texHumanWoman[0][0].push_back(
+      LoadTexture(TextFormat("%s027.png", wIdlePrefix)));
+  texHumanWoman[0][0].push_back(
+      LoadTexture(TextFormat("%s028.png", wIdlePrefix)));
+  texHumanWoman[0][1].push_back(
+      LoadTexture(TextFormat("%s040.png", wIdlePrefix)));
+  texHumanWoman[0][1].push_back(
+      LoadTexture(TextFormat("%s041.png", wIdlePrefix)));
+  texHumanWoman[0][2].push_back(
+      LoadTexture(TextFormat("%s014.png", wIdlePrefix)));
+  texHumanWoman[0][2].push_back(
+      LoadTexture(TextFormat("%s015.png", wIdlePrefix)));
+  texHumanWoman[0][3].push_back(
+      LoadTexture(TextFormat("%s001.png", wIdlePrefix)));
+  texHumanWoman[0][3].push_back(
+      LoadTexture(TextFormat("%s002.png", wIdlePrefix)));
+
+  // 2. WALK (8-9 frames per direction)
+  const char *wWalkPrefix = "assets/char/New Main Human/Woman/Walk/walk";
+  for (int i = 27; i <= 34; i++)
+    texHumanWoman[1][0].push_back(
+        LoadTexture(TextFormat("%s%03d.png", wWalkPrefix, i)));
+  for (int i = 40; i <= 48; i++)
+    texHumanWoman[1][1].push_back(
+        LoadTexture(TextFormat("%s%03d.png", wWalkPrefix, i)));
+  for (int i = 14; i <= 22; i++)
+    texHumanWoman[1][2].push_back(
+        LoadTexture(TextFormat("%s%03d.png", wWalkPrefix, i)));
+  for (int i = 1; i <= 9; i++)
+    texHumanWoman[1][3].push_back(
+        LoadTexture(TextFormat("%s%03d.png", wWalkPrefix, i)));
+
+  // 3. FARMING (8 frames per direction) - used as "Attack" state (state 2)
+  const char *wFarmPrefix = "assets/char/New Main Human/Woman/Farming/Farming";
+  for (int i = 27; i <= 34; i++)
+    texHumanWoman[2][0].push_back(
+        LoadTexture(TextFormat("%s%03d.png", wFarmPrefix, i)));
+  for (int i = 40; i <= 47; i++)
+    texHumanWoman[2][1].push_back(
+        LoadTexture(TextFormat("%s%03d.png", wFarmPrefix, i)));
+  for (int i = 14; i <= 21; i++)
+    texHumanWoman[2][2].push_back(
+        LoadTexture(TextFormat("%s%03d.png", wFarmPrefix, i)));
+  for (int i = 1; i <= 8; i++)
+    texHumanWoman[2][3].push_back(
+        LoadTexture(TextFormat("%s%03d.png", wFarmPrefix, i)));
+
+  // Apply Filters for Woman
+  for (int s = 0; s < 3; s++) {
+    for (int d = 0; d < 4; d++) {
+      for (auto &tex : texHumanWoman[s][d]) {
         SetTextureFilter(tex, TEXTURE_FILTER_POINT);
       }
     }

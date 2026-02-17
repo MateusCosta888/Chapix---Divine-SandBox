@@ -1,6 +1,7 @@
 #pragma once
 #include "raylib.h"
 #include <string>
+#include <vector>
 
 // ============================================================================
 // BUILDING TYPES
@@ -20,6 +21,7 @@ enum class BuildingType {
   Docks,          // Naval - 20 wood, 5 stone
   Poco,           // Water well - 5 wood, 3 stone
   StockpileStone, // Stone Storage - 50 wood
+  Mina,           // Stone Mine - 50 wood
   COUNT
 };
 
@@ -61,6 +63,8 @@ inline BuildingCost GetBuildingCost(BuildingType type) {
     return {5, 3, 0};
   case BuildingType::StockpileStone:
     return {50, 0, 0};
+  case BuildingType::Mina:
+    return {50, 0, 0}; // 50 Wood to build shaft
   default:
     return {0, 0, 0};
   }
@@ -97,6 +101,8 @@ inline BuildingSize GetBuildingSize(BuildingType type) {
     return {2, 2};
   case BuildingType::StockpileStone:
     return {2, 2};
+  case BuildingType::Mina:
+    return {3, 3}; // Mine is 3x3
   case BuildingType::Mercado:
     return {3, 3};
   case BuildingType::Taverna:
@@ -131,6 +137,8 @@ inline const char *GetBuildingName(BuildingType type) {
     return "Armazem";
   case BuildingType::StockpileStone:
     return "Estoque de Pedra";
+  case BuildingType::Mina:
+    return "Mina de Pedra";
   case BuildingType::Mercado:
     return "Mercado";
   case BuildingType::Taverna:
@@ -166,6 +174,10 @@ struct Building {
   float maxHealth = 100.0f;
   bool isComplete = true;
   float constructionProgress = 1.0f; // 0.0 to 1.0
+
+  // === HOUSING SYSTEM ===
+  int capacity = 0;           // Max residents
+  std::vector<int> occupants; // IDs of residents
 
   bool IsHousing() const {
     return type == BuildingType::Cabana || type == BuildingType::Casa ||

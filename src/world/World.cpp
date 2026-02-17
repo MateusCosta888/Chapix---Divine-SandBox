@@ -763,6 +763,30 @@ void World::SetTileType(int x, int y, TileType newType) {
   }
 
   UpdateNeighborsEdgeMask(x, y);
+
+  // Default: Kill entities on this tile if it becomes water
+  // unless they are aquatic (which we don't have yet, except maybe future
+  // boats)
+  if (IsSwimmable(x, y)) {
+    for (auto &e : entities) {
+      // Check if entity is on this tile
+      if ((int)e.position.x == x && (int)e.position.y == y) {
+        // If entity is terrestrial, kill it
+        if (!e.IsIntelligent() && e.type != EntityType::Boar) {
+          // Animals - instant death or drown anim?
+          // For now, simple death state
+          e.health = 0;
+          e.state = EntityState::Die;
+        } else if (e.IsIntelligent()) {
+          // Humans - perhaps they can swim?
+          // User said "not possible to walk on water" and "die if ground turns
+          // to water" So we kill them.
+          e.health = 0;
+          e.state = EntityState::Die;
+        }
+      }
+    }
+  }
 }
 
 void World::SetTileDecoration(int x, int y, DecorationType type) {
@@ -791,6 +815,11 @@ Texture2D World::GetTextureForUI(EntityType type) {
   if (type == EntityType::HumanUnarmed) {
     if (!resourceManager.texHumanUnarmed[0][0].empty())
       return resourceManager.texHumanUnarmed[0][0][0]; // Idle Down Frame 0
+    return {0};
+  }
+  if (type == EntityType::HumanWoman) {
+    if (!resourceManager.texHumanWoman[0][0].empty())
+      return resourceManager.texHumanWoman[0][0][0];
     return {0};
   }
   if (type == EntityType::HumanArmed) {
@@ -858,6 +887,22 @@ void World::UpdateNeighborsEdgeMask(int x, int y) {
 }
 
 void World::AddEntity(EntityType type, Vector2 pos) {
+  // 50/50 chance: player-placed unarmed humans may be women
+  if (type == EntityType::HumanUnarmed && (rand() % 2 == 0)) {
+    type = EntityType::HumanWoman;
+  }
+
+  // Prevent spawning on water/obstacles (unless user forces it, but we block it
+  // per request)
+  if (!IsWalkable((int)pos.x, (int)pos.y)) {
+    // Try to find a valid spot nearby? Or just block?
+    // User said "should not be possible", so blocking is safest.
+    TraceLog(LOG_WARNING,
+             "WORLD: Blocked spawning entity on invalid tile at %.2f, %.2f",
+             pos.x, pos.y);
+    return;
+  }
+
   Entity e;
   e.id = entities.size();
   e.type = type;
@@ -873,7 +918,7 @@ void World::AddEntity(EntityType type, Vector2 pos) {
 
   // Set speed based on creature type
   // Set speed and health based on creature type
-  if (type == EntityType::HumanUnarmed) {
+  if (type == EntityType::HumanUnarmed || type == EntityType::HumanWoman) {
     e.speed = 2.0f;
     e.health = 15.0f;
   } else if (type == EntityType::HumanArmed) {
@@ -899,6 +944,11 @@ void World::AddEntity(EntityType type, Vector2 pos) {
   // For intelligent creatures (humans), create citizen data
   if (e.IsIntelligent()) {
     Citizen citizen = CreateRandomCitizen(simulation.GetNextCitizenID());
+    // Sync gender with entity type
+    if (type == EntityType::HumanWoman)
+      citizen.isFemale = true;
+    else
+      citizen.isFemale = false;
     e.citizenID = simulation.AddCitizen(citizen);
     TraceLog(LOG_INFO, "SIMULATION: Created Citizen %d for Entity %d",
              e.citizenID, e.id);
@@ -977,7 +1027,8 @@ void World::UpdateEntities(float deltaTime) {
           if (e.currentFrame == 3) { // Impact
             for (auto &target : entities) {
               if ((target.type == EntityType::HumanArmed ||
-                   target.type == EntityType::HumanUnarmed) &&
+                   target.type == EntityType::HumanUnarmed ||
+                   target.type == EntityType::HumanWoman) &&
                   target.health > 0) {
                 if (Vector2Distance(e.position, target.position) < 1.5f) {
                   float dmg = 5.0f;
@@ -1006,7 +1057,8 @@ void World::UpdateEntities(float deltaTime) {
       Vector2 targetPos = e.position;
       for (const auto &target : entities) {
         if ((target.type == EntityType::HumanArmed ||
-             target.type == EntityType::HumanUnarmed) &&
+             target.type == EntityType::HumanUnarmed ||
+             target.type == EntityType::HumanWoman) &&
             target.health > 0) {
           if (Vector2Distance(e.position, target.position) < 6.0f) {
             targetPos = target.position;
@@ -1083,7 +1135,8 @@ void World::UpdateEntities(float deltaTime) {
 
     // === HUMAN AI ===
     else if (e.type == EntityType::HumanUnarmed ||
-             e.type == EntityType::HumanArmed) {
+             e.type == EntityType::HumanArmed ||
+             e.type == EntityType::HumanWoman) {
       // Death
       if (e.state == EntityState::Die) {
         e.animTime += deltaTime;
@@ -1196,27 +1249,27 @@ void World::UpdateEntities(float deltaTime) {
           e.state = EntityState::Walking;
           Vector2 dir = Vector2Subtract(targetPos, e.position);
 
-          // Force cardinal direction (no diagonal)
+          // Force cardinal direction (no diagonal) - REMOVED
+          // if (fabs(dir.x) > fabs(dir.y)) {
+          //   dir.y = 0;
+          //   e.facingDirection = (dir.x > 0) ? 1 : -1;
+          // } else {
+          //   dir.x = 0;
+          //   e.facingDirection = (dir.y > 0) ? 0 : 2;
+          // }
+
+          // Use dominance only for facing direction
           if (fabs(dir.x) > fabs(dir.y)) {
-            dir.y = 0;
             e.facingDirection = (dir.x > 0) ? 1 : -1;
           } else {
-            dir.x = 0;
             e.facingDirection = (dir.y > 0) ? 0 : 2;
           }
 
           dir = Vector2Normalize(dir);
-          Vector2 nextPos = Vector2Add(
-              e.position, Vector2Scale(dir, 2.0f * deltaTime)); // Speed 2.0
-
-          // Collision Check
-          if (IsWalkable((int)nextPos.x, (int)nextPos.y)) {
-            e.position = nextPos;
-          } else {
-            // Stop if hit wall
-            e.state = EntityState::Idle;
-          }
+          // Stop if hit wall
+          e.state = EntityState::Idle;
         }
+
       } else {
         // Wander - but stay within city territory if assigned to one
         // SKIP wander if citizen is actively working a job (e.g., lumberjack
@@ -1285,20 +1338,32 @@ void World::UpdateEntities(float deltaTime) {
           } else {
             e.state = EntityState::Walking;
 
-            // Force cardinal direction (no diagonal)
+            // Force cardinal direction (no diagonal) - REMOVED
             if (fabs(dir.x) > fabs(dir.y)) {
-              dir.y = 0;
+              // dir.y = 0; // Don't zero out
               e.facingDirection = (dir.x > 0) ? 1 : -1;
             } else {
-              dir.x = 0;
+              // dir.x = 0; // Don't zero out
               e.facingDirection = (dir.y > 0) ? 0 : 2;
             }
 
             dir = Vector2Normalize(dir);
-            e.position = Vector2Add(
-                e.position, Vector2Scale(dir, 1.0f * deltaTime)); // Slow wander
+            Vector2 nextPos = Vector2Add(
+                e.position,
+                Vector2Scale(
+                    dir, e.speed * deltaTime)); // Use e.speed instead of 1.0f
+
+            // Collision Check
+            if (IsWalkable((int)nextPos.x, (int)nextPos.y)) {
+              e.position = nextPos;
+            } else {
+              e.hasTarget = false;
+              e.state = EntityState::Idle;
+            }
           }
-        } else if (!foundTarget) {
+        } else if (!foundTarget && e.state == EntityState::Walking) {
+          // Only reset to Idle if we were Walking.
+          // If we were Attacking (Working), don't reset!
           e.state = EntityState::Idle;
         }
       }
@@ -1315,88 +1380,89 @@ void World::UpdateEntities(float deltaTime) {
           }
         }
       }
-    }
 
-    // ========================================================================
-    // ANIMAL AI - Simple wander behavior
-    // ========================================================================
-    else if (e.type == EntityType::Cow || e.type == EntityType::Chicken ||
-             e.type == EntityType::Sheep || e.type == EntityType::Bull ||
-             e.type == EntityType::Chicken2 || e.type == EntityType::Lamb ||
-             e.type == EntityType::Pig || e.type == EntityType::Turkey) {
-      if (e.hasTarget) {
-        // Move towards target
-        Vector2 dir = Vector2Subtract(e.targetPos, e.position);
-        float dist = Vector2Length(dir);
+      // ========================================================================
+      // ANIMAL AI - Simple wander behavior
+      // ========================================================================
+      else if (e.type == EntityType::Cow || e.type == EntityType::Chicken ||
+               e.type == EntityType::Sheep || e.type == EntityType::Bull ||
+               e.type == EntityType::Chicken2 || e.type == EntityType::Lamb ||
+               e.type == EntityType::Pig || e.type == EntityType::Turkey) {
+        if (e.hasTarget) {
+          // Move towards target
+          Vector2 dir = Vector2Subtract(e.targetPos, e.position);
+          float dist = Vector2Length(dir);
 
-        if (dist < 0.1f) {
-          e.hasTarget = false;
-          e.state = EntityState::Idle;
-          e.currentFrame = 0;
-        } else {
-          e.state = EntityState::Walking;
-          float speed = e.speed;
-          Vector2 move = Vector2Scale(Vector2Normalize(dir), speed * deltaTime);
-          Vector2 nextPos = Vector2Add(e.position, move);
-
-          // Collision Check
-          if (IsWalkable((int)nextPos.x, (int)nextPos.y)) {
-            e.position = nextPos;
-          } else {
-            e.hasTarget = false; // Stop if blocked
+          if (dist < 0.1f) {
+            e.hasTarget = false;
             e.state = EntityState::Idle;
-          }
-
-          // Update Direction
-          if (fabs(dir.x) > fabs(dir.y)) {
-            e.facingDirection = (dir.x > 0) ? 1 : -1;
+            e.currentFrame = 0;
           } else {
-            e.facingDirection = (dir.y > 0) ? 0 : 2;
+            e.state = EntityState::Walking;
+            float speed = e.speed;
+            Vector2 move =
+                Vector2Scale(Vector2Normalize(dir), speed * deltaTime);
+            Vector2 nextPos = Vector2Add(e.position, move);
+
+            // Collision Check
+            if (IsWalkable((int)nextPos.x, (int)nextPos.y)) {
+              e.position = nextPos;
+            } else {
+              e.hasTarget = false; // Stop if blocked
+              e.state = EntityState::Idle;
+            }
+
+            // Update Direction (facing only, move is already diagonal)
+            if (fabs(dir.x) > fabs(dir.y)) {
+              e.facingDirection = (dir.x > 0) ? 1 : -1;
+            } else {
+              e.facingDirection = (dir.y > 0) ? 0 : 2;
+            }
+          }
+        } else {
+          // Idle - chance to pick new target (less frequent than humans)
+          e.state = EntityState::Idle;
+          if (rng_.Int(0, 100) < 2) { // 2% chance per frame
+            float tx = e.position.x;
+            float ty = e.position.y;
+
+            int moveDir = rng_.Int(0, 4);
+            float moveDist = 1.0f + (rng_.Float() * 2.0f); // 1-3 tiles
+
+            if (moveDir == 0)
+              ty -= moveDist;
+            else if (moveDir == 1)
+              ty += moveDist;
+            else if (moveDir == 2)
+              tx -= moveDist;
+            else if (moveDir == 3)
+              tx += moveDist;
+
+            // Clamp to world bounds
+            tx = std::max(0.0f, std::min((float)width - 1, tx));
+            ty = std::max(0.0f, std::min((float)height - 1, ty));
+
+            // Only set target if it's walkable (grass/forest)
+            int tileX = (int)tx;
+            int tileY = (int)ty;
+            if (IsWalkable(tileX, tileY)) {
+              e.targetPos = {tx, ty};
+              e.hasTarget = true;
+            }
           }
         }
-      } else {
-        // Idle - chance to pick new target (less frequent than humans)
-        e.state = EntityState::Idle;
-        if (rng_.Int(0, 100) < 2) { // 2% chance per frame
-          float tx = e.position.x;
-          float ty = e.position.y;
 
-          int moveDir = rng_.Int(0, 4);
-          float moveDist = 1.0f + (rng_.Float() * 2.0f); // 1-3 tiles
-
-          if (moveDir == 0)
-            ty -= moveDist;
-          else if (moveDir == 1)
-            ty += moveDist;
-          else if (moveDir == 2)
-            tx -= moveDist;
-          else if (moveDir == 3)
-            tx += moveDist;
-
-          // Clamp to world bounds
-          tx = std::max(0.0f, std::min((float)width - 1, tx));
-          ty = std::max(0.0f, std::min((float)height - 1, ty));
-
-          // Only set target if it's walkable (grass/forest)
-          int tileX = (int)tx;
-          int tileY = (int)ty;
-          if (IsWalkable(tileX, tileY)) {
-            e.targetPos = {tx, ty};
-            e.hasTarget = true;
+        // Animation (6 frames per direction for animals)
+        if (e.state == EntityState::Walking) {
+          e.animTime += deltaTime;
+          float animSpeed = (e.type == EntityType::Chicken) ? 0.1f : 0.15f;
+          if (e.animTime >= animSpeed) {
+            e.animTime = 0.0f;
+            e.currentFrame = (e.currentFrame + 1) % 6;
           }
+        } else {
+          e.currentFrame = 0;
         }
-      }
-
-      // Animation (6 frames per direction for animals)
-      if (e.state == EntityState::Walking) {
-        e.animTime += deltaTime;
-        float animSpeed = (e.type == EntityType::Chicken) ? 0.1f : 0.15f;
-        if (e.animTime >= animSpeed) {
-          e.animTime = 0.0f;
-          e.currentFrame = (e.currentFrame + 1) % 6;
-        }
-      } else {
-        e.currentFrame = 0;
       }
     }
   }

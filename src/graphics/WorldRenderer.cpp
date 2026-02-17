@@ -295,6 +295,28 @@ void WorldRenderer::Draw(const Camera2D &camera,
       for (int x = 0; x < width; x++) {
         Tile &tile = world.GetTile(x, y);
 
+        // Render stump if tile has one and no decoration
+        if (tile.hasStump && tile.decoration == DecorationType::None) {
+          Texture2D *stumpTex =
+              &resourceManager.texStumps[tile.stumpVariant %
+                                         ResourceManager::NUM_STUMP_VARIANTS];
+          if (stumpTex && stumpTex->id > 0) {
+            float stumpScale = 1.0f;
+            float sw = tileSize * stumpScale;
+            float sh = sw * ((float)stumpTex->height / (float)stumpTex->width);
+            Rectangle stumpSrc = {0, 0, (float)stumpTex->width,
+                                  (float)stumpTex->height};
+            Rectangle stumpDest = {(float)(x * tileSize + tileSize / 2),
+                                   (float)(y * tileSize + tileSize / 2), sw,
+                                   sh};
+            Vector2 stumpOrigin = {sw / 2, sh / 2};
+            float stumpSortY = stumpDest.y + sh / 2;
+            items.push_back({*stumpTex, stumpSrc, stumpDest, stumpOrigin, WHITE,
+                             stumpSortY});
+          }
+          continue;
+        }
+
         if (tile.decoration == DecorationType::None)
           continue;
 
@@ -495,6 +517,11 @@ void WorldRenderer::Draw(const Camera2D &camera,
                      .texCasas[b.variant % ResourceManager::NUM_CASA_VARIANTS];
           scale = 2.0f;
           break;
+        case BuildingType::Casa2:
+          tex = &resourceManager
+                     .texCasa2[b.variant % ResourceManager::NUM_CASA2_VARIANTS];
+          scale = 2.0f;
+          break;
         case BuildingType::Recursos:
           tex = &resourceManager
                      .texRecursos[b.variant %
@@ -504,6 +531,47 @@ void WorldRenderer::Draw(const Camera2D &camera,
         case BuildingType::StockpileStone:
           tex = &resourceManager.texStockpileStone;
           scale = 1.5f;
+          break;
+        case BuildingType::Mina:
+          // Mina uses Recursos tiles 09-14
+          // variant 0 -> tile 09, variant 5 -> tile 14
+          {
+            int rIndex = 9 + (b.variant % 6);
+            if (rIndex >= ResourceManager::NUM_RECURSOS_VARIANTS)
+              rIndex = ResourceManager::NUM_RECURSOS_VARIANTS - 1;
+            tex = &resourceManager.texRecursos[rIndex];
+            scale = 1.5f;
+          }
+          break;
+        case BuildingType::Castelo:
+          tex = &resourceManager
+                     .texCastelo[b.variant %
+                                 ResourceManager::NUM_CASTELO_VARIANTS];
+          scale = 3.0f;
+          break;
+        case BuildingType::Mercado:
+          tex = &resourceManager
+                     .texMercado[b.variant %
+                                 ResourceManager::NUM_MERCADO_VARIANTS];
+          scale = 2.0f;
+          break;
+        case BuildingType::Quartel:
+          tex = &resourceManager
+                     .texQuartel[b.variant %
+                                 ResourceManager::NUM_QUARTEL_VARIANTS];
+          scale = 2.5f;
+          break;
+        case BuildingType::Taverna:
+          tex = &resourceManager
+                     .texTaverna[b.variant %
+                                 ResourceManager::NUM_TAVERNA_VARIANTS];
+          scale = 1.8f;
+          break;
+        case BuildingType::Workshop:
+          tex = &resourceManager
+                     .texWorkshop[b.variant %
+                                  ResourceManager::NUM_WORKSHOP_VARIANTS];
+          scale = 2.0f;
           break;
         default:
           continue;
@@ -535,7 +603,7 @@ void WorldRenderer::Draw(const Camera2D &camera,
     Texture2D tex;
     // === HUMAN DRAWING ===
     if (e.type == EntityType::HumanUnarmed ||
-        e.type == EntityType::HumanArmed) {
+        e.type == EntityType::HumanArmed || e.type == EntityType::HumanWoman) {
       // Determine Direction Index (0:Down, 1:Right, 2:Left, 3:Up)
       int dirIdx = 0;
       if (e.facingDirection == 1)
@@ -549,25 +617,32 @@ void WorldRenderer::Draw(const Camera2D &camera,
 
       int frame = e.currentFrame % 4; // Default 4 frames
 
-      if (e.state == EntityState::Swim) {
+      if (e.state == EntityState::Swim && e.type != EntityType::HumanWoman) {
         if (e.type == EntityType::HumanUnarmed)
           tex = resourceManager.texHumanUnarmedSwim[dirIdx][frame];
         else
           tex = resourceManager.texHumanArmedSwim[dirIdx][frame];
-      } else if (e.state == EntityState::Die) {
+      } else if (e.state == EntityState::Die &&
+                 e.type != EntityType::HumanWoman) {
         tex = resourceManager.texHumanDeath[frame];
       } else if (e.state == EntityState::Block &&
                  e.type == EntityType::HumanArmed) {
         tex = resourceManager.texHumanArmedBlock[dirIdx];
       } else {
-        // Standard States (Idle, Walk, Attack)
+        // Standard States (Idle, Walk, Attack/Farming)
         int stateIdx = 0;
         if (e.state == EntityState::Walking)
           stateIdx = 1;
         else if (e.state == EntityState::Attack)
           stateIdx = 2;
 
-        if (e.type == EntityType::HumanUnarmed) {
+        if (e.type == EntityType::HumanWoman) {
+          const auto &frames = resourceManager.texHumanWoman[stateIdx][dirIdx];
+          if (!frames.empty()) {
+            int frame = e.currentFrame % frames.size();
+            tex = frames[frame];
+          }
+        } else if (e.type == EntityType::HumanUnarmed) {
           const auto &frames =
               resourceManager.texHumanUnarmed[stateIdx][dirIdx];
           if (!frames.empty()) {
@@ -658,6 +733,9 @@ void WorldRenderer::Draw(const Camera2D &camera,
           e.type == EntityType::HumanArmed) {
         destW = tex.width * 0.40f; // Adjusted
         destH = tex.height * 0.40f;
+      } else if (e.type == EntityType::HumanWoman) {
+        destW = tex.width * 0.35f; // Slightly smaller than men
+        destH = tex.height * 0.35f;
       } else {
         destW = tex.width * 0.5f;
         destH = tex.height * 0.5f;

@@ -1,7 +1,7 @@
-001-008 back
+001-008 Back
 
 014-021 left
 
 027-034 front
 
-040-047 right
+040-47 right

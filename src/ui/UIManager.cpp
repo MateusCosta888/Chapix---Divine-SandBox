@@ -823,6 +823,47 @@ void UIManager::DrawHumanPopup(const World &world) {
   DrawRectangle(barX, contentY, (int)(barWidth * xpPct), 15, GREEN);
   contentY += 30;
 
+  // 2.5 STAMINA BAR
+  const char *staminaText = "Stamina";
+  DrawTextEx(
+      uiFont, staminaText,
+      {x + (w - MeasureTextEx(uiFont, staminaText, 18, 1).x) / 2, contentY}, 18,
+      1, WHITE);
+  contentY += 20;
+
+  DrawRectangle(barX, contentY, barWidth, 15, BLACK);
+  float staminaPct = c->energy / 100.0f;
+  if (staminaPct < 0)
+    staminaPct = 0;
+
+  Color staminaColor = ORANGE;
+  if (staminaPct > 0.5f)
+    staminaColor = GREEN;
+  else if (staminaPct < 0.2f)
+    staminaColor = RED;
+
+  DrawRectangle(barX, contentY, (int)(barWidth * staminaPct), 15, staminaColor);
+  DrawRectangle(barX, contentY, (int)(barWidth * staminaPct), 15, staminaColor);
+  contentY += 20;
+
+  // DEBUG INFO: Home & State
+  const char *homeText = (c->homeID == -1)
+                             ? "Homeless"
+                             : TextFormat("Home: Building %d", c->homeID);
+  DrawTextEx(uiFont, homeText, {x + 35, contentY}, 18, 1,
+             (c->homeID == -1) ? RED : LIGHTGRAY);
+
+  const char *stateText = "State: Idle";
+  if (c->isResting)
+    stateText = "State: Resting (Home)";
+  else if (c->isGoingHome)
+    stateText = "State: Going Home";
+  else if (c->isWorking)
+    stateText = "State: Working";
+  DrawTextEx(uiFont, stateText, {x + 200, contentY}, 18, 1, WHITE);
+
+  contentY += 40;
+
   // 3. INVENTORY (6 Slots)
   const char *invText = "Inventory:";
   Vector2 invSize = MeasureTextEx(uiFont, invText, 20, 1);

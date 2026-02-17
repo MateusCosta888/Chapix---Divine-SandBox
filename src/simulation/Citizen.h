@@ -48,6 +48,7 @@ struct Citizen {
   // === IDENTITY ===
   int id = -1;
   std::string name = "Unnamed";
+  bool isFemale = false;
 
   // === VITAL STATS ===
   float age = 0.0f;      // In game-years
@@ -55,6 +56,11 @@ struct Citizen {
   float maxHealth = 100.0f;
   float hunger = 0.0f;   // 0 = full, 100 = starving
   float energy = 100.0f; // Fatigue system
+
+  // === HOUSING & DAILY LIFE ===
+  int homeID = -1;          // ID of the building this citizen lives in
+  bool isResting = false;   // True if inside home recovering
+  bool isGoingHome = false; // True if traveling to home
 
   // === STATS & GENETICS ===
   // === STATS & GENETICS ===

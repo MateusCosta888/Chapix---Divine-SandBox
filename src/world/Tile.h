@@ -80,7 +80,11 @@ struct Tile {
   int farmOwnerCityID = -1;    // Which city owns this farm tile
 
   // Reforestation logic
-  bool hasStump = false; // Marked true when a Lumberjack chops a tree
+  bool hasStump = false; // Marked true when a Lumberjack chops a natural tree
+  float regrowthTimer = 0.0f; // Time elapsed since stump was created
+  int stumpVariant = 0;       // 0 or 1 for random stump art
+  DecorationType originalTree =
+      DecorationType::None; // What tree type to regrow
 
   // Territory Ownership
   int ownerCityID = -1; // ID of the city that owns this tile (for logic checks)
