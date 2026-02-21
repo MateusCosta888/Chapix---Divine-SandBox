@@ -63,6 +63,8 @@ private:
   bool isRenamingCity = false;
   char cityRenameBuffer[64] = "City Name";
   float cityPopupScroll = 0.0f;
+  bool showFlagSelector = false;
+  float flagSelectorScroll = 0.0f;
 
   // Drag State (City)
   Vector2 cityPopupPos = {0, 0};
@@ -74,6 +76,7 @@ private:
   int popupCitizenID = -1;
   char humanRenameBuffer[64] = {0};
   bool isRenamingHuman = false;
+  int humanWindowTab = 0; // 0 = Main, 1 = Abilities
 
   // Drag State (Human)
   Vector2 humanPopupPos = {0, 0};
@@ -97,8 +100,10 @@ private:
   float visibleWidth = 0.0f;
 
   // Button Texture
-  Texture2D texButton;    // Using boto003.png as requested
-  Texture2D texTabButton; // Using ButtomAbas.png
+  Texture2D texButton; // Using boto003.png as requested
+
+  Texture2D texTabButton;  // Using ButtomAbas.png
+  Texture2D texTabRedFlag; // New Tab Button (RedFlagButton.png)
 
   // Custom Icons
   Texture2D texEraser;
@@ -120,7 +125,8 @@ private:
   // Helper methods
   // Helper methods
   void DrawToolbar(const World &world);
-  void DrawCityPopup(const World &world);  // New City UI
-  void DrawHumanPopup(const World &world); // New Human UI
+  void DrawCityPopup(const World &world);    // New City UI
+  void DrawHumanPopup(const World &world);   // New Human UI
+  void DrawFlagSelector(const World &world); // Flag Selector UI
   void HandleInput(World &world, Camera2D &camera);
 };

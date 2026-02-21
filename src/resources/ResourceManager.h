@@ -184,6 +184,9 @@ public:
   Texture2D texUIWaterMedium;
   Texture2D texUIWaterShallow;
 
+  // City Flags (80 flags)
+  std::vector<Texture2D> cityFlags;
+
 private:
   bool texturesLoaded = false;
 };

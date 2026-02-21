@@ -1,4 +1,5 @@
 #include "City.h"
+#include <cstdlib>
 
 City CreateCity(int id, Vector2 center, const std::string &name, Color color) {
   City c;
@@ -8,6 +9,7 @@ City CreateCity(int id, Vector2 center, const std::string &name, Color color) {
   c.color = color;
   c.isAlive = true;
   c.age = 0.0f;
+  c.flagID = rand() % 80; // Default random flag
 
   // Initial resources
   c.resources.food = 50;

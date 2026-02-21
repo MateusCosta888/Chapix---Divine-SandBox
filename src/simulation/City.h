@@ -28,6 +28,7 @@ struct City {
   int id = -1;
   std::string name = "New Settlement";
   Color color = {100, 100, 200, 255}; // Blue-ish default
+  int flagID = 0;                     // Visual flag identifier (0-79)
 
   // === LOCATION ===
   Vector2 center = {0, 0}; // Town hall position

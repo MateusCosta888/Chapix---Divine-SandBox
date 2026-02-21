@@ -15,22 +15,12 @@ SimulationManager::~SimulationManager() {}
 // ============================================================================
 void SimulationManager::Update(World &world, float deltaTime) {
   gameTime += deltaTime;
-  dayTimer += deltaTime;
+  yearTimer += deltaTime;
 
-  // Day cycle
-  if (dayTimer >= secondsPerDay) {
-    dayTimer = 0.0f;
-    currentDay++;
-
-    // Season cycle (every 30 days)
-    seasonTimer++;
-    if (seasonTimer >= 30) {
-      seasonTimer = 0;
-      currentSeason = (currentSeason + 1) % 4;
-      if (currentSeason == 0) {
-        currentYear++;
-      }
-    }
+  // Year cycle
+  if (yearTimer >= secondsPerYear) {
+    yearTimer -= secondsPerYear;
+    currentYear++;
   }
 
   // Update all subsystems
@@ -61,6 +51,12 @@ void SimulationManager::Update(World &world, float deltaTime) {
         for (int x = 0; x < mapW; x++) {
           Tile &tile = world.GetTile(x, y);
           if (tile.hasStump && tile.decoration == DecorationType::None) {
+            // Cancel regrowth if someone built over the stump
+            if (tile.isOccupied) {
+              tile.hasStump = false;
+              continue;
+            }
+
             tile.regrowthTimer += checkInterval;
             if (tile.regrowthTimer >= regrowthTime) {
               // Regrow tree! Use the original tree type if saved
@@ -1031,13 +1027,14 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         // Planting takes 2 seconds
         if (c.currentJob == Citizen::JobType::PlantingTree) {
           if (c.workTimer >= 2.0f) {
-            tile.decoration = DecorationType::Tree;
-            tile.hasStump = false; // Reset stump flag
-            tile.decorationVariant =
-                rand() % 3; // Random variant (Tree1, Tree2)
+            if (!tile.isOccupied) { // Prevent planting under buildings
+              tile.decoration = DecorationType::Tree;
+              tile.hasStump = false;               // Reset stump flag
+              tile.decorationVariant = rand() % 3; // Random variant
 
-            TraceLog(LOG_INFO, "FARMER: Citizen %d planted a TREE at (%d,%d)",
-                     c.id, c.targetTileX, c.targetTileY);
+              TraceLog(LOG_INFO, "FARMER: Citizen %d planted a TREE at (%d,%d)",
+                       c.id, c.targetTileX, c.targetTileY);
+            }
 
             c.workState = Citizen::WorkState::Idle;
             c.isWorking = false;
@@ -1461,7 +1458,7 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
     if (!city.isAlive)
       continue;
 
-    city.age += deltaTime / secondsPerDay; // Age in days
+    city.age += deltaTime / secondsPerYear; // Age in years
 
     // === FOOD PRODUCTION ===
     // Passive food generation based on territory (farms, foraging, etc.)
@@ -1821,7 +1818,8 @@ void SimulationManager::AttemptConstruction(City &city, World &world) {
   int bestBx = -1, bestBy = -1;
   float bestScore = 999999.0f;
 
-  int spacingLevels[] = {4, 2, 1};
+  int spacingLevels[] = {
+      3, 2, 1}; // Reduced spacing slightly for denser growth, allowing 3/2/1
 
   for (int spacing : spacingLevels) {
     if (bestBx != -1)
@@ -1848,7 +1846,8 @@ void SimulationManager::AttemptConstruction(City &city, World &world) {
             break;
           }
           const Tile &tile = world.GetTileConst(tx, ty);
-          if (tile.isOccupied || !world.IsWalkable(tx, ty)) {
+          if (tile.isOccupied) { // Removed !world.IsWalkable(tx, ty) so it can
+                                 // build over trees/rocks
             placeable = false;
             break;
           }
@@ -1922,7 +1921,11 @@ void SimulationManager::AttemptConstruction(City &city, World &world) {
         int ty = bestBy + dy;
         if (tx >= 0 && tx < world.GetWidth() && ty >= 0 &&
             ty < world.GetHeight()) {
-          world.GetTile(tx, ty).isOccupied = true;
+          Tile &bdTile = world.GetTile(tx, ty);
+          bdTile.isOccupied = true;
+          bdTile.hasStump = false;                  // Clear stumps
+          bdTile.isPlanted = false;                 // Clear crops
+          bdTile.decoration = DecorationType::None; // Clear trees/rocks
         }
       }
     }
@@ -2226,7 +2229,7 @@ void SimulationManager::UpdateKingdoms(World &world, float deltaTime) {
     if (!kingdom.isAlive)
       continue;
 
-    kingdom.age += deltaTime / secondsPerDay;
+    kingdom.age += deltaTime / secondsPerYear;
 
     // Remove dead cities
     kingdom.cityIDs.erase(std::remove_if(kingdom.cityIDs.begin(),

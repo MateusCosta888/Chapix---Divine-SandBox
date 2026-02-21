@@ -21,6 +21,18 @@ void ResourceManager::Load() {
   texUIWaterMedium = LoadTexture("assets/UI/Icons/water_medium.png");
   texUIWaterShallow = LoadTexture("assets/UI/Icons/water_shallow.png");
 
+  // Load City Flags (1-80)
+  cityFlags.reserve(80);
+  for (int i = 1; i <= 80; i++) {
+    char filename[64];
+    // Assuming filenames are 01.png, 02.png, ..., 80.png
+    snprintf(filename, sizeof(filename), "assets/UI/Cities Flags/%02d.png", i);
+    Texture2D tex = LoadTexture(filename);
+    SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+    cityFlags.push_back(tex);
+  }
+  TraceLog(LOG_INFO, "RESOURCE: Loaded %zu city flags.", cityFlags.size());
+
   SetTextureFilter(texUIWaterDeep, TEXTURE_FILTER_POINT);
   SetTextureFilter(texUIWaterMedium, TEXTURE_FILTER_POINT);
   SetTextureFilter(texUIWaterShallow, TEXTURE_FILTER_POINT);

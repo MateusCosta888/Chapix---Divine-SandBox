@@ -109,13 +109,15 @@ private:
   void UpdateKingdoms(World &world, float deltaTime);
 
   // === TIME TRACKING ===
-  float gameTime = 0.0f;    // Total elapsed time
-  float dayTimer = 0.0f;    // Timer for day cycle
-  float seasonTimer = 0.0f; // Timer for seasons
-  int currentDay = 1;
-  int currentSeason = 0; // 0=Spring, 1=Summer, 2=Fall, 3=Winter
+  float gameTime = 0.0f;  // Total elapsed time
+  float yearTimer = 0.0f; // Timer for year cycle
   int currentYear = 1;
 
   // === CONFIG ===
-  float secondsPerDay = 60.0f; // Real seconds per in-game day
+  float secondsPerYear = 60.0f; // Real seconds per in-game year (1 minute)
+
+public:
+  // === TIME GETTERS ===
+  int GetCurrentYear() const { return currentYear; }
+  float GetYearProgress() const { return yearTimer / secondsPerYear; }
 };
