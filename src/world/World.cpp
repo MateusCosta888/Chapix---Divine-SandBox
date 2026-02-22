@@ -1380,89 +1380,76 @@ void World::UpdateEntities(float deltaTime) {
           }
         }
       }
+    }
 
-      // ========================================================================
-      // ANIMAL AI - Simple wander behavior
-      // ========================================================================
-      else if (e.type == EntityType::Cow || e.type == EntityType::Chicken ||
-               e.type == EntityType::Sheep || e.type == EntityType::Bull ||
-               e.type == EntityType::Chicken2 || e.type == EntityType::Lamb ||
-               e.type == EntityType::Pig || e.type == EntityType::Turkey) {
-        if (e.hasTarget) {
-          // Move towards target
-          Vector2 dir = Vector2Subtract(e.targetPos, e.position);
-          float dist = Vector2Length(dir);
+    // ========================================================================
+    // ANIMAL AI - Simple wander behavior
+    // ========================================================================
+    else if (e.type == EntityType::Cow || e.type == EntityType::Chicken ||
+             e.type == EntityType::Sheep || e.type == EntityType::Bull ||
+             e.type == EntityType::Chicken2 || e.type == EntityType::Lamb ||
+             e.type == EntityType::Pig || e.type == EntityType::Turkey) {
+      // Random Wander
+      if (e.state != EntityState::Walking)
+        e.state = EntityState::Walking;
 
-          if (dist < 0.1f) {
-            e.hasTarget = false;
-            e.state = EntityState::Idle;
-            e.currentFrame = 0;
-          } else {
-            e.state = EntityState::Walking;
-            float speed = e.speed;
-            Vector2 move =
-                Vector2Scale(Vector2Normalize(dir), speed * deltaTime);
-            Vector2 nextPos = Vector2Add(e.position, move);
+      // Randomly change direction (less frequent than Boar to seem calmlier)
+      if (rng_.Int(0, 150) == 0) {
+        int r = rng_.Int(0, 4);
+        if (r == 0)
+          e.facingDirection = 0;
+        else if (r == 1)
+          e.facingDirection = 1;
+        else if (r == 2)
+          e.facingDirection = -1;
+        else
+          e.facingDirection = 2;
+      }
 
-            // Collision Check
-            if (IsWalkable((int)nextPos.x, (int)nextPos.y)) {
-              e.position = nextPos;
-            } else {
-              e.hasTarget = false; // Stop if blocked
-              e.state = EntityState::Idle;
-            }
+      Vector2 dir = {0, 0};
+      if (e.facingDirection == 0)
+        dir.y = 1;
+      else if (e.facingDirection == 1)
+        dir.x = 1;
+      else if (e.facingDirection == -1)
+        dir.x = -1;
+      else
+        dir.y = -1;
 
-            // Update Direction (facing only, move is already diagonal)
-            if (fabs(dir.x) > fabs(dir.y)) {
-              e.facingDirection = (dir.x > 0) ? 1 : -1;
-            } else {
-              e.facingDirection = (dir.y > 0) ? 0 : 2;
-            }
-          }
-        } else {
-          // Idle - chance to pick new target (less frequent than humans)
-          e.state = EntityState::Idle;
-          if (rng_.Int(0, 100) < 2) { // 2% chance per frame
-            float tx = e.position.x;
-            float ty = e.position.y;
+      // Move constantly but slowly (their e.speed is natively low, e.g. 0.5f)
+      Vector2 next =
+          Vector2Add(e.position, Vector2Scale(dir, e.speed * deltaTime));
 
-            int moveDir = rng_.Int(0, 4);
-            float moveDist = 1.0f + (rng_.Float() * 2.0f); // 1-3 tiles
-
-            if (moveDir == 0)
-              ty -= moveDist;
-            else if (moveDir == 1)
-              ty += moveDist;
-            else if (moveDir == 2)
-              tx -= moveDist;
-            else if (moveDir == 3)
-              tx += moveDist;
-
-            // Clamp to world bounds
-            tx = std::max(0.0f, std::min((float)width - 1, tx));
-            ty = std::max(0.0f, std::min((float)height - 1, ty));
-
-            // Only set target if it's walkable (grass/forest)
-            int tileX = (int)tx;
-            int tileY = (int)ty;
-            if (IsWalkable(tileX, tileY)) {
-              e.targetPos = {tx, ty};
-              e.hasTarget = true;
-            }
-          }
+      if (!e.IsIntelligent() && e.type != EntityType::Boar) {
+        static int logTimer = 0;
+        logTimer++;
+        if (logTimer % 60 == 0) {
+          TraceLog(
+              LOG_INFO,
+              "ANIMAL DEBUG: speed: %f, dir: %f, %f. pos.x: %f, next.x: %f "
+              "walkable: %d",
+              e.speed, dir.x, dir.y, e.position.x, next.x,
+              IsWalkable((int)next.x, (int)next.y));
         }
+      }
 
-        // Animation (6 frames per direction for animals)
-        if (e.state == EntityState::Walking) {
-          e.animTime += deltaTime;
-          float animSpeed = (e.type == EntityType::Chicken) ? 0.1f : 0.15f;
-          if (e.animTime >= animSpeed) {
-            e.animTime = 0.0f;
-            e.currentFrame = (e.currentFrame + 1) % 6;
-          }
-        } else {
-          e.currentFrame = 0;
+      if (IsWalkable((int)next.x, (int)next.y)) {
+        e.position = next;
+      } else {
+        // Hit wall, bounce to a different direction
+        e.facingDirection = (e.facingDirection + 1) % 4;
+      }
+
+      // Animation (6 frames per direction for animals)
+      if (e.state == EntityState::Walking) {
+        e.animTime += deltaTime;
+        float animSpeed = (e.type == EntityType::Chicken) ? 0.1f : 0.15f;
+        if (e.animTime >= animSpeed) {
+          e.animTime = 0.0f;
+          e.currentFrame = (e.currentFrame + 1) % 6;
         }
+      } else {
+        e.currentFrame = 0;
       }
     }
   }

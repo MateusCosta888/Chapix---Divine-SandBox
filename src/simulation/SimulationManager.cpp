@@ -1436,6 +1436,213 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       }
     }
 
+    // === JOB AI: SOLDIER ===
+    // Soldiers patrol their city and engage enemy soldiers/citizens
+    if (c.profession == Profession::Soldier && c.cityID >= 0 && c.isAdult()) {
+      // Ensure visual representation updates to Armed
+      if (myEntity && myEntity->type != EntityType::HumanArmed) {
+        myEntity->type = EntityType::HumanArmed;
+      }
+
+      City *myCity = GetCity(c.cityID);
+      if (!myCity)
+        continue;
+
+      switch (c.workState) {
+      case Citizen::WorkState::Idle:
+      case Citizen::WorkState::Wandering: {
+        // SCAN FOR ENEMIES
+        int enemyID = -1;
+        float closestDist = 999999.0f;
+        float detectRange = 25.0f; // High visual range
+
+        for (Entity &otherE : world.GetEntitiesMutable()) {
+          if (otherE.id == myEntity->id)
+            continue;
+
+          // Check if it's an intelligent entity
+          if (otherE.IsIntelligent()) {
+            Citizen *otherCitizen = GetCitizen(otherE.citizenID);
+            if (otherCitizen && otherCitizen->cityID != c.cityID &&
+                otherCitizen->cityID != -1) {
+              // Hostile found!
+              float d = std::hypot(myEntity->position.x - otherE.position.x,
+                                   myEntity->position.y - otherE.position.y);
+              if (d <= detectRange && d < closestDist) {
+                closestDist = d;
+                enemyID = otherCitizen->id;
+              }
+            }
+          }
+        }
+
+        if (enemyID != -1) {
+          // Enemy spotted, transition to engage
+          c.workState = Citizen::WorkState::GoingToWork;
+          c.targetEntityID = enemyID; // New field to track target
+          c.isWorking = true;
+          myEntity->hasTarget = true;
+          myEntity->state = EntityState::Run; // Soldiers run to combat
+          TraceLog(LOG_INFO, "SOLDIER: Citizen %d locked onto Enemy %d", c.id,
+                   enemyID);
+        } else {
+          // Patrol logic: Walk in straight lines through the city streets
+          if (!myEntity->hasTarget) {
+            // Pick a random cardinal direction
+            int r = rand() % 4;
+            int dx = 0, dy = 0;
+            if (r == 0)
+              dx = 1;
+            else if (r == 1)
+              dx = -1;
+            else if (r == 2)
+              dy = 1;
+            else
+              dy = -1;
+
+            int maxDist = 4 + rand() % 8; // Patrol 4 to 11 tiles
+            int cx = (int)myEntity->position.x;
+            int cy = (int)myEntity->position.y;
+            int validDist = 0;
+
+            for (int i = 1; i <= maxDist; i++) {
+              int checkX = cx + dx * i;
+              int checkY = cy + dy * i;
+
+              // Check bounds and walkability
+              if (checkX >= 0 && checkX < world.GetWidth() && checkY >= 0 &&
+                  checkY < world.GetHeight()) {
+                if (world.IsWalkable(checkX, checkY)) {
+                  // Stay within own city if possible to defend it
+                  if (world.GetTileConst(checkX, checkY).ownerCityID ==
+                      c.cityID) {
+                    validDist = i;
+                  } else {
+                    break; // Reached border
+                  }
+                } else {
+                  break; // Hit wall/building
+                }
+              } else {
+                break; // Map edge
+              }
+            }
+
+            if (validDist > 0) {
+              myEntity->targetPos = {(float)(cx + dx * validDist) + 0.5f,
+                                     (float)(cy + dy * validDist) + 0.5f};
+              myEntity->hasTarget = true;
+              myEntity->state = EntityState::Walking;
+            } else {
+              // Stuck or at border, will pick a new direction next frame
+              // Minimal fallback to turn visually
+              myEntity->facingDirection = (myEntity->facingDirection + 1) % 4;
+            }
+          }
+        }
+        break;
+      }
+
+      case Citizen::WorkState::GoingToWork: {
+        // Move towards enemy
+        Citizen *enemy = GetCitizen(c.targetEntityID);
+        if (!enemy || !enemy->isAlive) {
+          // Enemy died or vanished
+          c.workState = Citizen::WorkState::Idle;
+          myEntity->hasTarget = false;
+          myEntity->state = EntityState::Idle;
+          break;
+        }
+
+        // Find enemy entity to get exact position
+        Entity *enemyEntity = nullptr;
+        for (Entity &otherE : world.GetEntitiesMutable()) {
+          if (otherE.citizenID == enemy->id) {
+            enemyEntity = &otherE;
+            break;
+          }
+        }
+
+        if (!enemyEntity) {
+          c.workState = Citizen::WorkState::Idle;
+          break;
+        }
+
+        // Update target position tracking
+        myEntity->targetPos = enemyEntity->position;
+        myEntity->hasTarget = true;
+        myEntity->state = EntityState::Run;
+
+        float dist = std::hypot(myEntity->position.x - enemyEntity->position.x,
+                                myEntity->position.y - enemyEntity->position.y);
+        if (dist < 1.2f) { // Attack range
+          c.workState = Citizen::WorkState::Working;
+          c.workTimer = 0.0f;
+          myEntity->state = EntityState::Attack;
+          myEntity->currentFrame = 0;
+          myEntity->hasTarget = false;
+        }
+        break;
+      }
+
+      case Citizen::WorkState::Working: {
+        // Attacking the enemy
+        Citizen *enemy = GetCitizen(c.targetEntityID);
+        if (!enemy || !enemy->isAlive) {
+          // Enemy died
+          c.workState = Citizen::WorkState::Idle;
+          myEntity->state = EntityState::Idle;
+          break;
+        }
+
+        // Make sure they are still close
+        Entity *enemyEntity = nullptr;
+        for (Entity &otherE : world.GetEntitiesMutable()) {
+          if (otherE.citizenID == enemy->id) {
+            enemyEntity = &otherE;
+            break;
+          }
+        }
+
+        if (!enemyEntity) {
+          c.workState = Citizen::WorkState::Idle;
+          break;
+        }
+
+        float dist = std::hypot(myEntity->position.x - enemyEntity->position.x,
+                                myEntity->position.y - enemyEntity->position.y);
+        if (dist > 1.8f) {
+          // Enemy moved away, chase them again
+          c.workState = Citizen::WorkState::GoingToWork;
+          break;
+        }
+
+        // Deal damage periodically
+        c.workTimer += deltaTime;
+        if (c.workTimer >= 1.0f) { // 1 hit per second
+          c.workTimer = 0.0f;
+
+          // Damage formula
+          float damage = 15.0f;
+          enemy->health -= damage;
+          enemyEntity->state = EntityState::Hurt;
+          enemyEntity->animTime = 0.0f;
+          enemyEntity->currentFrame = 0;
+
+          TraceLog(
+              LOG_INFO,
+              "COMBAT: Soldier %d hit Enemy %d for %f damage (Enemy HP: %f)",
+              c.id, enemy->id, damage, enemy->health);
+        }
+        break;
+      }
+
+      default:
+        c.workState = Citizen::WorkState::Idle;
+        break;
+      }
+    }
+
     // Fallback for unemployed or stuck Idle
     if (c.workState == Citizen::WorkState::Idle &&
         c.profession == Profession::None) {
@@ -2112,6 +2319,7 @@ void SimulationManager::AssignJobs(City &city) {
   int farmers = 0;
   int miners = 0;
   int builders = 0;
+  int soldiers = 0;
   int unemployed = 0;
 
   std::vector<Citizen *> availableWorkers;
@@ -2133,6 +2341,9 @@ void SimulationManager::AssignJobs(City &city) {
       break;
     case Profession::Builder:
       builders++;
+      break;
+    case Profession::Soldier:
+      soldiers++;
       break;
     case Profession::None:
       unemployed++;
@@ -2161,12 +2372,17 @@ void SimulationManager::AssignJobs(City &city) {
 
   // Check if we have incomplete buildings
   bool hasConstructionSites = false;
+  int barracksCount = 0;
   for (const auto &b : city.buildings) {
     if (!b.isComplete) {
       hasConstructionSites = true;
-      break;
+    }
+    if (b.isComplete && b.type == BuildingType::Quartel) {
+      barracksCount++;
     }
   }
+
+  int desiredSoldiers = barracksCount * 2; // Each barracks supports 2 soldiers
 
   if (hasConstructionSites) {
     // If we have stuff to build, we NEED builders
@@ -2190,7 +2406,7 @@ void SimulationManager::AssignJobs(City &city) {
   if (population > 40)
     desiredMiners = 5;
 
-  // Assign based on priority: Food > Wood > Build > Mine
+  // Assign based on priority: Food > Wood > Build > Mine > Soldier
   // Women can only be Farmers
   for (Citizen *c : availableWorkers) {
     if (farmers < desiredFarmers) {
@@ -2198,6 +2414,11 @@ void SimulationManager::AssignJobs(City &city) {
       farmers++;
       TraceLog(LOG_INFO, "GOV: Citizen %d assigned as FARMER in City %d", c->id,
                city.id);
+    } else if (!c->isFemale && soldiers < desiredSoldiers) {
+      c->profession = Profession::Soldier;
+      soldiers++;
+      TraceLog(LOG_INFO, "GOV: Citizen %d assigned as SOLDIER in City %d",
+               c->id, city.id);
     } else if (!c->isFemale && lumberjacks < desiredLumberjacks) {
       c->profession = Profession::Lumberjack;
       lumberjacks++;

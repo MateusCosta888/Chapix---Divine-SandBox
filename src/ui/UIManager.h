@@ -5,7 +5,7 @@
 
 // Enums moved from main.cpp
 // Enums moved from main.cpp
-enum class UIState { Terrain, Nature, Rocks, Creatures, Settings };
+enum class UIState { Terrain, Nature, Rocks, Creatures, Settings, Social };
 
 enum class BrushSize {
   Single = 0, // Special case for exact 1x1 painting
@@ -56,8 +56,6 @@ private:
   Texture2D texPopupBL, texPopupBC, texPopupBR;
 
   // City Popup State
-  // City Popup State
-  // City Popup State
   bool showCityPopup = false;
   int popupCityID = -1;
   bool isRenamingCity = false;
@@ -65,6 +63,12 @@ private:
   float cityPopupScroll = 0.0f;
   bool showFlagSelector = false;
   float flagSelectorScroll = 0.0f;
+
+  // Social / Kingdom List State
+  bool showSocialCityList = false;
+  float socialCityListScroll = 0.0f;
+  Vector2 socialPopupPos = {0, 0};
+  bool isDraggingSocial = false;
 
   // Drag State (City)
   Vector2 cityPopupPos = {0, 0};
@@ -86,6 +90,11 @@ private:
   Texture2D texPopup2TL, texPopup2TC, texPopup2TR;
   Texture2D texPopup2ML, texPopup2MC, texPopup2MR;
   Texture2D texPopup2BL, texPopup2BC, texPopup2BR;
+
+  // Social Popup Textures (Violet Background)
+  Texture2D texPopup3TL, texPopup3TC, texPopup3TR;
+  Texture2D texPopup3ML, texPopup3MC, texPopup3MR;
+  Texture2D texPopup3BL, texPopup3BC, texPopup3BR;
 
   // Font
   Font uiFont;
@@ -125,8 +134,10 @@ private:
   // Helper methods
   // Helper methods
   void DrawToolbar(const World &world);
-  void DrawCityPopup(const World &world);    // New City UI
-  void DrawHumanPopup(const World &world);   // New Human UI
+  void DrawCityPopup(const World &world); // New City UI
+  void DrawHumanPopup(const World &world);
+  void
+  DrawSocialCityList(const World &world); // New Social Popup   // New Human UI
   void DrawFlagSelector(const World &world); // Flag Selector UI
   void HandleInput(World &world, Camera2D &camera);
 };

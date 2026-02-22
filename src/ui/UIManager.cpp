@@ -62,6 +62,26 @@ void UIManager::Load() {
   texPopup2BR = LoadTexture(
       "assets/UI/Pup-Up Backgroud/Base Pup-Up2/Inferior Direita.png");
 
+  // Load Social Popup Textures (Violet Background)
+  texPopup3TL = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/BackgroudViolet/BackgroudViolet001.png");
+  texPopup3TC = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/BackgroudViolet/BackgroudViolet002.png");
+  texPopup3TR = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/BackgroudViolet/BackgroudViolet003.png");
+  texPopup3ML = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/BackgroudViolet/BackgroudViolet004.png");
+  texPopup3MC = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/BackgroudViolet/BackgroudViolet005.png");
+  texPopup3MR = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/BackgroudViolet/BackgroudViolet006.png");
+  texPopup3BL = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/BackgroudViolet/BackgroudViolet007.png");
+  texPopup3BC = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/BackgroudViolet/BackgroudViolet008.png");
+  texPopup3BR = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/BackgroudViolet/BackgroudViolet009.png");
+
   // Load Button Texture
   texButton = LoadTexture("assets/UI/TaskBar/Botoes/boto004.png");
   texTabButton = LoadTexture("assets/UI/TaskBar/Botoes/ButtomAbas.png");
@@ -134,6 +154,17 @@ void UIManager::Unload() {
   UnloadTexture(texPopup2BL);
   UnloadTexture(texPopup2BC);
   UnloadTexture(texPopup2BR);
+
+  UnloadTexture(texPopup3TL);
+  UnloadTexture(texPopup3TC);
+  UnloadTexture(texPopup3TR);
+  UnloadTexture(texPopup3ML);
+  UnloadTexture(texPopup3MC);
+  UnloadTexture(texPopup3MR);
+  UnloadTexture(texPopup3BL);
+  UnloadTexture(texPopup3BC);
+  UnloadTexture(texPopup3BR);
+
   UnloadTexture(texButton);
   UnloadTexture(texTabButton);
   UnloadTexture(texTabRedFlag);
@@ -190,6 +221,23 @@ bool UIManager::IsPointerOnUI() const {
   if (showBrushPopup) {
     // Assuming brush popup is roughly where toolbar is or specific location
     // For now, toolbar check might cover it or added here if it floats
+  }
+
+  // 5. Social City List Popup
+  if (showSocialCityList) {
+    float w = 450;
+    float h = 600;
+    float x = socialPopupPos.x;
+    float y = socialPopupPos.y;
+
+    // Fallback if not initialized yet (first frame)
+    if (x == 0 && y == 0) {
+      x = (SCREEN_WIDTH - w) / 2;
+      y = (SCREEN_HEIGHT - h) / 2;
+    }
+
+    if (CheckCollisionPointRec(mousePos, {x, y, w, h}))
+      return true;
   }
 
   return false;
@@ -374,15 +422,13 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
         } else if (currentTab == UIState::Creatures) {
           // Creature Placement
           EntityType creatureTypesForPlacement[] = {
-              EntityType::HumanUnarmed, EntityType::HumanArmed,
-              EntityType::Boar,         EntityType::Cow,
-              EntityType::Chicken,      EntityType::Sheep,
-              EntityType::Bull,         EntityType::Chicken2,
-              EntityType::Lamb,         EntityType::Pig,
+              EntityType::HumanUnarmed, EntityType::Boar,  EntityType::Cow,
+              EntityType::Chicken,      EntityType::Sheep, EntityType::Bull,
+              EntityType::Chicken2,     EntityType::Lamb,  EntityType::Pig,
               EntityType::Turkey};
 
-          // Updated size to 11
-          if (selectedToolIndex >= 0 && selectedToolIndex < 11) {
+          // Updated size to 10
+          if (selectedToolIndex >= 0 && selectedToolIndex < 10) {
             // Only place on click (not hold) to avoid spamming
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
               world.AddEntity(creatureTypesForPlacement[selectedToolIndex],
@@ -399,6 +445,34 @@ void UIManager::Draw(const World &world) {
   Vector2 mousePos = GetMousePosition();
 
   DrawToolbar(world);
+
+  // Draw Standalone Calendar Window
+  float calW = 160;
+  float calH = 50;
+  float calX = SCREEN_WIDTH - calW - 20;
+  float calY = 20;
+
+  // Background
+  DrawRectangle(calX, calY, calW, calH, ColorAlpha(BLACK, 0.7f));
+  DrawRectangleLines(calX, calY, calW, calH, GOLD);
+
+  int currentYear = const_cast<World &>(world).GetSimulation().GetCurrentYear();
+  float progress = const_cast<World &>(world).GetSimulation().GetYearProgress();
+  int currentMonth = (int)(progress * 12.0f) + 1;
+  // Ensure month doesn't display 13 if it reaches 1.0 boundary exact
+  if (currentMonth > 12)
+    currentMonth = 12;
+
+  const char *dateLabel =
+      TextFormat("Ano: %d       Mês: %d", currentYear, currentMonth);
+  Vector2 dateSize = MeasureTextEx(uiFont, dateLabel, 16, 1);
+  DrawTextEx(uiFont, dateLabel, {calX + (calW - dateSize.x) / 2, calY + 8}, 16,
+             1, WHITE);
+
+  // Progress Bar
+  Rectangle barBg = {calX + 10, calY + 30, calW - 20, 6};
+  DrawRectangleRec(barBg, DARKGRAY);
+  DrawRectangle(barBg.x, barBg.y, barBg.width * progress, barBg.height, GOLD);
 
   // Draw City Popup
   if (showCityPopup) {
@@ -1222,8 +1296,9 @@ void UIManager::DrawToolbar(const World &world) {
   Rectangle tabArea = {0, fullTaskbarRect.y, (float)SCREEN_WIDTH,
                        (float)TAB_HEIGHT};
 
-  const char *tabNames[] = {"Terrains", "Nature", "Rocks", "Creatures", "..."};
-  for (int i = 0; i < 5; i++) {
+  const char *tabNames[] = {"Terrains",  "Nature",   "Rocks",
+                            "Creatures", "Settings", "Social"};
+  for (int i = 0; i < 6; i++) {
     float tabW = 170;
     Rectangle tabRect = {i * tabW + 5, tabArea.y + 5, tabW - 5,
                          tabArea.height - 5};
@@ -1536,6 +1611,28 @@ void UIManager::DrawToolbar(const World &world) {
         selectedToolIndex = i;
       }
     }
+  } else if (currentTab == UIState::Social) {
+    numTools = 1; // Just "Cidades" for now
+    for (int i = 0; i < numTools; i++) {
+      Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
+                           btnSize};
+      bool isHover = CheckCollisionPointRec(mousePos, btnRect);
+
+      DrawTexturedButton(texButton, btnRect, false, isHover);
+
+      // Draw "Cidades" Text
+      const char *btnName = "Cidades";
+      Vector2 ts = MeasureTextEx(uiFont, btnName, 20, 1);
+      DrawTextEx(
+          uiFont, btnName,
+          {btnRect.x + (btnSize - ts.x) / 2, btnRect.y + (btnSize - ts.y) / 2},
+          20, 1, WHITE);
+
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
+          !showBrushPopup) {
+        showSocialCityList = !showSocialCityList; // Toggle city list
+      }
+    }
   } else if (currentTab == UIState::Creatures) {
     numTools = 11; // Updated count (Added Boar)
     EntityType creatureTypes[] = {
@@ -1688,33 +1785,6 @@ void UIManager::DrawToolbar(const World &world) {
       showTimePopup = !showTimePopup;
       popupJustOpened = showTimePopup;
     }
-
-    // 3. Day / Year Display
-    float calendarStartX = startX + 300;
-    DrawTextEx(uiFont, "Calendar:", {calendarStartX, (float)startY}, 20, 1,
-               WHITE);
-
-    Rectangle calendarRect = {calendarStartX, startY + 30, 160, 40};
-    DrawTexturedButton(texButton, calendarRect, false,
-                       false); // Just as a background frame
-
-    // Day/Year Text
-    int currentYear =
-        const_cast<World &>(world).GetSimulation().GetCurrentYear();
-    const char *dateLabel = TextFormat("Ano %d", currentYear);
-    Vector2 dateSize = MeasureTextEx(uiFont, dateLabel, 20, 1);
-    DrawTextEx(uiFont, dateLabel,
-               {calendarRect.x + (calendarRect.width - dateSize.x) / 2,
-                calendarRect.y + 5},
-               20, 1, WHITE);
-
-    // Progress Bar
-    float progress =
-        const_cast<World &>(world).GetSimulation().GetYearProgress();
-    Rectangle barBg = {calendarRect.x + 10, calendarRect.y + 28,
-                       calendarRect.width - 20, 6};
-    DrawRectangleRec(barBg, DARKGRAY);
-    DrawRectangle(barBg.x, barBg.y, barBg.width * progress, barBg.height, GOLD);
   }
 
   // === TIME POPUP (drawn above everything) ===
@@ -1722,7 +1792,7 @@ void UIManager::DrawToolbar(const World &world) {
     TimeManager &tm = TimeManager::Get();
 
     // Popup dimensions
-    float popupW = 280;
+    float popupW = 360;
     float popupH = 120;
     float popupX = (SCREEN_WIDTH - popupW) / 2;
     float popupY = SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT - popupH - 20;
@@ -1794,4 +1864,163 @@ void UIManager::DrawToolbar(const World &world) {
       showTimePopup = false;
     }
   }
+
+  // === SOCIAL CITY LIST POPUP ===
+  if (showSocialCityList) {
+    DrawSocialCityList(world);
+  }
+
+  popupJustOpened = false;
+}
+
+void UIManager::DrawSocialCityList(const World &world) {
+  auto &sim = const_cast<World &>(world).GetSimulation();
+  const auto &cities = sim.GetCities();
+
+  // Popup Dimensions
+  float w = 450;
+  float h = 600;
+
+  // Lazy Init Position
+  if (socialPopupPos.x == 0 && socialPopupPos.y == 0) {
+    socialPopupPos.x = (SCREEN_WIDTH - w) / 2;
+    socialPopupPos.y = (SCREEN_HEIGHT - h) / 2;
+  }
+
+  // Drag Logic
+  Vector2 mousePos = GetMousePosition();
+  Rectangle headerRect = {socialPopupPos.x, socialPopupPos.y, w, 40};
+
+  if (CheckCollisionPointRec(mousePos, headerRect)) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      isDraggingSocial = true;
+      dragOffset.x = mousePos.x - socialPopupPos.x;
+      dragOffset.y = mousePos.y - socialPopupPos.y;
+    }
+  }
+
+  if (isDraggingSocial) {
+    socialPopupPos.x = mousePos.x - dragOffset.x;
+    socialPopupPos.y = mousePos.y - dragOffset.y;
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+      isDraggingSocial = false;
+    }
+  }
+
+  float x = socialPopupPos.x;
+  float y = socialPopupPos.y;
+
+  // 9-Slice Draw (Violet Popup)
+  int cw = texPopup3TL.width;
+  int ch = texPopup3TL.height;
+
+  DrawTexture(texPopup3TL, x, y, WHITE);
+  DrawTexture(texPopup3TR, x + w - cw, y, WHITE);
+  DrawTexture(texPopup3BL, x, y + h - ch, WHITE);
+  DrawTexture(texPopup3BR, x + w - cw, y + h - ch, WHITE);
+
+  DrawTexturePro(texPopup3TC,
+                 {0, 0, (float)texPopup3TC.width, (float)texPopup3TC.height},
+                 {x + cw, y, w - 2 * cw, (float)ch}, {0, 0}, 0, WHITE);
+  DrawTexturePro(texPopup3BC,
+                 {0, 0, (float)texPopup3BC.width, (float)texPopup3BC.height},
+                 {x + cw, y + h - ch, w - 2 * cw, (float)ch}, {0, 0}, 0, WHITE);
+  DrawTexturePro(texPopup3ML,
+                 {0, 0, (float)texPopup3ML.width, (float)texPopup3ML.height},
+                 {x, y + ch, (float)cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+  DrawTexturePro(texPopup3MR,
+                 {0, 0, (float)texPopup3MR.width, (float)texPopup3MR.height},
+                 {x + w - cw, y + ch, (float)cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+  DrawTexturePro(texPopup3MC,
+                 {0, 0, (float)texPopup3MC.width, (float)texPopup3MC.height},
+                 {x + cw, y + ch, w - 2 * cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+
+  // Title
+  const char *titleText = "Todas as Cidades";
+  Vector2 titleSize = MeasureTextEx(uiFont, titleText, 30, 1);
+  DrawTextEx(uiFont, titleText, {x + (w - titleSize.x) / 2, y + 10}, 30, 1,
+             GOLD);
+
+  // Close Button
+  Rectangle closeBtn = {x + w - 30, y + 10, 20, 20};
+  DrawText("X", (int)closeBtn.x + 5, (int)closeBtn.y + 2, 20, RED);
+
+  if (CheckCollisionPointRec(mousePos, closeBtn) &&
+      IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    showSocialCityList = false;
+    isDraggingSocial = false;
+  }
+
+  // Scroll List Area
+  float listY = y + 50;
+  float listH = h - 70;
+  float contentH = cities.size() * 50.0f; // 50px per city row
+
+  // Scroll Input
+  Rectangle listRect = {x + 10, listY, w - 20, listH};
+  if (CheckCollisionPointRec(mousePos, listRect)) {
+    float wheel = GetMouseWheelMove();
+    if (wheel != 0) {
+      socialCityListScroll -= wheel * 30.0f;
+    }
+  }
+
+  // Clamp Scrolling
+  float maxScroll = std::max(0.0f, contentH - listH);
+  if (socialCityListScroll < 0)
+    socialCityListScroll = 0;
+  if (socialCityListScroll > maxScroll)
+    socialCityListScroll = maxScroll;
+
+  BeginScissorMode((int)listRect.x, (int)listRect.y, (int)listRect.width,
+                   (int)listRect.height);
+
+  float currentY = listY - socialCityListScroll;
+
+  for (const auto &pair : cities) {
+    const City &city = pair.second;
+    if (!city.isAlive)
+      continue;
+
+    // Skip drawing if outside visual area
+    if (currentY + 50 >= listY && currentY <= listY + listH) {
+      Rectangle itemRect = {listRect.x + 5, currentY + 5, listRect.width - 10,
+                            40};
+
+      // Hover effect and click
+      bool isItemHover = CheckCollisionPointRec(mousePos, itemRect);
+      if (isItemHover) {
+        DrawRectangleRec(itemRect, Fade(WHITE, 0.2f));
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+          showCityPopup = true;
+          popupCityID = city.id;
+          isDraggingCity = false;
+        }
+      } else {
+        DrawRectangleRec(itemRect, Fade(BLACK, 0.3f));
+      }
+      DrawRectangleLinesEx(itemRect, 1, DARKGRAY);
+
+      // Draw Flag if possessed
+      if (city.flagID >= 0 &&
+          city.flagID < (int)world.GetResourceManager().cityFlags.size()) {
+        Texture2D flagTex = const_cast<World &>(world)
+                                .GetResourceManager()
+                                .cityFlags[city.flagID];
+        DrawTexturePro(
+            flagTex, {0, 0, (float)flagTex.width, (float)flagTex.height},
+            {itemRect.x + 5, itemRect.y + 5, 30, 30}, {0, 0}, 0.0f, WHITE);
+      }
+
+      // Draw Info
+      const char *infoLine =
+          TextFormat("%s | Pop: %d | Ouro: %d", city.name.c_str(),
+                     city.GetPopulation(), city.resources.gold);
+      DrawTextEx(uiFont, infoLine, {itemRect.x + 45, itemRect.y + 12}, 18, 1,
+                 WHITE);
+    }
+    currentY += 50;
+  }
+
+  EndScissorMode();
 }

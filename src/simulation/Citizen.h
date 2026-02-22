@@ -123,6 +123,7 @@ struct Citizen {
   // Job target (tile coordinates or entity ID)
   int targetTileX = -1;
   int targetTileY = -1;
+  int targetEntityID = -1;  // Entity ID for combat tracking
   int carryingResource = 0; // How much resource currently carrying
   int maxCarryCapacity = 5; // Max resources can carry at once
 
