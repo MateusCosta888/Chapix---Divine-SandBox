@@ -14,3 +14,7 @@ build_log*.txt
 # Build artifacts
 bin/
 compiler/
+
+# Save data
+saves/
+save_slot_*.json

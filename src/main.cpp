@@ -1,3 +1,4 @@
+#include "core/AudioManager.h"
 #include "core/TimeManager.h"
 #include "graphics/WorldRenderer.h"
 #include "raylib.h"
@@ -24,6 +25,9 @@ int main(int argc, char *argv[]) {
   InitWindow(1920, 1080, "ChapiX - Divine SandBox");
   SetTargetFPS(60);
 
+  // Initialize audio
+  InitAudioDevice();
+
   uint32_t seed = 0;
   if (argc > 1 && std::string(argv[1]) == "--seed") {
     seed = std::stoul(argv[2]);
@@ -39,6 +43,9 @@ int main(int argc, char *argv[]) {
 
   UIManager ui;
   ui.Load();
+
+  // Load music
+  AudioManager::Get().Load();
   HideCursor();
 
   Camera2D camera = {0};
@@ -53,6 +60,14 @@ int main(int argc, char *argv[]) {
       break;
 
     BeginDrawing();
+
+    // Update music mode based on state
+    if (ui.currentState == GameState::MAIN_MENU && ui.isMainMenuNight) {
+      AudioManager::Get().SetMusicMode(MusicMode::SPACE);
+    } else {
+      AudioManager::Get().SetMusicMode(MusicMode::AMBIENT);
+    }
+    AudioManager::Get().Update();
 
     if (ui.currentState == GameState::MAIN_MENU) {
       // === MAIN MENU ===
@@ -156,7 +171,9 @@ int main(int argc, char *argv[]) {
     EndDrawing();
   }
 
+  AudioManager::Get().Unload();
   ui.Unload();
+  CloseAudioDevice();
   CloseWindow();
   return 0;
 }

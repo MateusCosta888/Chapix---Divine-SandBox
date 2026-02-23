@@ -1,4 +1,5 @@
 #include "UIManager.h"
+#include "../core/AudioManager.h"
 #include "../core/SaveManager.h"
 #include "../simulation/SimulationManager.h"
 #include "raymath.h"
@@ -549,6 +550,11 @@ void UIManager::Draw(const World &world) {
   // Draw Save Popup
   if (showSavePopup) {
     DrawSavePopup(world);
+  }
+
+  // Draw Options Popup
+  if (showOptionsPopup) {
+    DrawOptionsPopup();
   }
 
   // Draw Cursor (Always Top)
@@ -1874,6 +1880,23 @@ void UIManager::DrawToolbar(const World &world) {
       showSocialCityList = false;
       showBrushPopup = false;
       showTimePopup = false;
+      showOptionsPopup = false;
+    }
+
+    // 5. Options Button (next to Menu)
+    Rectangle optBtnRect = {menuBtnRect.x + menuBtnRect.width + 10,
+                            startY + 5.0f, 160, 50};
+    bool isOptBtnHover = CheckCollisionPointRec(mousePos, optBtnRect);
+    DrawTexturedButton(texButton, optBtnRect, false, isOptBtnHover);
+    const char *optLabel = "Opções";
+    Vector2 optLabelSz = MeasureTextEx(uiFont, optLabel, 18, 1);
+    DrawTextEx(uiFont, optLabel,
+               {optBtnRect.x + (optBtnRect.width - optLabelSz.x) / 2,
+                optBtnRect.y + (optBtnRect.height - optLabelSz.y) / 2},
+               18, 1, WHITE);
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isOptBtnHover) {
+      showOptionsPopup = !showOptionsPopup;
     }
   }
 
@@ -2418,7 +2441,8 @@ void UIManager::DrawMainMenu(const World &world) {
           {0, 0, (float)texMenuBtnStart.width, (float)texMenuBtnStart.height},
           startRect, {0, 0}, 0, startHover ? LIGHTGRAY : WHITE);
     }
-    if (startHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    if (startHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+        !showOptionsPopup) {
       isMainMenuNight = true;
     }
 
@@ -2432,6 +2456,10 @@ void UIManager::DrawMainMenu(const World &world) {
                      optRect, {0, 0}, 0, optHover ? LIGHTGRAY : WHITE);
     }
     // Options not implemented yet
+    if (optHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+        !showOptionsPopup) {
+      showOptionsPopup = !showOptionsPopup;
+    }
 
     // EXIT button
     Rectangle exitRect = {btnX, btnStartY + 2 * (btnH + btnGap), btnW, btnH};
@@ -2442,7 +2470,8 @@ void UIManager::DrawMainMenu(const World &world) {
           {0, 0, (float)texMenuBtnExit.width, (float)texMenuBtnExit.height},
           exitRect, {0, 0}, 0, exitHover ? LIGHTGRAY : WHITE);
     }
-    if (exitHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    if (exitHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+        !showOptionsPopup) {
       shouldExitGame = true;
     }
 
@@ -2577,7 +2606,105 @@ void UIManager::DrawMainMenu(const World &world) {
     }
   }
 
+  // Draw Options Popup (over main menu)
+  if (showOptionsPopup) {
+    DrawOptionsPopup();
+  }
+
   // Draw Cursor on top
   float cursorSc = 0.20f;
   DrawTextureEx(texCursor, mousePos, 0.0f, cursorSc, WHITE);
+}
+
+void UIManager::DrawOptionsPopup() {
+  float sw = (float)getScreenW();
+  float sh = (float)getScreenH();
+  Vector2 mousePos = GetMousePosition();
+
+  // Dim background
+  DrawRectangle(0, 0, (int)sw, (int)sh, ColorAlpha(BLACK, 0.5f));
+
+  // Popup dimensions
+  float popW = 420, popH = 280;
+  float popX = (sw - popW) / 2;
+  float popY = (sh - popH) / 2;
+
+  // Draw popup background
+  DrawRectangle((int)popX, (int)popY, (int)popW, (int)popH,
+                ColorAlpha(GetColor(0x1a1a2eFF), 0.95f));
+  DrawRectangleLinesEx({popX, popY, popW, popH}, 2, GOLD);
+
+  // Title
+  const char *title = "Opcoes";
+  Vector2 titleSz = MeasureTextEx(uiFont, title, 22, 1);
+  DrawTextEx(uiFont, title,
+             {popX + (popW - titleSz.x) / 2, popY + 16}, 22, 1, GOLD);
+
+  // === MUSIC VOLUME SLIDER ===
+  float sliderX = popX + 40;
+  float sliderY = popY + 70;
+  float sliderW = popW - 80;
+  float sliderH = 24;
+  float labelY = sliderY - 24;
+
+  // Label
+  float currentVol = AudioManager::Get().GetMusicVolume();
+  const char *volLabel =
+      TextFormat("Volume da Musica: %d%%", (int)(currentVol * 100));
+  DrawTextEx(uiFont, volLabel, {sliderX, labelY}, 16, 1, WHITE);
+
+  // Slider background
+  DrawRectangle((int)sliderX, (int)sliderY, (int)sliderW, (int)sliderH,
+                ColorAlpha(DARKGRAY, 0.7f));
+  DrawRectangleLinesEx({sliderX, sliderY, sliderW, sliderH}, 1, GRAY);
+
+  // Filled portion
+  float fillW = sliderW * currentVol;
+  DrawRectangle((int)sliderX, (int)sliderY, (int)fillW, (int)sliderH,
+                ColorAlpha(GOLD, 0.8f));
+
+  // Knob
+  float knobX = sliderX + fillW - 6;
+  float knobY = sliderY - 4;
+  float knobW = 12, knobH = sliderH + 8;
+  DrawRectangle((int)knobX, (int)knobY, (int)knobW, (int)knobH, WHITE);
+  DrawRectangleLinesEx({knobX, knobY, knobW, knobH}, 1, DARKGRAY);
+
+  // Slider interaction (click or drag)
+  Rectangle sliderRect = {sliderX, sliderY - 8, sliderW, sliderH + 16};
+  if (CheckCollisionPointRec(mousePos, sliderRect) &&
+      IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+    float newVol = (mousePos.x - sliderX) / sliderW;
+    if (newVol < 0.0f)
+      newVol = 0.0f;
+    if (newVol > 1.0f)
+      newVol = 1.0f;
+    AudioManager::Get().SetMusicVolume(newVol);
+  }
+
+  // === CLOSE BUTTON ===
+  float btnW = 160, btnH = 36;
+  float btnX = popX + (popW - btnW) / 2;
+  float btnY = popY + popH - 60;
+  Rectangle closeBtn = {btnX, btnY, btnW, btnH};
+  bool closeHover = CheckCollisionPointRec(mousePos, closeBtn);
+
+  if (texButton.id > 0) {
+    Rectangle btnSrc = {0, 0, (float)texButton.width, (float)texButton.height};
+    Color tint = closeHover ? LIGHTGRAY : WHITE;
+    DrawTexturePro(texButton, btnSrc, closeBtn, {0, 0}, 0.0f, tint);
+  } else {
+    DrawRectangleRec(closeBtn, closeHover ? ColorAlpha(GRAY, 0.8f)
+                                          : ColorAlpha(DARKGRAY, 0.8f));
+  }
+  const char *closeLabel = "Fechar";
+  Vector2 closeSz = MeasureTextEx(uiFont, closeLabel, 16, 1);
+  DrawTextEx(uiFont, closeLabel,
+             {closeBtn.x + (btnW - closeSz.x) / 2,
+              closeBtn.y + (btnH - closeSz.y) / 2},
+             16, 1, WHITE);
+
+  if (closeHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    showOptionsPopup = false;
+  }
 }

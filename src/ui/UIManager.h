@@ -79,6 +79,9 @@ private:
   bool showConfirmOverwrite = false;
   int confirmSlot = -1;
 
+  // Options Popup State
+  bool showOptionsPopup = false;
+
   // PergaminhoBackgod (Save UI) 9-Slice Textures
   Texture2D texPergaminhoTL, texPergaminhoTC, texPergaminhoTR;
   Texture2D texPergaminhoML, texPergaminhoMC, texPergaminhoMR;
@@ -174,5 +177,6 @@ private:
   void DrawSocialCityList(const World &world); // New Social Popup
   void DrawSavePopup(const World &world);      // New Save Menu
   void DrawFlagSelector(const World &world);   // Flag Selector UI
+  void DrawOptionsPopup();                      // Options/Settings Popup
   void HandleInput(World &world, Camera2D &camera);
 };
