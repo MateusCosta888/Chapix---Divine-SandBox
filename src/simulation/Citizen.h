@@ -1,3 +1,4 @@
+#include "../utils/JsonHelpers.h"
 #pragma once
 #include <cstdint>
 #include <string>
@@ -146,3 +147,18 @@ struct Citizen {
 Citizen CreateRandomCitizen(int id, int cityID = -1);
 Citizen CreateChildCitizen(int id, const Citizen &mother, const Citizen &father,
                            int cityID);
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(CitizenStats, strength, intelligence, speed,
+                                   endurance)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(CitizenGenetics, baseStrength,
+                                   baseIntelligence, baseSpeed, baseEndurance,
+                                   maxAge)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Citizen::InventorySlot, type, amount)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(
+    Citizen, id, name, isFemale, age, health, maxHealth, hunger, energy, homeID,
+    isResting, isGoingHome, stats, genes, level, experience, maxExperience,
+    inventory, abilities, cityID, kingdomID, profession, currentJob,
+    skillFarming, skillWoodcutting, skillMining, skillBuilding, skillCombat,
+    workState, lastWorkState, isWorking, workTimer, stateTimer, targetTileX,
+    targetTileY, targetEntityID, carryingResource, maxCarryCapacity, motherID,
+    fatherID, spouseID, isAlive)

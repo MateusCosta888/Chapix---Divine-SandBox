@@ -5,7 +5,7 @@
 
 // Enums moved from main.cpp
 // Enums moved from main.cpp
-enum class UIState { Terrain, Nature, Rocks, Creatures, Settings, Social };
+enum class UIState { Terrain, Nature, Rocks, Creatures, Social, Settings };
 
 enum class BrushSize {
   Single = 0, // Special case for exact 1x1 painting
@@ -14,6 +14,8 @@ enum class BrushSize {
   L = 5,
   XL = 9
 };
+
+enum class GameState { MAIN_MENU, PLAYING };
 
 class UIManager {
 public:
@@ -70,6 +72,39 @@ private:
   Vector2 socialPopupPos = {0, 0};
   bool isDraggingSocial = false;
 
+  // Save Popup State
+  bool showSavePopup = false;
+  Vector2 savePopupPos = {0, 0};
+  bool isDraggingSave = false;
+  bool showConfirmOverwrite = false;
+  int confirmSlot = -1;
+
+  // PergaminhoBackgod (Save UI) 9-Slice Textures
+  Texture2D texPergaminhoTL, texPergaminhoTC, texPergaminhoTR;
+  Texture2D texPergaminhoML, texPergaminhoMC, texPergaminhoMR;
+  Texture2D texPergaminhoBL, texPergaminhoBC, texPergaminhoBR;
+
+public:
+  // Main Menu State
+  GameState currentState = GameState::MAIN_MENU;
+  bool isMainMenuNight = false;
+  bool shouldStartGame = false;
+  bool shouldExitGame = false;
+  void UpdateMainMenu(World &world);
+  void DrawMainMenu(const World &world);
+
+private:
+  // Main Menu Textures
+  Texture2D texMenuDayBg;
+  Texture2D texMenuDayBorder;
+  Texture2D texMenuNightBg;
+  Texture2D texMenuNightBorder;
+  Texture2D texMenuLogo;
+  Texture2D texMenuIlustration;
+  Texture2D texMenuBtnStart;
+  Texture2D texMenuBtnOptions;
+  Texture2D texMenuBtnExit;
+
   // Drag State (City)
   Vector2 cityPopupPos = {0, 0};
   bool isDraggingCity = false;
@@ -119,25 +154,25 @@ private:
   Texture2D texIconWaterDeep;
   Texture2D texIconWaterOcean;
   Texture2D texIconWaterShallow;
+  Texture2D texSaveIcon;
 
   UIState currentTab = UIState::Terrain;
   BrushSize currentBrushSize = BrushSize::S;
   int selectedToolIndex = 0;
   float cursorScale = 0.5f;
 
-  // Constants (Internal to UI)
-  static const int SCREEN_WIDTH = 1024;
-  static const int SCREEN_HEIGHT = 768;
+  // Constants (Internal to UI) - dynamic based on window size
+  int getScreenW() const { return GetScreenWidth(); }
+  int getScreenH() const { return GetScreenHeight(); }
   static const int TOOLBAR_HEIGHT = 120;
   static const int TAB_HEIGHT = 50;
 
   // Helper methods
-  // Helper methods
   void DrawToolbar(const World &world);
   void DrawCityPopup(const World &world); // New City UI
   void DrawHumanPopup(const World &world);
-  void
-  DrawSocialCityList(const World &world); // New Social Popup   // New Human UI
-  void DrawFlagSelector(const World &world); // Flag Selector UI
+  void DrawSocialCityList(const World &world); // New Social Popup
+  void DrawSavePopup(const World &world);      // New Save Menu
+  void DrawFlagSelector(const World &world);   // Flag Selector UI
   void HandleInput(World &world, Camera2D &camera);
 };

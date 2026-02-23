@@ -1,7 +1,9 @@
 #pragma once
+#include "../utils/JsonHelpers.h"
 #include "raylib.h"
 #include <string>
 #include <vector>
+
 
 // ============================================================================
 // BUILDING TYPES
@@ -184,3 +186,9 @@ struct Building {
            type == BuildingType::Casa2;
   }
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BuildingCost, wood, stone, food)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BuildingSize, width, height)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Building, id, type, tileX, tileY, cityID,
+                                   variant, health, maxHealth, isComplete,
+                                   constructionProgress, capacity, occupants)

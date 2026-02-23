@@ -1,10 +1,12 @@
 #pragma once
+#include "../utils/JsonHelpers.h"
 #include "Citizen.h"
 #include "City.h"
 #include "Kingdom.h"
 #include <map>
 #include <memory>
 #include <vector>
+
 
 // Forward declaration
 class World;
@@ -120,4 +122,10 @@ public:
   // === TIME GETTERS ===
   int GetCurrentYear() const { return currentYear; }
   float GetYearProgress() const { return yearTimer / secondsPerYear; }
+
+  // === SAVE & LOAD ===
+  NLOHMANN_DEFINE_TYPE_INTRUSIVE(SimulationManager, citizens, cities, kingdoms,
+                                 buildings, nextCitizenID, nextCityID,
+                                 nextKingdomID, nextBuildingID, gameTime,
+                                 yearTimer, currentYear, secondsPerYear)
 };

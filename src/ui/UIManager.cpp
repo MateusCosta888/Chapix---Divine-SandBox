@@ -1,4 +1,5 @@
 #include "UIManager.h"
+#include "../core/SaveManager.h"
 #include "../simulation/SimulationManager.h"
 #include "raymath.h"
 #include <algorithm> // for max/min
@@ -121,6 +122,41 @@ void UIManager::Load() {
   texIconWaterDeep = LoadTexture("assets/UI/Icons/water/funda agua.png");
   texIconWaterOcean = LoadTexture("assets/UI/Icons/water/media agua.png");
   texIconWaterShallow = LoadTexture("assets/UI/Icons/water/rasa agua.png");
+  texSaveIcon = LoadTexture("assets/UI/Icons/SaveIcon.png"); // New Save Icon
+
+  // Load Pergaminho (Save popup) 9-Slice Textures
+  texPergaminhoTL = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/PergaminhoBackgod/Superior Esquerda.png");
+  texPergaminhoTC = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/PergaminhoBackgod/Superior  Centro.png");
+  texPergaminhoTR = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/PergaminhoBackgod/Superior Direita.png");
+  texPergaminhoML = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/PergaminhoBackgod/Meio Esquerda.png");
+  texPergaminhoMC = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/PergaminhoBackgod/Meio Centro.png");
+  texPergaminhoMR = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/PergaminhoBackgod/Meio Direita.png");
+  texPergaminhoBL = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/PergaminhoBackgod/Inferior Esquerda.png");
+  texPergaminhoBC = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/PergaminhoBackgod/inferior Centro.png");
+  texPergaminhoBR = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/PergaminhoBackgod/Inferior Direita.png");
+
+  // Load Main Menu Textures
+  texMenuDayBg = LoadTexture("assets/UI/main menu/DayBackgroud.png");
+  texMenuDayBorder = LoadTexture("assets/UI/main menu/Moldura dia.png");
+  texMenuNightBg = LoadTexture("assets/UI/main menu/BigBackgoudNight.png");
+  texMenuNightBorder = LoadTexture("assets/UI/main menu/MolduraNight.png");
+  texMenuLogo = LoadTexture("assets/UI/main menu/ChapiX - Logo.png");
+  texMenuIlustration = LoadTexture("assets/UI/main menu/Ilustration.png");
+  texMenuBtnStart = LoadTexture("assets/UI/main menu/Start.png");
+  texMenuBtnOptions = LoadTexture("assets/UI/main menu/Options.png");
+  texMenuBtnExit = LoadTexture("assets/UI/main menu/Exit.png");
+
+  if (texPergaminhoTL.id == 0)
+    TraceLog(LOG_WARNING, "UI: Failed to load PergaminhoBackgod textures!");
 }
 
 void UIManager::Unload() {
@@ -165,6 +201,26 @@ void UIManager::Unload() {
   UnloadTexture(texPopup3BC);
   UnloadTexture(texPopup3BR);
 
+  UnloadTexture(texPergaminhoTL);
+  UnloadTexture(texPergaminhoTC);
+  UnloadTexture(texPergaminhoTR);
+  UnloadTexture(texPergaminhoML);
+  UnloadTexture(texPergaminhoMC);
+  UnloadTexture(texPergaminhoMR);
+  UnloadTexture(texPergaminhoBL);
+  UnloadTexture(texPergaminhoBC);
+  UnloadTexture(texPergaminhoBR);
+
+  UnloadTexture(texMenuDayBg);
+  UnloadTexture(texMenuDayBorder);
+  UnloadTexture(texMenuNightBg);
+  UnloadTexture(texMenuNightBorder);
+  UnloadTexture(texMenuLogo);
+  UnloadTexture(texMenuIlustration);
+  UnloadTexture(texMenuBtnStart);
+  UnloadTexture(texMenuBtnOptions);
+  UnloadTexture(texMenuBtnExit);
+
   UnloadTexture(texButton);
   UnloadTexture(texTabButton);
   UnloadTexture(texTabRedFlag);
@@ -172,6 +228,7 @@ void UIManager::Unload() {
   UnloadTexture(texIconWaterDeep);
   UnloadTexture(texIconWaterOcean);
   UnloadTexture(texIconWaterShallow);
+  UnloadTexture(texSaveIcon);
   UnloadFont(uiFont);
   UnloadShader(circleMaskShader);
 }
@@ -180,7 +237,7 @@ bool UIManager::IsPointerOnUI() const {
   Vector2 mousePos = GetMousePosition();
 
   // 1. Toolbar area
-  if (mousePos.y > (SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT))
+  if (mousePos.y > (getScreenH() - TOOLBAR_HEIGHT - TAB_HEIGHT))
     return true;
 
   // 2. City Popup
@@ -192,8 +249,8 @@ bool UIManager::IsPointerOnUI() const {
 
     // Fallback if not initialized yet (first frame)
     if (x == 0 && y == 0) {
-      x = (SCREEN_WIDTH - w) / 2;
-      y = (SCREEN_HEIGHT - h) / 2;
+      x = (getScreenW() - w) / 2;
+      y = (getScreenH() - h) / 2;
     }
 
     if (CheckCollisionPointRec(mousePos, {x, y, w, h}))
@@ -209,8 +266,8 @@ bool UIManager::IsPointerOnUI() const {
 
     // Fallback
     if (x == 0 && y == 0) {
-      x = (SCREEN_WIDTH - w) / 2;
-      y = (SCREEN_HEIGHT - h) / 2;
+      x = (getScreenW() - w) / 2;
+      y = (getScreenH() - h) / 2;
     }
 
     if (CheckCollisionPointRec(mousePos, {x, y, w, h}))
@@ -232,8 +289,8 @@ bool UIManager::IsPointerOnUI() const {
 
     // Fallback if not initialized yet (first frame)
     if (x == 0 && y == 0) {
-      x = (SCREEN_WIDTH - w) / 2;
-      y = (SCREEN_HEIGHT - h) / 2;
+      x = (getScreenW() - w) / 2;
+      y = (getScreenH() - h) / 2;
     }
 
     if (CheckCollisionPointRec(mousePos, {x, y, w, h}))
@@ -317,8 +374,8 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
   if (showCityPopup && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     float w = 400;
     float h = 500;
-    float x = cityPopupPos.x != 0 ? cityPopupPos.x : (SCREEN_WIDTH - w) / 2;
-    float y = cityPopupPos.y != 0 ? cityPopupPos.y : (SCREEN_HEIGHT - h) / 2;
+    float x = cityPopupPos.x != 0 ? cityPopupPos.x : (getScreenW() - w) / 2;
+    float y = cityPopupPos.y != 0 ? cityPopupPos.y : (getScreenH() - h) / 2;
 
     if (!CheckCollisionPointRec(GetMousePosition(), {x, y, w, h})) {
       showCityPopup = false;
@@ -449,7 +506,7 @@ void UIManager::Draw(const World &world) {
   // Draw Standalone Calendar Window
   float calW = 160;
   float calH = 50;
-  float calX = SCREEN_WIDTH - calW - 20;
+  float calX = getScreenW() - calW - 20;
   float calY = 20;
 
   // Background
@@ -489,6 +546,11 @@ void UIManager::Draw(const World &world) {
     DrawFlagSelector(world);
   }
 
+  // Draw Save Popup
+  if (showSavePopup) {
+    DrawSavePopup(world);
+  }
+
   // Draw Cursor (Always Top)
   DrawTextureEx(texCursor, mousePos, 0.0f, cursorScale, WHITE);
 }
@@ -508,8 +570,8 @@ void UIManager::DrawCityPopup(const World &world) {
 
   // Lazy Init Position
   if (cityPopupPos.x == 0 && cityPopupPos.y == 0) {
-    cityPopupPos.x = (SCREEN_WIDTH - w) / 2;
-    cityPopupPos.y = (SCREEN_HEIGHT - h) / 2;
+    cityPopupPos.x = (getScreenW() - w) / 2;
+    cityPopupPos.y = (getScreenH() - h) / 2;
   }
 
   // Drag Logic
@@ -785,8 +847,8 @@ void UIManager::DrawHumanPopup(const World &world) {
 
   // Lazy Init Position
   if (humanPopupPos.x == 0 && humanPopupPos.y == 0) {
-    humanPopupPos.x = (SCREEN_WIDTH - w) / 2;
-    humanPopupPos.y = (SCREEN_HEIGHT - h) / 2;
+    humanPopupPos.x = (getScreenW() - w) / 2;
+    humanPopupPos.y = (getScreenH() - h) / 2;
   }
 
   // Drag Logic
@@ -1151,8 +1213,8 @@ void UIManager::DrawFlagSelector(const World &world) {
   // Dimensions
   float w = 600;
   float h = 500;
-  float x = (SCREEN_WIDTH - w) / 2;
-  float y = (SCREEN_HEIGHT - h) / 2;
+  float x = (getScreenW() - w) / 2;
+  float y = (getScreenH() - h) / 2;
 
   // Background
   DrawRectangle((int)x, (int)y, (int)w, (int)h, Fade(DARKBLUE, 0.95f));
@@ -1289,15 +1351,15 @@ void UIManager::DrawToolbar(const World &world) {
 
   // Full Taskbar Area (Tabs + Toolbar) - Encapsulated
   Rectangle fullTaskbarRect = {
-      0, (float)SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT,
-      (float)SCREEN_WIDTH, (float)TOOLBAR_HEIGHT + TAB_HEIGHT};
+      0, (float)getScreenH() - TOOLBAR_HEIGHT - TAB_HEIGHT, (float)getScreenW(),
+      (float)TOOLBAR_HEIGHT + TAB_HEIGHT};
   DrawNineSlicePanel(fullTaskbarRect);
 
-  Rectangle tabArea = {0, fullTaskbarRect.y, (float)SCREEN_WIDTH,
+  Rectangle tabArea = {0, fullTaskbarRect.y, (float)getScreenW(),
                        (float)TAB_HEIGHT};
 
-  const char *tabNames[] = {"Terrains",  "Nature",   "Rocks",
-                            "Creatures", "Settings", "Social"};
+  const char *tabNames[] = {"Terrains",  "Nature", "Rocks",
+                            "Creatures", "Social", "..."};
   for (int i = 0; i < 6; i++) {
     float tabW = 170;
     Rectangle tabRect = {i * tabW + 5, tabArea.y + 5, tabW - 5,
@@ -1328,9 +1390,9 @@ void UIManager::DrawToolbar(const World &world) {
 
   // Content based on Tab
   float startX = 25;
-  float visibleWidth = SCREEN_WIDTH - 50; // Padding on sides
+  float visibleWidth = getScreenW() - 50; // Padding on sides
   float startY =
-      SCREEN_HEIGHT - TOOLBAR_HEIGHT + (TOOLBAR_HEIGHT - 80) / 2; // Centered
+      getScreenH() - TOOLBAR_HEIGHT + (TOOLBAR_HEIGHT - 80) / 2; // Centered
   float btnSize = 80;
   float padding = 12;
 
@@ -1353,7 +1415,7 @@ void UIManager::DrawToolbar(const World &world) {
 
       // Input
       // Check if mouse is over the toolbar area to enable scrolling
-      if (mousePos.y > SCREEN_HEIGHT - TOOLBAR_HEIGHT) {
+      if (mousePos.y > getScreenH() - TOOLBAR_HEIGHT) {
         float wheel = GetMouseWheelMove();
         if (wheel != 0) {
           scrollOffset -= wheel * 40.0f; // Scroll speed
@@ -1369,7 +1431,7 @@ void UIManager::DrawToolbar(const World &world) {
   // Define Scissor Area
   // We want to clip content that flows outside startX -> startX +
   // visibleWidth
-  BeginScissorMode((int)startX, (int)(SCREEN_HEIGHT - TOOLBAR_HEIGHT),
+  BeginScissorMode((int)startX, (int)(getScreenH() - TOOLBAR_HEIGHT),
                    (int)visibleWidth, TOOLBAR_HEIGHT);
 
   // Arrays for rendering buttons...
@@ -1391,7 +1453,7 @@ void UIManager::DrawToolbar(const World &world) {
       if (i == 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         TraceLog(LOG_INFO,
                  "DEBUG: Button 0 Rect Y: %f, Mouse Y: %f, ScreenH: %d",
-                 btnRect.y, GetMousePosition().y, SCREEN_HEIGHT);
+                 btnRect.y, GetMousePosition().y, getScreenH());
       }
 
       // Check collision with the SCROLLED rect, but strictly within the
@@ -1634,13 +1696,12 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Creatures) {
-    numTools = 11; // Updated count (Added Boar)
-    EntityType creatureTypes[] = {
-        EntityType::HumanUnarmed, EntityType::HumanArmed,
-        EntityType::Boar, // Added Boar
-        EntityType::Cow,          EntityType::Chicken,    EntityType::Sheep,
-        EntityType::Bull,         EntityType::Chicken2,   EntityType::Lamb,
-        EntityType::Pig,          EntityType::Turkey};
+    numTools = 10;
+    EntityType creatureTypes[] = {EntityType::HumanUnarmed, EntityType::Boar,
+                                  EntityType::Cow,          EntityType::Chicken,
+                                  EntityType::Sheep,        EntityType::Bull,
+                                  EntityType::Chicken2,     EntityType::Lamb,
+                                  EntityType::Pig,          EntityType::Turkey};
 
     for (int i = 0; i < numTools; i++) {
       // Apply Scroll Offset to X position
@@ -1680,25 +1741,6 @@ void UIManager::DrawToolbar(const World &world) {
         float scaledH = tex.height * scale;
 
         Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
-
-        if (creatureTypes[i] == EntityType::HumanArmed) {
-          // Define a crop area (e.g., 32x36 centered horizontally,
-          // bottom-aligned but cutting off footer variance)
-          // Original: 64x64. Center X = 32. Bottom Y = 64.
-          // Crop W=32, H=36. X = 16, Y = 14.
-          // This range [14, 50] captures the body/head while cutting empty
-          // space, allowing 'scale' to reach 2.0x within 74px height.
-          src = {16, 14, 32, 36};
-
-          // Recalculate scale for the CROPPED size
-          float availableSize = btnSize - 6; // Padding
-          scale = availableSize / (float)std::max(src.width, src.height);
-          if (scale > 1.0f)
-            scale = std::floor(scale * 2.0f) / 2.0f;
-
-          scaledW = src.width * scale;
-          scaledH = src.height * scale;
-        }
 
         // Center in button
         float offsetX = (btnSize - scaledW) / 2.0f;
@@ -1785,6 +1827,54 @@ void UIManager::DrawToolbar(const World &world) {
       showTimePopup = !showTimePopup;
       popupJustOpened = showTimePopup;
     }
+
+    // 3. Save Menu Button (Standalone Icon)
+    float iconSize = 64.0f;
+    float iconX = startX + 300;
+    float iconY = startY + 5.0f;
+    Rectangle saveIconRect = {iconX, iconY, iconSize, iconSize};
+    bool isSaveBtnHover = CheckCollisionPointRec(mousePos, saveIconRect);
+
+    if (texSaveIcon.id > 0) {
+      Rectangle src = {0, 0, (float)texSaveIcon.width,
+                       (float)texSaveIcon.height};
+      Color tint = isSaveBtnHover ? LIGHTGRAY : WHITE;
+      DrawTexturePro(texSaveIcon, src, saveIconRect, {0, 0}, 0.0f, tint);
+    } else {
+      DrawRectangleRec(saveIconRect, isSaveBtnHover ? LIGHTGRAY : DARKGRAY);
+      DrawTextEx(uiFont, "Save", {iconX + 10, iconY + 20}, 20, 1, WHITE);
+    }
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isSaveBtnHover) {
+      showSavePopup = !showSavePopup;
+      if (showSavePopup && (savePopupPos.x == 0 && savePopupPos.y == 0)) {
+        savePopupPos = {getScreenW() / 2.0f - 250, getScreenH() / 2.0f - 200};
+      }
+      popupJustOpened = showSavePopup;
+    }
+
+    // 4. Return to Main Menu Button
+    Rectangle menuBtnRect = {iconX + iconSize + 20, startY + 5.0f, 160, 50};
+    bool isMenuBtnHover = CheckCollisionPointRec(mousePos, menuBtnRect);
+    DrawTexturedButton(texButton, menuBtnRect, false, isMenuBtnHover);
+    const char *menuLabel = "Menu";
+    Vector2 menuLabelSz = MeasureTextEx(uiFont, menuLabel, 18, 1);
+    DrawTextEx(uiFont, menuLabel,
+               {menuBtnRect.x + (menuBtnRect.width - menuLabelSz.x) / 2,
+                menuBtnRect.y + (menuBtnRect.height - menuLabelSz.y) / 2},
+               18, 1, WHITE);
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isMenuBtnHover) {
+      currentState = GameState::MAIN_MENU;
+      isMainMenuNight = false;
+      shouldStartGame = false;
+      showSavePopup = false;
+      showCityPopup = false;
+      showHumanPopup = false;
+      showSocialCityList = false;
+      showBrushPopup = false;
+      showTimePopup = false;
+    }
   }
 
   // === TIME POPUP (drawn above everything) ===
@@ -1794,8 +1884,8 @@ void UIManager::DrawToolbar(const World &world) {
     // Popup dimensions
     float popupW = 360;
     float popupH = 120;
-    float popupX = (SCREEN_WIDTH - popupW) / 2;
-    float popupY = SCREEN_HEIGHT - TOOLBAR_HEIGHT - TAB_HEIGHT - popupH - 20;
+    float popupX = (getScreenW() - popupW) / 2;
+    float popupY = getScreenH() - TOOLBAR_HEIGHT - TAB_HEIGHT - popupH - 20;
 
     // Background
     DrawRectangle(popupX, popupY, popupW, popupH, ColorAlpha(BLACK, 0.9f));
@@ -1883,8 +1973,8 @@ void UIManager::DrawSocialCityList(const World &world) {
 
   // Lazy Init Position
   if (socialPopupPos.x == 0 && socialPopupPos.y == 0) {
-    socialPopupPos.x = (SCREEN_WIDTH - w) / 2;
-    socialPopupPos.y = (SCREEN_HEIGHT - h) / 2;
+    socialPopupPos.x = (getScreenW() - w) / 2;
+    socialPopupPos.y = (getScreenH() - h) / 2;
   }
 
   // Drag Logic
@@ -2023,4 +2113,471 @@ void UIManager::DrawSocialCityList(const World &world) {
   }
 
   EndScissorMode();
+}
+
+void UIManager::DrawSavePopup(const World &world) {
+  // Grid layout: 3 cols x 4 rows = 12 slots
+  const int COLS = 3;
+  const int ROWS = 4;
+  const int TOTAL_SLOTS = COLS * ROWS;
+  float cellSize = 70.0f;
+  float cellPad = 12.0f;
+  float marginX = 30.0f;
+  float marginTop = 55.0f;
+  float marginBottom = 25.0f;
+
+  float w = marginX * 2 + COLS * cellSize + (COLS - 1) * cellPad;
+  float h = marginTop + ROWS * cellSize + (ROWS - 1) * cellPad + marginBottom;
+  float x = savePopupPos.x;
+  float y = savePopupPos.y;
+
+  Vector2 mousePos = GetMousePosition();
+  Rectangle headerRect = {x, y, w, 40};
+
+  // Drag Logic
+  if (CheckCollisionPointRec(mousePos, headerRect)) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      isDraggingSave = true;
+      dragOffset.x = mousePos.x - x;
+      dragOffset.y = mousePos.y - y;
+    }
+  }
+  if (isDraggingSave) {
+    savePopupPos.x = mousePos.x - dragOffset.x;
+    savePopupPos.y = mousePos.y - dragOffset.y;
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+      isDraggingSave = false;
+    }
+    x = savePopupPos.x;
+    y = savePopupPos.y;
+  }
+
+  // --- DRAW 9-SLICE PERGAMINHO BACKGROUND ---
+  int cw = texPergaminhoTL.width;
+  int ch = texPergaminhoTL.height;
+
+  if (texPergaminhoTL.id > 0) {
+    // Corners
+    DrawTexture(texPergaminhoTL, x, y, WHITE);
+    DrawTexture(texPergaminhoTR, x + w - cw, y, WHITE);
+    DrawTexture(texPergaminhoBL, x, y + h - ch, WHITE);
+    DrawTexture(texPergaminhoBR, x + w - cw, y + h - ch, WHITE);
+    // Edges
+    DrawTexturePro(
+        texPergaminhoTC,
+        {0, 0, (float)texPergaminhoTC.width, (float)texPergaminhoTC.height},
+        {x + cw, y, w - 2 * cw, (float)ch}, {0, 0}, 0, WHITE);
+    DrawTexturePro(
+        texPergaminhoBC,
+        {0, 0, (float)texPergaminhoBC.width, (float)texPergaminhoBC.height},
+        {x + cw, y + h - ch, w - 2 * cw, (float)ch}, {0, 0}, 0, WHITE);
+    DrawTexturePro(
+        texPergaminhoML,
+        {0, 0, (float)texPergaminhoML.width, (float)texPergaminhoML.height},
+        {x, y + ch, (float)cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+    DrawTexturePro(
+        texPergaminhoMR,
+        {0, 0, (float)texPergaminhoMR.width, (float)texPergaminhoMR.height},
+        {x + w - cw, y + ch, (float)cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+    // Center fill
+    DrawTexturePro(
+        texPergaminhoMC,
+        {0, 0, (float)texPergaminhoMC.width, (float)texPergaminhoMC.height},
+        {x + cw, y + ch, w - 2 * cw, h - 2 * ch}, {0, 0}, 0, WHITE);
+  } else {
+    DrawRectangle(x, y, w, h, ColorAlpha(BLACK, 0.9f));
+    DrawRectangleLines(x, y, w, h, GOLD);
+  }
+
+  // Title
+  const char *titleText = "SAVE GAME";
+  Vector2 titleSize = MeasureTextEx(uiFont, titleText, 16, 1);
+  DrawTextEx(uiFont, titleText, {x + (w - titleSize.x) / 2, y + 18}, 16, 1,
+             DARKBROWN);
+
+  // Close Button
+  Rectangle closeBtn = {x + w - 30, y + 12, 16, 16};
+  DrawText("X", (int)closeBtn.x + 3, (int)closeBtn.y + 1, 16, MAROON);
+  if (CheckCollisionPointRec(mousePos, closeBtn) &&
+      IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    showSavePopup = false;
+    isDraggingSave = false;
+    showConfirmOverwrite = false;
+    confirmSlot = -1;
+  }
+
+  // Draw Grid of Slots
+  for (int i = 0; i < TOTAL_SLOTS; i++) {
+    int col = i % COLS;
+    int row = i / COLS;
+    int slotID = i + 1;
+
+    float cx = x + marginX + col * (cellSize + cellPad);
+    float cy = y + marginTop + row * (cellSize + cellPad);
+    Rectangle cellRect = {cx, cy, cellSize, cellSize};
+
+    bool exists = SaveManager::SaveExists(slotID);
+    bool isHover = CheckCollisionPointRec(mousePos, cellRect);
+
+    // Cell background
+    Color bgColor =
+        exists ? ColorAlpha(DARKGREEN, 0.5f) : ColorAlpha(DARKGRAY, 0.5f);
+    if (isHover)
+      bgColor = exists ? ColorAlpha(GREEN, 0.4f) : ColorAlpha(LIGHTGRAY, 0.3f);
+    DrawRectangleRec(cellRect, bgColor);
+    DrawRectangleLinesEx(cellRect, 2, exists ? GOLD : GRAY);
+
+    // Draw save icon if occupied (preserve aspect ratio)
+    if (exists && texSaveIcon.id > 0) {
+      float maxIconSz = 32.0f;
+      float aspectW = (float)texSaveIcon.width;
+      float aspectH = (float)texSaveIcon.height;
+      float scale = maxIconSz / std::max(aspectW, aspectH);
+      float iconW = aspectW * scale;
+      float iconH = aspectH * scale;
+      Rectangle iSrc = {0, 0, aspectW, aspectH};
+      Rectangle iDst = {cx + (cellSize - iconW) / 2, cy + 6, iconW, iconH};
+      DrawTexturePro(texSaveIcon, iSrc, iDst, {0, 0}, 0.0f, WHITE);
+    }
+
+    // Slot number
+    const char *numTxt = TextFormat("%d", slotID);
+    Vector2 numSz = MeasureTextEx(uiFont, numTxt, 12, 1);
+    float textY = exists ? cy + 42 : cy + (cellSize - numSz.y) / 2;
+    DrawTextEx(uiFont, numTxt, {cx + (cellSize - numSz.x) / 2, textY}, 12, 1,
+               WHITE);
+
+    // Status label
+    if (exists) {
+      const char *lbl = "Salvo";
+      Vector2 lblSz = MeasureTextEx(uiFont, lbl, 10, 1);
+      DrawTextEx(uiFont, lbl, {cx + (cellSize - lblSz.x) / 2, cy + 55}, 10, 1,
+                 GREEN);
+    }
+
+    // Click logic
+    if (isHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+        !showConfirmOverwrite) {
+      if (exists) {
+        // Show Load/Overwrite dialog
+        showConfirmOverwrite = true;
+        confirmSlot = slotID;
+      } else {
+        // Empty slot: save directly
+        TraceLog(LOG_INFO, "Saving in slot %d", slotID);
+        SaveManager::SaveGame(slotID, world);
+      }
+    }
+  }
+
+  // --- LOAD / OVERWRITE DIALOG ---
+  if (showConfirmOverwrite && confirmSlot > 0) {
+    // Dim background
+    DrawRectangle(x, y, w, h, ColorAlpha(BLACK, 0.6f));
+
+    // Dialog box
+    float dw = 240, dh = 130;
+    float dx = x + (w - dw) / 2;
+    float dy = y + (h - dh) / 2;
+    DrawRectangle(dx, dy, dw, dh, ColorAlpha(DARKBROWN, 0.95f));
+    DrawRectangleLinesEx({dx, dy, dw, dh}, 2, GOLD);
+
+    // Message
+    const char *msg = TextFormat("Slot %d", confirmSlot);
+    Vector2 msgSz = MeasureTextEx(uiFont, msg, 14, 1);
+    DrawTextEx(uiFont, msg, {dx + (dw - msgSz.x) / 2, dy + 12}, 14, 1, WHITE);
+
+    float btnW = 190, btnH = 26, btnX = dx + (dw - btnW) / 2;
+
+    // Carregar (Load) button
+    Rectangle loadBtn = {btnX, dy + 38, btnW, btnH};
+    bool loadHover = CheckCollisionPointRec(mousePos, loadBtn);
+    DrawRectangleRec(loadBtn, loadHover ? ColorAlpha(BLUE, 0.8f)
+                                        : ColorAlpha(BLUE, 0.5f));
+    DrawRectangleLinesEx(loadBtn, 1, WHITE);
+    Vector2 loadSz = MeasureTextEx(uiFont, "Carregar", 12, 1);
+    DrawTextEx(uiFont, "Carregar",
+               {loadBtn.x + (btnW - loadSz.x) / 2, loadBtn.y + 6}, 12, 1,
+               WHITE);
+
+    // Substituir (Overwrite) button
+    Rectangle overBtn = {btnX, dy + 68, btnW, btnH};
+    bool overHover = CheckCollisionPointRec(mousePos, overBtn);
+    DrawRectangleRec(overBtn, overHover ? ColorAlpha(ORANGE, 0.8f)
+                                        : ColorAlpha(ORANGE, 0.5f));
+    DrawRectangleLinesEx(overBtn, 1, WHITE);
+    Vector2 overSz = MeasureTextEx(uiFont, "Substituir", 12, 1);
+    DrawTextEx(uiFont, "Substituir",
+               {overBtn.x + (btnW - overSz.x) / 2, overBtn.y + 6}, 12, 1,
+               WHITE);
+
+    // Cancelar button
+    Rectangle cancelBtn = {btnX, dy + 98, btnW, btnH};
+    bool cancelHover = CheckCollisionPointRec(mousePos, cancelBtn);
+    DrawRectangleRec(cancelBtn, cancelHover ? ColorAlpha(RED, 0.8f)
+                                            : ColorAlpha(RED, 0.5f));
+    DrawRectangleLinesEx(cancelBtn, 1, WHITE);
+    Vector2 cancelSz = MeasureTextEx(uiFont, "Cancelar", 12, 1);
+    DrawTextEx(uiFont, "Cancelar",
+               {cancelBtn.x + (btnW - cancelSz.x) / 2, cancelBtn.y + 6}, 12, 1,
+               WHITE);
+
+    // Click handlers
+    if (loadHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      TraceLog(LOG_INFO, "Loading from slot %d", confirmSlot);
+      SaveManager::LoadGame(confirmSlot, const_cast<World &>(world));
+      showConfirmOverwrite = false;
+      confirmSlot = -1;
+      showSavePopup = false;
+    }
+    if (overHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      TraceLog(LOG_INFO, "Overwriting slot %d", confirmSlot);
+      SaveManager::SaveGame(confirmSlot, world);
+      showConfirmOverwrite = false;
+      confirmSlot = -1;
+    }
+    if (cancelHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      showConfirmOverwrite = false;
+      confirmSlot = -1;
+    }
+  }
+}
+
+void UIManager::UpdateMainMenu(World &world) {
+  // Nothing to update for now, logic is in DrawMainMenu
+}
+
+void UIManager::DrawMainMenu(const World &world) {
+  float sw = (float)GetScreenWidth();
+  float sh = (float)GetScreenHeight();
+  Vector2 mousePos = GetMousePosition();
+
+  if (!isMainMenuNight) {
+    // ==================== DAY VIEW ====================
+
+    // Background (stretch to fill screen)
+    if (texMenuDayBg.id > 0) {
+      DrawTexturePro(
+          texMenuDayBg,
+          {0, 0, (float)texMenuDayBg.width, (float)texMenuDayBg.height},
+          {0, 0, sw, sh}, {0, 0}, 0, WHITE);
+    } else {
+      ClearBackground(GetColor(0x87CEEBFF));
+    }
+
+    // Border (stretch to fill screen, decorative overlay)
+    if (texMenuDayBorder.id > 0) {
+      DrawTexturePro(
+          texMenuDayBorder,
+          {0, 0, (float)texMenuDayBorder.width, (float)texMenuDayBorder.height},
+          {0, 0, sw, sh}, {0, 0}, 0, WHITE);
+    }
+
+    // Logo + Illustration layout
+    // Logo on the left, illustration on the right, above the buttons
+    float logoScale = 0.55f;
+    float logoW = texMenuLogo.width * logoScale;
+    float logoH = texMenuLogo.height * logoScale;
+    float ilustScale = 0.45f;
+    float ilustW = texMenuIlustration.width * ilustScale;
+    float ilustH = texMenuIlustration.height * ilustScale;
+
+    // Center the logo+illustration block horizontally
+    float blockW = logoW + ilustW - 20;
+    float blockX = (sw - blockW) / 2;
+    float logoY = sh * 0.08f;
+
+    if (texMenuLogo.id > 0) {
+      DrawTexturePro(
+          texMenuLogo,
+          {0, 0, (float)texMenuLogo.width, (float)texMenuLogo.height},
+          {blockX, logoY, logoW, logoH}, {0, 0}, 0, WHITE);
+    }
+    if (texMenuIlustration.id > 0) {
+      DrawTexturePro(texMenuIlustration,
+                     {0, 0, (float)texMenuIlustration.width,
+                      (float)texMenuIlustration.height},
+                     {blockX + logoW - 20, logoY - 10, ilustW, ilustH}, {0, 0},
+                     0, WHITE);
+    }
+
+    // --- Buttons (centered, stacked vertically) ---
+    float btnScale = 0.5f;
+    float btnW = texMenuBtnStart.width * btnScale;
+    float btnH = texMenuBtnStart.height * btnScale;
+    float btnX = (sw - btnW) / 2;
+    float btnStartY = logoY + logoH + 80; // Push buttons much lower
+    float btnGap = 10;
+
+    // START GAME button
+    Rectangle startRect = {btnX, btnStartY, btnW, btnH};
+    bool startHover = CheckCollisionPointRec(mousePos, startRect);
+    if (texMenuBtnStart.id > 0) {
+      DrawTexturePro(
+          texMenuBtnStart,
+          {0, 0, (float)texMenuBtnStart.width, (float)texMenuBtnStart.height},
+          startRect, {0, 0}, 0, startHover ? LIGHTGRAY : WHITE);
+    }
+    if (startHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      isMainMenuNight = true;
+    }
+
+    // OPTIONS button
+    Rectangle optRect = {btnX, btnStartY + btnH + btnGap, btnW, btnH};
+    bool optHover = CheckCollisionPointRec(mousePos, optRect);
+    if (texMenuBtnOptions.id > 0) {
+      DrawTexturePro(texMenuBtnOptions,
+                     {0, 0, (float)texMenuBtnOptions.width,
+                      (float)texMenuBtnOptions.height},
+                     optRect, {0, 0}, 0, optHover ? LIGHTGRAY : WHITE);
+    }
+    // Options not implemented yet
+
+    // EXIT button
+    Rectangle exitRect = {btnX, btnStartY + 2 * (btnH + btnGap), btnW, btnH};
+    bool exitHover = CheckCollisionPointRec(mousePos, exitRect);
+    if (texMenuBtnExit.id > 0) {
+      DrawTexturePro(
+          texMenuBtnExit,
+          {0, 0, (float)texMenuBtnExit.width, (float)texMenuBtnExit.height},
+          exitRect, {0, 0}, 0, exitHover ? LIGHTGRAY : WHITE);
+    }
+    if (exitHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      shouldExitGame = true;
+    }
+
+  } else {
+    // ==================== NIGHT VIEW (Save Slots) ====================
+
+    // Night Background
+    if (texMenuNightBg.id > 0) {
+      DrawTexturePro(
+          texMenuNightBg,
+          {0, 0, (float)texMenuNightBg.width, (float)texMenuNightBg.height},
+          {0, 0, sw, sh}, {0, 0}, 0, WHITE);
+    } else {
+      ClearBackground(GetColor(0x0a0a2eFF));
+    }
+
+    // Night Border
+    if (texMenuNightBorder.id > 0) {
+      DrawTexturePro(texMenuNightBorder,
+                     {0, 0, (float)texMenuNightBorder.width,
+                      (float)texMenuNightBorder.height},
+                     {0, 0, sw, sh}, {0, 0}, 0, WHITE);
+    }
+
+    // Title
+    const char *title = "SELECIONAR SAVE";
+    Vector2 titleSz = MeasureTextEx(uiFont, title, 22, 1);
+    DrawTextEx(uiFont, title, {(sw - titleSz.x) / 2, 40}, 22, 1, WHITE);
+
+    // Grid: 4 cols x 3 rows = 12 slots (centered)
+    const int COLS = 4;
+    const int ROWS = 3;
+    const int TOTAL = COLS * ROWS;
+    float cellSize = 100.0f;
+    float cellPad = 16.0f;
+    float gridW = COLS * cellSize + (COLS - 1) * cellPad;
+    float gridH = ROWS * cellSize + (ROWS - 1) * cellPad;
+    float gridX = (sw - gridW) / 2;
+    float gridY = 90;
+
+    for (int i = 0; i < TOTAL; i++) {
+      int col = i % COLS;
+      int row = i / COLS;
+      int slotID = i + 1;
+
+      float cx = gridX + col * (cellSize + cellPad);
+      float cy = gridY + row * (cellSize + cellPad);
+      Rectangle cellRect = {cx, cy, cellSize, cellSize};
+
+      bool exists = SaveManager::SaveExists(slotID);
+      bool isHover = CheckCollisionPointRec(mousePos, cellRect);
+
+      // Cell background
+      Color bgColor =
+          exists ? ColorAlpha(DARKGREEN, 0.5f) : ColorAlpha(DARKGRAY, 0.4f);
+      if (isHover)
+        bgColor =
+            exists ? ColorAlpha(GREEN, 0.5f) : ColorAlpha(LIGHTGRAY, 0.35f);
+      DrawRectangleRec(cellRect, bgColor);
+      DrawRectangleLinesEx(cellRect, 2, exists ? GOLD : GRAY);
+
+      // Draw save icon if occupied
+      if (exists && texSaveIcon.id > 0) {
+        float maxIconSz = 42.0f;
+        float aspectW = (float)texSaveIcon.width;
+        float aspectH = (float)texSaveIcon.height;
+        float scale = maxIconSz / std::max(aspectW, aspectH);
+        float iconW = aspectW * scale;
+        float iconH = aspectH * scale;
+        Rectangle iSrc = {0, 0, aspectW, aspectH};
+        Rectangle iDst = {cx + (cellSize - iconW) / 2, cy + 10, iconW, iconH};
+        DrawTexturePro(texSaveIcon, iSrc, iDst, {0, 0}, 0.0f, WHITE);
+      }
+
+      // Slot number
+      const char *numTxt = TextFormat("%d", slotID);
+      Vector2 numSz = MeasureTextEx(uiFont, numTxt, 16, 1);
+      float textY = exists ? cy + 58 : cy + (cellSize - numSz.y) / 2;
+      DrawTextEx(uiFont, numTxt, {cx + (cellSize - numSz.x) / 2, textY}, 16, 1,
+                 WHITE);
+
+      // Status label
+      if (exists) {
+        const char *lbl = "Salvo";
+        Vector2 lblSz = MeasureTextEx(uiFont, lbl, 12, 1);
+        DrawTextEx(uiFont, lbl, {cx + (cellSize - lblSz.x) / 2, cy + 78}, 12, 1,
+                   GREEN);
+      } else {
+        const char *lbl = "Novo Jogo";
+        Vector2 lblSz = MeasureTextEx(uiFont, lbl, 11, 1);
+        DrawTextEx(uiFont, lbl, {cx + (cellSize - lblSz.x) / 2, cy + 75}, 11, 1,
+                   LIGHTGRAY);
+      }
+
+      // Click logic
+      if (isHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (exists) {
+          // Load existing save
+          TraceLog(LOG_INFO, "MainMenu: Loading slot %d", slotID);
+          SaveManager::LoadGame(slotID, const_cast<World &>(world));
+          currentState = GameState::PLAYING;
+          shouldStartGame = true;
+        } else {
+          // New game with random seed
+          TraceLog(LOG_INFO, "MainMenu: New game from slot %d", slotID);
+          uint32_t newSeed = (uint32_t)(GetTime() * 1000.0) + i;
+          const_cast<World &>(world).Generate();
+          currentState = GameState::PLAYING;
+          shouldStartGame = true;
+        }
+      }
+    }
+
+    // "Voltar" button at bottom
+    float voltarW = 160, voltarH = 36;
+    Rectangle voltarBtn = {(sw - voltarW) / 2, gridY + gridH + 25, voltarW,
+                           voltarH};
+    bool voltarHover = CheckCollisionPointRec(mousePos, voltarBtn);
+
+    // Use texButton for voltar
+    Rectangle btnSrc = {0, 0, (float)texButton.width, (float)texButton.height};
+    DrawTexturePro(texButton, btnSrc, voltarBtn, {0, 0}, 0.0f,
+                   voltarHover ? LIGHTGRAY : WHITE);
+    Vector2 voltarSz = MeasureTextEx(uiFont, "Voltar", 14, 1);
+    DrawTextEx(uiFont, "Voltar",
+               {voltarBtn.x + (voltarW - voltarSz.x) / 2,
+                voltarBtn.y + (voltarH - voltarSz.y) / 2},
+               14, 1, WHITE);
+
+    if (voltarHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      isMainMenuNight = false;
+    }
+  }
+
+  // Draw Cursor on top
+  float cursorSc = 0.20f;
+  DrawTextureEx(texCursor, mousePos, 0.0f, cursorSc, WHITE);
 }

@@ -1,9 +1,11 @@
 #pragma once
+#include "../utils/JsonHelpers.h"
 #include "raylib.h"
 #include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
+
 
 // Forward declarations
 struct City;
@@ -92,3 +94,8 @@ struct Kingdom {
 // ============================================================================
 Kingdom CreateKingdom(int id, const std::string &name, Color color,
                       int capitalCityID);
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Kingdom, id, name, color, leaderCitizenID,
+                                   capitalCityID, cityIDs, relations,
+                                   diplomaticStatus, totalAggression,
+                                   totalDiplomacy, isAlive, age)

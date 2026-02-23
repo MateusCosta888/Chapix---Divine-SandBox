@@ -1,12 +1,14 @@
 #pragma once
 #include "../resources/ResourceManager.h"    // Include ResourceManager
 #include "../simulation/SimulationManager.h" // Civilization simulation
+#include "../utils/JsonHelpers.h"
 #include "../utils/Random.h"
 #include "Entity.h" // Added
 #include "Tile.h"
 #include "raylib.h"
 #include <cstdint>
 #include <vector>
+
 
 class World {
 public:
@@ -51,7 +53,7 @@ public:
   Texture2D GetTextureForUI(EntityType type); // Added
 
   // Collision & Physics
-  bool IsWalkable(int x, int y) const;
+  bool IsWalkable(int x, int y, bool ignoreBuildings = false) const;
   bool IsSwimmable(int x, int y) const;
   float GetHeight(int x, int y) const;
 
@@ -64,6 +66,10 @@ public:
   // Access to SimulationManager for civilization system
   SimulationManager &GetSimulation() { return simulation; }
   const SimulationManager &GetSimulation() const { return simulation; }
+
+  // JSON serialization
+  friend void to_json(nlohmann::json &j, const World &w);
+  friend void from_json(const nlohmann::json &j, World &w);
 
 private:
   int width;

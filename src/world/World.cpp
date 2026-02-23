@@ -112,7 +112,7 @@ TileType GetTerrainForBiome(BiomeType biome, float height) {
   return TileType::Grass;
 }
 
-bool World::IsWalkable(int x, int y) const {
+bool World::IsWalkable(int x, int y, bool ignoreBuildings) const {
   if (x < 0 || x >= width || y < 0 || y >= height)
     return false;
   const Tile &t = tiles[y * width + x];
@@ -138,16 +138,13 @@ bool World::IsWalkable(int x, int y) const {
       t.decoration == DecorationType::BigRock ||
       t.decoration == DecorationType::SmallRock ||
       t.decoration == DecorationType::MediumRock ||
-      t.decoration == DecorationType::Crystal ||
-      t.decoration == DecorationType::Cactus ||
-      t.decoration == DecorationType::DesertPlant) {
+      t.decoration == DecorationType::Bush) {
     return false;
   }
 
-  // Check building occupation
-  if (t.isOccupied) {
+  // Check if there is a building
+  if (!ignoreBuildings && t.isOccupied)
     return false;
-  }
 
   return true;
 }
@@ -1115,7 +1112,7 @@ void World::UpdateEntities(float deltaTime) {
         if (rng_.Int(0, 10) > 1) { // Move 80% of time
           Vector2 next = Vector2Add(
               e.position, Vector2Scale(dir, e.speed * 0.5f * deltaTime));
-          if (IsWalkable((int)next.x, (int)next.y))
+          if (IsWalkable((int)next.x, (int)next.y, true))
             e.position = next;
           else {
             // Hit wall, turn
@@ -1429,11 +1426,11 @@ void World::UpdateEntities(float deltaTime) {
               "ANIMAL DEBUG: speed: %f, dir: %f, %f. pos.x: %f, next.x: %f "
               "walkable: %d",
               e.speed, dir.x, dir.y, e.position.x, next.x,
-              IsWalkable((int)next.x, (int)next.y));
+              IsWalkable((int)next.x, (int)next.y, true));
         }
       }
 
-      if (IsWalkable((int)next.x, (int)next.y)) {
+      if (IsWalkable((int)next.x, (int)next.y, true)) {
         e.position = next;
       } else {
         // Hit wall, bounce to a different direction
@@ -1453,4 +1450,19 @@ void World::UpdateEntities(float deltaTime) {
       }
     }
   }
+}
+
+void to_json(nlohmann::json &j, const World &w) {
+  j = nlohmann::json{{"width", w.width},       {"height", w.height},
+                     {"seed", w.seed_},        {"tiles", w.tiles},
+                     {"entities", w.entities}, {"simulation", w.simulation}};
+}
+
+void from_json(const nlohmann::json &j, World &w) {
+  j.at("width").get_to(w.width);
+  j.at("height").get_to(w.height);
+  j.at("seed").get_to(w.seed_);
+  j.at("tiles").get_to(w.tiles);
+  j.at("entities").get_to(w.entities);
+  j.at("simulation").get_to(w.simulation);
 }

@@ -1,8 +1,10 @@
 #ifndef TILE_H
 #define TILE_H
 
+#include "../utils/JsonHelpers.h"
 #include "raylib.h"
 #include <cstdint>
+
 
 // Biome Types - Determines regional climate and allowed terrain
 enum class BiomeType {
@@ -92,5 +94,11 @@ struct Tile {
   // Collision
   bool isOccupied = false; // If true, entities cannot walk here (Building/Wall)
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(
+    Tile, type, biome, decoration, decorationVariant, variant, height,
+    temperature, humidity, resourceAmount, biomeDistance, edgeMask, hasRiver,
+    liquidLevel, isPlanted, growthProgress, farmOwnerCityID, hasStump,
+    regrowthTimer, stumpVariant, originalTree, ownerCityID, isOccupied)
 
 #endif // TILE_H

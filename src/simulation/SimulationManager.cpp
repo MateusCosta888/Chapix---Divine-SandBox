@@ -272,6 +272,24 @@ float SimulationManager::ScoreTileForCity(World &world, int x, int y) const {
   return score;
 }
 
+static std::string GenerateRandomCityName() {
+  const char *prefixes[] = {"Nova ", "Old ",   "Fort ",  "Port ",
+                            "San ",  "Saint ", "Mount ", ""};
+  const char *roots[] = {"Valer", "Gond",  "Atlant", "Cam",   "Dor",
+                         "Troj",  "Babyl", "Rom",    "Athen", "Spart",
+                         "Karn",  "Lorn",  "Morn",   "Riv",   "Val"};
+  const char *suffixes[] = {"ia", "or",   "is",   "elot",  "ado",
+                            "y",  "grad", "burg", "ville", "ton"};
+
+  std::string name = "";
+  if (rand() % 4 == 0) {
+    name += prefixes[rand() % (sizeof(prefixes) / sizeof(prefixes[0]))];
+  }
+  name += roots[rand() % (sizeof(roots) / sizeof(roots[0]))];
+  name += suffixes[rand() % (sizeof(suffixes) / sizeof(suffixes[0]))];
+  return name;
+}
+
 // ============================================================================
 // CITY FOUNDING
 // ============================================================================
@@ -284,7 +302,7 @@ int SimulationManager::FoundCity(World &world, int founderCitizenID, int x,
                      255};
 
   City city = CreateCity(-1, {static_cast<float>(x), static_cast<float>(y)},
-                         "Settlement " + std::to_string(nextCityID), cityColor);
+                         GenerateRandomCityName(), cityColor);
   int cityID = AddCity(city);
 
   // Assign founder to city

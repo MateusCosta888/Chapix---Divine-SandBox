@@ -1,10 +1,12 @@
 #pragma once
+#include "../utils/JsonHelpers.h"
 #include "Building.h"
 #include "raylib.h"
 #include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
+
 
 // Forward declarations
 struct Citizen;
@@ -73,3 +75,12 @@ struct City {
 // HELPER FUNCTIONS
 // ============================================================================
 City CreateCity(int id, Vector2 center, const std::string &name, Color color);
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(CityResources, food, wood, stone, ore, gold)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(City, id, name, color, flagID, center,
+                                   kingdomID, citizenIDs, populationCap,
+                                   territory, territoryRadius, resources,
+                                   maxStorage, buildings, cultureAggression,
+                                   cultureDiplomacy, cultureExpansion,
+                                   cultureIndustry, cultureReligion, techLevel,
+                                   knowledgePoints, isAlive, age)

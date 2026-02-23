@@ -1,5 +1,7 @@
 #pragma once
+#include "../utils/JsonHelpers.h"
 #include "raylib.h"
+
 
 // Forward declaration for citizen data
 struct Citizen;
@@ -50,3 +52,8 @@ struct Entity {
            type == EntityType::HumanWoman;
   }
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Entity, id, type, position, state,
+                                   facingDirection, speed, health, animTime,
+                                   currentFrame, hasTarget, targetPos,
+                                   citizenID)
