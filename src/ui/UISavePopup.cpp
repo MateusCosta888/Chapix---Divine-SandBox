@@ -241,8 +241,8 @@ void UIManager::DrawOptionsPopup() {
   // Dim background
   DrawRectangle(0, 0, (int)sw, (int)sh, ColorAlpha(BLACK, 0.5f));
 
-  // Popup dimensions
-  float popW = 420, popH = 280;
+  // Popup dimensions (taller to fit new controls)
+  float popW = 420, popH = 480;
   float popX = (sw - popW) / 2;
   float popY = (sh - popH) / 2;
 
@@ -282,10 +282,10 @@ void UIManager::DrawOptionsPopup() {
 
   // Knob
   float knobX = sliderX + fillW - 6;
-  float knobY = sliderY - 4;
+  float knobY2 = sliderY - 4;
   float knobW = 12, knobH = sliderH + 8;
-  DrawRectangle((int)knobX, (int)knobY, (int)knobW, (int)knobH, WHITE);
-  DrawRectangleLinesEx({knobX, knobY, knobW, knobH}, 1, DARKGRAY);
+  DrawRectangle((int)knobX, (int)knobY2, (int)knobW, (int)knobH, WHITE);
+  DrawRectangleLinesEx({knobX, knobY2, knobW, knobH}, 1, DARKGRAY);
 
   // Slider interaction (click or drag)
   Rectangle sliderRect = {sliderX, sliderY - 8, sliderW, sliderH + 16};
@@ -299,10 +299,95 @@ void UIManager::DrawOptionsPopup() {
     AudioManager::Get().SetMusicVolume(newVol);
   }
 
+  // === DISPLAY SECTION ===
+  float sectionY = sliderY + sliderH + 30;
+  DrawTextEx(uiFont, "Tela", {sliderX, sectionY}, 18, 1, GOLD);
+  sectionY += 28;
+
+  // --- Fullscreen Toggle ---
+  bool isFullscreen = isBorderlessFullscreen;
+  float fsBtnW = sliderW, fsBtnH = 32;
+  Rectangle fsBtn = {sliderX, sectionY, fsBtnW, fsBtnH};
+  bool fsHover = CheckCollisionPointRec(mousePos, fsBtn);
+
+  Color fsBg = isFullscreen ? ColorAlpha(GREEN, 0.3f) : ColorAlpha(GRAY, 0.3f);
+  if (fsHover)
+    fsBg = isFullscreen ? ColorAlpha(GREEN, 0.5f) : ColorAlpha(GRAY, 0.5f);
+  DrawRectangleRec(fsBtn, fsBg);
+  DrawRectangleLinesEx(fsBtn, 1, isFullscreen ? GREEN : GRAY);
+
+  const char *fsLabel = isFullscreen ? "Tela Cheia: LIGADO" : "Tela Cheia: DESLIGADO";
+  Vector2 fsSz = MeasureTextEx(uiFont, fsLabel, 14, 1);
+  DrawTextEx(uiFont, fsLabel,
+             {fsBtn.x + (fsBtnW - fsSz.x) / 2,
+              fsBtn.y + (fsBtnH - fsSz.y) / 2},
+             14, 1, WHITE);
+
+  if (fsHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    isBorderlessFullscreen = !isBorderlessFullscreen;
+    ToggleBorderlessWindowed();
+  }
+
+  // --- Resolution Presets ---
+  sectionY += fsBtnH + 20;
+  DrawTextEx(uiFont, "Resolucao (modo janela)", {sliderX, sectionY}, 14, 1,
+             isFullscreen ? DARKGRAY : WHITE);
+  sectionY += 22;
+
+  struct ResPreset {
+    int w, h;
+    const char *label;
+  };
+  ResPreset presets[] = {
+      {1280, 720, "1280 x 720 (HD)"},
+      {1366, 768, "1366 x 768"},
+      {1600, 900, "1600 x 900"},
+      {1920, 1080, "1920 x 1080 (Full HD)"},
+  };
+  int numPresets = 4;
+  int curW = GetScreenWidth();
+  int curH = GetScreenHeight();
+
+  for (int i = 0; i < numPresets; i++) {
+    float resBtnW = sliderW, resBtnH = 28;
+    Rectangle resBtn = {sliderX, sectionY + i * (resBtnH + 6), resBtnW,
+                        resBtnH};
+    bool resHover =
+        !isFullscreen && CheckCollisionPointRec(mousePos, resBtn);
+
+    bool isActive = (curW == presets[i].w && curH == presets[i].h);
+    Color resBg = isActive ? ColorAlpha(GOLD, 0.3f) : ColorAlpha(GRAY, 0.2f);
+    if (isFullscreen)
+      resBg = ColorAlpha(DARKGRAY, 0.15f);
+    else if (resHover)
+      resBg = ColorAlpha(GOLD, 0.2f);
+
+    DrawRectangleRec(resBtn, resBg);
+    DrawRectangleLinesEx(resBtn, 1,
+                         isActive ? GOLD : (isFullscreen ? DARKGRAY : GRAY));
+
+    Color txtCol = isFullscreen ? DARKGRAY : (isActive ? GOLD : WHITE);
+    Vector2 resSz = MeasureTextEx(uiFont, presets[i].label, 13, 1);
+    DrawTextEx(uiFont, presets[i].label,
+               {resBtn.x + (resBtnW - resSz.x) / 2,
+                resBtn.y + (resBtnH - resSz.y) / 2},
+               13, 1, txtCol);
+
+    if (resHover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !isFullscreen) {
+      SetWindowSize(presets[i].w, presets[i].h);
+      // Center window on monitor
+      int mon = GetCurrentMonitor();
+      int mw = GetMonitorWidth(mon);
+      int mh = GetMonitorHeight(mon);
+      SetWindowPosition((mw - presets[i].w) / 2, (mh - presets[i].h) / 2);
+      selectedResolution = i;
+    }
+  }
+
   // === CLOSE BUTTON ===
   float btnW = 160, btnH = 36;
   float btnX = popX + (popW - btnW) / 2;
-  float btnY = popY + popH - 60;
+  float btnY = popY + popH - 50;
   Rectangle closeBtn = {btnX, btnY, btnW, btnH};
   bool closeHover = CheckCollisionPointRec(mousePos, closeBtn);
 

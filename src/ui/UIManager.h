@@ -82,6 +82,8 @@ private:
 
   // Options Popup State
   bool showOptionsPopup = false;
+  int selectedResolution = -1; // -1 = current/custom, 0-3 = preset index
+  bool isBorderlessFullscreen = false; // Track borderless state manually
 
   // PergaminhoBackgod (Save UI) 9-Slice Textures
   Texture2D texPergaminhoTL, texPergaminhoTC, texPergaminhoTR;

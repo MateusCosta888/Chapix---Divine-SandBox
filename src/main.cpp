@@ -13,8 +13,6 @@
 #include <vector>
 
 // UI Constants (Keep for InitWindow)
-const int SCREEN_WIDTH = 1024;
-const int SCREEN_HEIGHT = 768;
 const int TOOLBAR_HEIGHT = 100;
 const int TAB_HEIGHT = 30;
 
@@ -26,8 +24,17 @@ int main(int argc, char *argv[]) {
   CrashHandler::Init();
   CrashHandler::SetGameContext("Initializing");
 
-  // Start in 1920x1080 window (16:9)
-  InitWindow(1920, 1080, "ChapiX - Divine SandBox");
+  // Dynamic resolution: detect monitor and adapt
+  SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+  InitWindow(800, 600, "ChapiX - Divine SandBox"); // Temp size, resized below
+  int monitor = GetCurrentMonitor();
+  int monW = GetMonitorWidth(monitor);
+  int monH = GetMonitorHeight(monitor);
+  int winW = (int)(monW * 0.85f);
+  int winH = (int)(monH * 0.85f);
+  SetWindowSize(winW, winH);
+  SetWindowMinSize(800, 600);
+  SetWindowPosition((monW - winW) / 2, (monH - winH) / 2);
   SetTargetFPS(60);
 
   // Initialize audio
@@ -142,11 +149,13 @@ int main(int argc, char *argv[]) {
 
         world.Update();
         world.UpdateAnimation(GetFrameTime());
+        world.UpdateSpawnEffects(GetFrameTime());
 
         ClearBackground(GetColor(0x1a1a2eFF));
 
         BeginMode2D(camera);
         worldRenderer.Draw(camera, &world.GetSimulation().GetCities());
+        world.DrawSpawnEffects(); // Spawn particles in world space
 
         // Brush Preview
         if (!ui.IsPointerOnUI() && !ui.IsBrushPopupOpen()) {

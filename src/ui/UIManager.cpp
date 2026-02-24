@@ -442,6 +442,7 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
             Tile &t = world.GetTile(nx, ny);
             if (t.type != types[selectedToolIndex]) {
               world.SetTileType(nx, ny, types[selectedToolIndex]);
+              world.AddSpawnEffect(nx, ny, {100, 200, 255, 255});
             }
           } else {
             // Eraser
@@ -468,9 +469,33 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
               DecorationType::PalmTree, DecorationType::Bush,
               DecorationType::Flower,   DecorationType::Mushroom};
           if (selectedToolIndex < 6) {
-            Tile &t = world.GetTile(nx, ny);
-            if (t.decoration != decs[selectedToolIndex]) {
+            // --- SCATTER PLACEMENT for large brushes ---
+            if (size > 1) {
+              // Density: small items (flowers/mushrooms) = 40%, others = 30%
+              int density = (selectedToolIndex >= 4) ? 40 : 30;
+              if ((rand() % 100) >= density)
+                continue; // Skip this tile randomly
+
+              // Skip water/snow tiles
+              Tile &t = world.GetTile(nx, ny);
+              if (t.type == TileType::DeepOcean || t.type == TileType::Ocean ||
+                  t.type == TileType::ShallowOcean ||
+                  t.type == TileType::Snow)
+                continue;
+
+              // Skip if already has a decoration
+              if (t.decoration != DecorationType::None)
+                continue;
+
               world.SetTileDecoration(nx, ny, decs[selectedToolIndex]);
+              world.AddSpawnEffect(nx, ny, {80, 220, 100, 255});
+            } else {
+              // Single brush: exact placement
+              Tile &t = world.GetTile(nx, ny);
+              if (t.decoration != decs[selectedToolIndex]) {
+                world.SetTileDecoration(nx, ny, decs[selectedToolIndex]);
+                world.AddSpawnEffect(nx, ny, {80, 220, 100, 255});
+              }
             }
           } else {
             // Eraser
@@ -482,9 +507,32 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
           DecorationType decs[] = {DecorationType::Rock,
                                    DecorationType::BigRock};
           if (selectedToolIndex < 2) {
-            Tile &t = world.GetTile(nx, ny);
-            if (t.decoration != decs[selectedToolIndex]) {
+            // --- SCATTER PLACEMENT for large brushes ---
+            if (size > 1) {
+              // Rocks are bulky: 20% density for natural look
+              int density = (selectedToolIndex == 0) ? 25 : 15; // BigRock rarer
+              if ((rand() % 100) >= density)
+                continue;
+
+              // Skip water tiles
+              Tile &t = world.GetTile(nx, ny);
+              if (t.type == TileType::DeepOcean || t.type == TileType::Ocean ||
+                  t.type == TileType::ShallowOcean)
+                continue;
+
+              // Skip if already has a decoration
+              if (t.decoration != DecorationType::None)
+                continue;
+
               world.SetTileDecoration(nx, ny, decs[selectedToolIndex]);
+              world.AddSpawnEffect(nx, ny, {180, 180, 180, 255});
+            } else {
+              // Single brush: exact placement
+              Tile &t = world.GetTile(nx, ny);
+              if (t.decoration != decs[selectedToolIndex]) {
+                world.SetTileDecoration(nx, ny, decs[selectedToolIndex]);
+                world.AddSpawnEffect(nx, ny, {180, 180, 180, 255});
+              }
             }
           } else {
             // Eraser
@@ -493,20 +541,46 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
               world.SetTileDecoration(nx, ny, DecorationType::None);
           }
         } else if (currentTab == UIState::Creatures) {
-          // Creature Placement
-          EntityType creatureTypesForPlacement[] = {
-              EntityType::HumanUnarmed, EntityType::Boar,  EntityType::Cow,
-              EntityType::Chicken,      EntityType::Sheep, EntityType::Bull,
-              EntityType::Chicken2,     EntityType::Lamb,  EntityType::Pig,
-              EntityType::Turkey};
+          // Creature Placement - handled separately below
+        }
+      }
+    }
 
-          // Updated size to 10
-          if (selectedToolIndex >= 0 && selectedToolIndex < 10) {
-            // Only place on click (not hold) to avoid spamming
-            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-              world.AddEntity(creatureTypesForPlacement[selectedToolIndex],
-                              {(float)nx + 0.5f, (float)ny + 0.5f});
-            }
+    // === CREATURE SCATTER (separate loop for controlled count) ===
+    if (currentTab == UIState::Creatures) {
+      EntityType creatureTypesForPlacement[] = {
+          EntityType::HumanUnarmed, EntityType::Boar,  EntityType::Cow,
+          EntityType::Chicken,      EntityType::Sheep, EntityType::Bull,
+          EntityType::Chicken2,     EntityType::Lamb,  EntityType::Pig,
+          EntityType::Turkey};
+
+      if (selectedToolIndex >= 0 && selectedToolIndex < 10 &&
+          IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if (size <= 1) {
+          // Single brush: exact placement
+          if (tx >= padding && tx < world.GetWidth() - padding &&
+              ty >= padding && ty < world.GetHeight() - padding) {
+            world.AddEntity(creatureTypesForPlacement[selectedToolIndex],
+                            {(float)tx + 0.5f, (float)ty + 0.5f});
+            world.AddSpawnEffect(tx, ty, {255, 215, 0, 255});
+          }
+        } else {
+          // Large brush: spawn 1-3 creatures at random spots
+          int count = 1 + (rand() % 3);
+          for (int c = 0; c < count; c++) {
+            int rx = tx + start + (rand() % (end - start + 1));
+            int ry = ty + start + (rand() % (end - start + 1));
+            if (rx < padding || rx >= world.GetWidth() - padding ||
+                ry < padding || ry >= world.GetHeight() - padding)
+              continue;
+            // Only spawn on walkable land
+            if (!world.IsWalkable(rx, ry))
+              continue;
+            world.AddEntity(
+                creatureTypesForPlacement[selectedToolIndex],
+                {(float)rx + 0.5f + (float)(rand() % 5) / 10.0f - 0.25f,
+                 (float)ry + 0.5f + (float)(rand() % 5) / 10.0f - 0.25f});
+            world.AddSpawnEffect(rx, ry, {255, 215, 0, 255});
           }
         }
       }

@@ -1491,6 +1491,104 @@ void World::UpdateEntities(float deltaTime) {
   }
 }
 
+// ============================================================================
+// SPAWN EFFECT SYSTEM
+// ============================================================================
+
+void World::AddSpawnEffect(int tileX, int tileY, Color color) {
+  // Rate limit to avoid too many effects
+  if (spawnEffects.size() > 100)
+    return;
+
+  SpawnEffect fx;
+  fx.worldX = tileX * 10.0f + 5.0f;
+  fx.worldY = tileY * 10.0f + 5.0f;
+  fx.timer = 0.0f;
+  fx.duration = 0.6f;
+  fx.scale = 0.0f;
+
+  // Create 6-10 sparkle particles
+  int numParticles = 6 + (rand() % 5);
+  for (int i = 0; i < numParticles; i++) {
+    SpawnParticle p;
+    float angle = (float)(rand() % 360) * DEG2RAD;
+    float dist = (float)(rand() % 40) / 10.0f;
+    p.pos = {fx.worldX + cosf(angle) * dist, fx.worldY + sinf(angle) * dist};
+
+    float speed = 8.0f + (float)(rand() % 20);
+    p.velocity = {cosf(angle) * speed, -5.0f - (float)(rand() % 15)};
+
+    p.maxLife = 0.3f + (float)(rand() % 50) / 100.0f;
+    p.lifetime = p.maxLife;
+
+    p.color = color;
+    p.color.r =
+        (unsigned char)std::min(255, (int)color.r + (rand() % 60 - 30));
+    p.color.g =
+        (unsigned char)std::min(255, (int)color.g + (rand() % 60 - 30));
+    p.color.b =
+        (unsigned char)std::min(255, (int)color.b + (rand() % 60 - 30));
+    p.color.a = 255;
+
+    p.size = 1.0f + (float)(rand() % 20) / 10.0f;
+
+    fx.particles.push_back(p);
+  }
+
+  spawnEffects.push_back(fx);
+}
+
+void World::UpdateSpawnEffects(float dt) {
+  for (auto it = spawnEffects.begin(); it != spawnEffects.end();) {
+    it->timer += dt;
+
+    // Scale-in animation
+    if (it->timer < 0.15f) {
+      it->scale = it->timer / 0.15f;
+    } else {
+      it->scale = 1.0f;
+    }
+
+    // Update particles
+    for (auto &p : it->particles) {
+      p.pos.x += p.velocity.x * dt;
+      p.pos.y += p.velocity.y * dt;
+      p.velocity.y += 20.0f * dt; // Gravity
+      p.lifetime -= dt;
+      p.size = std::max(0.0f, p.size - dt * 2.0f);
+    }
+
+    // Remove expired effects
+    if (it->timer >= it->duration) {
+      it = spawnEffects.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+void World::DrawSpawnEffects() const {
+  for (const auto &fx : spawnEffects) {
+    // Draw particles
+    for (const auto &p : fx.particles) {
+      if (p.lifetime <= 0.0f)
+        continue;
+      float alpha = p.lifetime / p.maxLife;
+      Color c = p.color;
+      c.a = (unsigned char)(alpha * 255.0f);
+      DrawCircleV(p.pos, p.size, c);
+    }
+
+    // Draw a scale-in ring at spawn point
+    if (fx.timer < 0.3f) {
+      float ringAlpha = 1.0f - (fx.timer / 0.3f);
+      float ringRadius = 3.0f + fx.timer * 25.0f;
+      Color ringColor = {255, 255, 200, (unsigned char)(ringAlpha * 120.0f)};
+      DrawCircleLines((int)fx.worldX, (int)fx.worldY, ringRadius, ringColor);
+    }
+  }
+}
+
 void to_json(nlohmann::json &j, const World &w) {
   j = nlohmann::json{{"width", w.width},       {"height", w.height},
                      {"seed", w.seed_},        {"tiles", w.tiles},

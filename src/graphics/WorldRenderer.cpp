@@ -776,11 +776,13 @@ void WorldRenderer::Draw(const Camera2D &camera,
     }
   }
 
-  // SORT
-  std::sort(items.begin(), items.end(),
-            [](const RenderItem &a, const RenderItem &b) {
-              return a.sortY < b.sortY;
-            });
+  // SORT (stable sort + X tiebreaker to prevent Z-fighting flicker)
+  std::stable_sort(items.begin(), items.end(),
+                   [](const RenderItem &a, const RenderItem &b) {
+                     if (a.sortY != b.sortY)
+                       return a.sortY < b.sortY;
+                     return a.dest.x < b.dest.x; // Tiebreaker
+                   });
 
   // DRAW
   for (const auto &item : items) {

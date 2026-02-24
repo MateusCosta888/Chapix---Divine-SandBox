@@ -9,6 +9,24 @@
 #include <cstdint>
 #include <vector>
 
+// === SPAWN EFFECT SYSTEM ===
+struct SpawnParticle {
+  Vector2 pos;      // World position (pixels)
+  Vector2 velocity; // Movement direction
+  float lifetime;   // Remaining life
+  float maxLife;    // Initial life (for alpha calc)
+  Color color;
+  float size;
+};
+
+struct SpawnEffect {
+  float worldX, worldY;             // Tile center in world pixels
+  float timer;                      // Time since spawn
+  float duration;                   // Total effect duration
+  float scale;                      // Current scale (0->1 for pop-in)
+  std::vector<SpawnParticle> particles;
+};
+
 class World {
 public:
   // Constructor now accepts optional seed (default random)
@@ -67,6 +85,14 @@ public:
   SimulationManager &GetSimulation() { return simulation; }
   const SimulationManager &GetSimulation() const { return simulation; }
 
+  // === SPAWN EFFECTS ===
+  void AddSpawnEffect(int tileX, int tileY, Color color);
+  void UpdateSpawnEffects(float dt);
+  void DrawSpawnEffects() const;
+  const std::vector<SpawnEffect> &GetSpawnEffects() const {
+    return spawnEffects;
+  }
+
   // JSON serialization
   friend void to_json(nlohmann::json &j, const World &w);
   friend void from_json(const nlohmann::json &j, World &w);
@@ -78,6 +104,9 @@ private:
   Random rng_;
   std::vector<Tile> tiles;
   std::vector<Entity> entities; // Added entities vector
+
+  // Spawn Effects
+  std::vector<SpawnEffect> spawnEffects;
 
   // Resource Manager instance
   ResourceManager resourceManager;
