@@ -3,8 +3,11 @@
 #include "../simulation/Citizen.h"
 #include "../simulation/City.h"
 #include "raylib.h"
+#include "raymath.h"
 #include <algorithm>
 #include <cmath>
+
+using namespace std;
 
 WorldRenderer::WorldRenderer(World &world) : world(world) {}
 
@@ -15,9 +18,19 @@ void WorldRenderer::Draw(const Camera2D &camera,
   int height = world.GetHeight();
   ResourceManager &resourceManager = world.GetResourceManager();
 
+  // CAMERA CULLING SETUP
+  Vector2 topLeft = GetScreenToWorld2D({0, 0}, camera);
+  Vector2 bottomRight = GetScreenToWorld2D(
+      {(float)GetScreenWidth(), (float)GetScreenHeight()}, camera);
+
+  int cullStartX = std::max(0, (int)(topLeft.x / tileSize) - 2);
+  int cullStartY = std::max(0, (int)(topLeft.y / tileSize) - 2);
+  int cullEndX = std::min(width, (int)(bottomRight.x / tileSize) + 2);
+  int cullEndY = std::min(height, (int)(bottomRight.y / tileSize) + 2);
+
   // PASS 1: Draw Terrain and Shadows
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
+  for (int y = cullStartY; y < cullEndY; y++) {
+    for (int x = cullStartX; x < cullEndX; x++) {
       Tile &tile = world.GetTile(x, y);
 
       // Check if this is an ocean tile with texture
@@ -48,13 +61,12 @@ void WorldRenderer::Draw(const Camera2D &camera,
           break;
         }
         case TileType::Forest: {
-          // Forest uses dedicated textures: floresta1 (60%), floresta2 (40%)
+          // Forest uses dedicated textures: forest1 (60%), forest2 (40%)
           int forestProb = tileHash % 100;
           if (forestProb < 60) {
-            tex = &resourceManager
-                       .texForest[0]; // 60% floresta1 (can have graminhas)
+            tex = &resourceManager.texForest[0];
           } else {
-            tex = &resourceManager.texForest[1]; // 40% floresta2
+            tex = &resourceManager.texForest[1];
           }
           break;
         }
@@ -291,8 +303,13 @@ void WorldRenderer::Draw(const Camera2D &camera,
   // PASS 2: Collect Renderable Items (Decorations & Entities)
   std::vector<RenderItem> items;
   if (resourceManager.IsLoaded()) {
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
+    int cullStartXpass2 = std::max(0, cullStartX - 2);
+    int cullStartYpass2 = std::max(0, cullStartY - 2);
+    int cullEndXpass2 = std::min(width, cullEndX + 2);
+    int cullEndYpass2 = std::min(height, cullEndY + 2);
+
+    for (int y = cullStartYpass2; y < cullEndYpass2; y++) {
+      for (int x = cullStartXpass2; x < cullEndXpass2; x++) {
         Tile &tile = world.GetTile(x, y);
 
         // Render stump if tile has one and no decoration

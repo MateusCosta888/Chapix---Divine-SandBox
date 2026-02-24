@@ -20,8 +20,17 @@ void World::Reset(uint32_t seed) {
   rng_ = Random(seed);
 }
 
-void World::LoadTextures() { resourceManager.Load(); }
+void World::ResizeAndGenerate(int newWidth, int newHeight) {
+  width = newWidth;
+  height = newHeight;
+  tiles.clear();
+  tiles.resize(width * height);
+  // Clear entities on new generation
+  entities.clear();
+  Generate();
+}
 
+void World::LoadTextures() { resourceManager.Load(); }
 void World::UnloadTextures() { resourceManager.Unload(); }
 
 void World::UpdateAnimation(float deltaTime) {
@@ -164,6 +173,10 @@ float World::GetHeight(int x, int y) const {
 }
 
 void World::Generate() {
+  // Clear all simulation data (citizens, cities, kingdoms, buildings)
+  // This prevents crashes when generating a new world after playing
+  simulation.Reset();
+
   // Create noise generators with different seeds for each layer
   Noise heightNoise(seed_);
   Noise tempNoise(seed_ + 1000);     // Offset seed for variation
@@ -761,26 +774,32 @@ void World::SetTileType(int x, int y, TileType newType) {
 
   UpdateNeighborsEdgeMask(x, y);
 
-  // Default: Kill entities on this tile if it becomes water
-  // unless they are aquatic (which we don't have yet, except maybe future
-  // boats)
-  if (IsSwimmable(x, y)) {
+  // When water is placed, destroy EVERYTHING on that tile
+  bool isWater =
+      (newType == TileType::DeepOcean || newType == TileType::Ocean ||
+       newType == TileType::ShallowOcean);
+  if (isWater) {
+    // 1. Remove decorations and resources
+    tile.decoration = DecorationType::None;
+    tile.resourceAmount = 0.0f;
+    tile.hasStump = false;
+    tile.regrowthTimer = 0.0f;
+    tile.originalTree = DecorationType::None;
+
+    // Clear farming data
+    tile.isPlanted = false;
+    tile.growthProgress = 0.0f;
+    tile.farmOwnerCityID = -1;
+
+    // 2. Remove buildings on this tile
+    simulation.DestroyBuildingsAtTile(x, y);
+    tile.isOccupied = false;
+
+    // 3. Kill all entities on this tile (humans and animals)
     for (auto &e : entities) {
-      // Check if entity is on this tile
       if ((int)e.position.x == x && (int)e.position.y == y) {
-        // If entity is terrestrial, kill it
-        if (!e.IsIntelligent() && e.type != EntityType::Boar) {
-          // Animals - instant death or drown anim?
-          // For now, simple death state
-          e.health = 0;
-          e.state = EntityState::Die;
-        } else if (e.IsIntelligent()) {
-          // Humans - perhaps they can swim?
-          // User said "not possible to walk on water" and "die if ground turns
-          // to water" So we kill them.
-          e.health = 0;
-          e.state = EntityState::Die;
-        }
+        e.health = 0;
+        e.state = EntityState::Die;
       }
     }
   }
@@ -990,6 +1009,26 @@ void World::AddEntity(EntityType type, Vector2 pos) {
 void World::UpdateEntities(float deltaTime) {
   for (size_t i = 0; i < entities.size(); i++) {
     Entity &e = entities[i];
+
+    // === UNIVERSAL DEATH HANDLER ===
+    // Handles death for ALL entity types (animals, humans, etc.)
+    if (e.health <= 0 || e.state == EntityState::Die) {
+      e.state = EntityState::Die;
+      e.health = 0;
+      e.animTime += deltaTime;
+      if (e.animTime >= 0.2f) {
+        e.animTime = 0.0f;
+        e.currentFrame++;
+      }
+      if (e.currentFrame >= 4) {
+        // Remove citizen from simulation if this was an intelligent entity
+        if (e.IsIntelligent() && e.citizenID != -1) {
+          simulation.RemoveCitizen(e.citizenID);
+        }
+        entities.erase(entities.begin() + i--);
+      }
+      continue;
+    }
 
     // Basic AI
     // === BOAR AI ===

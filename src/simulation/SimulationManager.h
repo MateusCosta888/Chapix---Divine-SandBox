@@ -7,7 +7,6 @@
 #include <memory>
 #include <vector>
 
-
 // Forward declaration
 class World;
 
@@ -22,6 +21,9 @@ public:
 
   // === MAIN UPDATE LOOP ===
   void Update(World &world, float deltaTime);
+
+  // === RESET (clear all data for new game) ===
+  void Reset();
 
   // === CITIZEN MANAGEMENT ===
   int AddCitizen(const Citizen &citizen);
@@ -49,6 +51,12 @@ public:
   Building *GetBuilding(int id);
   const Building *GetBuilding(int id) const;
   void RemoveBuilding(int id);
+
+  // Destroy all buildings at a tile position (used when water covers a tile)
+  void DestroyBuildingsAtTile(int tileX, int tileY);
+
+  // Access all buildings
+  const std::map<int, Building> &GetAllBuildings() const { return buildings; }
 
   // Helper to sync collision for existing buildings (e.g. after load)
   void RebuildOccupationMap(World &world);

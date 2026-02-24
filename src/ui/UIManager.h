@@ -2,6 +2,7 @@
 #include "../core/TimeManager.h"
 #include "../world/World.h"
 #include "raylib.h"
+#include <vector>
 
 // Enums moved from main.cpp
 // Enums moved from main.cpp
@@ -93,6 +94,28 @@ public:
   bool isMainMenuNight = false;
   bool shouldStartGame = false;
   bool shouldExitGame = false;
+
+  // Save Slot Action State
+  bool showSaveActionPopup = false;
+  bool showDeleteConfirmPopup = false;
+  int actionSlotID = -1;
+
+  // World Creator State
+  bool showWorldCreatorPopup = false;
+  int creatingSlotID = -1;
+  int newWorldBaseSize = 1;   // 0=Small(64), 1=Med(128), 2=Large(256)
+  int newWorldWaterLevel = 1; // 0=Low, 1=Normal, 2=High
+  int newWorldTreeLevel = 1;  // 0=Low, 1=Normal, 2=High
+
+  bool isSeedInputActive = false;
+  char newWorldSeedInput[32] = "\0";
+
+  // World Creator Assets & Anim state
+  Texture2D texCreatorBg;
+  std::vector<Texture2D> texPlanetAnim;
+  float planetAnimTimer = 0.0f;
+  int planetAnimFrame = 0;
+
   void UpdateMainMenu(World &world);
   void DrawMainMenu(const World &world);
 
@@ -177,6 +200,6 @@ private:
   void DrawSocialCityList(const World &world); // New Social Popup
   void DrawSavePopup(const World &world);      // New Save Menu
   void DrawFlagSelector(const World &world);   // Flag Selector UI
-  void DrawOptionsPopup();                      // Options/Settings Popup
+  void DrawOptionsPopup();                     // Options/Settings Popup
   void HandleInput(World &world, Camera2D &camera);
 };

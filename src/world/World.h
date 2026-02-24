@@ -9,7 +9,6 @@
 #include <cstdint>
 #include <vector>
 
-
 class World {
 public:
   // Constructor now accepts optional seed (default random)
@@ -17,6 +16,7 @@ public:
   ~World(); // Destructor to unload textures
 
   void Generate();
+  void ResizeAndGenerate(int newWidth, int newHeight);
   void Reset(uint32_t seed);
   void Update();                 // For future simulation steps
   void UpdateEntities(float dt); // Added
