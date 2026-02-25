@@ -41,6 +41,28 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         deltaTime * 0.05f *
         ageMultiplier; // ~0.2 years per second base (Slower aging)
     c.age += yearProgress;
+
+    // === PASSIVE XP (survival experience) ===
+    c.experience += deltaTime * 0.3f; // Small passive XP gain just for living
+
+    // === LEVEL UP CHECK (universal - catches all XP sources) ===
+    while (c.experience >= c.maxExperience) {
+      c.experience -= c.maxExperience;
+      c.level++;
+      c.maxExperience = 50.0f + (c.level * 25.0f); // Scales per level
+      // Stat boosts on level up
+      c.stats.strength += 0.5f;
+      c.stats.speed += 0.3f;
+      c.stats.endurance += 0.5f;
+      c.stats.intelligence += 0.3f;
+      c.maxHealth += 5.0f;
+      c.health = c.maxHealth; // Full heal on level up
+      c.maxCarryCapacity += 1; // Can carry more
+      TraceLog(LOG_INFO,
+               "LEVEL UP: Citizen %d reached level %d! (next: %.0f XP)",
+               c.id, c.level, c.maxExperience);
+    }
+
     if (c.age > c.genes.maxAge) {
       c.isAlive = false; // Died of old age
       if (myEntity) {
@@ -443,6 +465,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           c.skillWoodcutting += 0.5f; // Gain skill
           if (c.skillWoodcutting > 100.0f)
             c.skillWoodcutting = 100.0f;
+          c.experience += 15.0f; // XP for chopping a tree
 
           TraceLog(LOG_INFO,
                    "LUMBERJACK: Citizen %d chopped tree at (%d,%d), carrying "
@@ -716,6 +739,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
             c.skillFarming += 0.3f;
             if (c.skillFarming > 100.0f)
               c.skillFarming = 100.0f;
+            c.experience += 8.0f; // XP for planting crops
 
             TraceLog(LOG_INFO, "FARMER: Citizen %d planted crops at (%d,%d)",
                      c.id, c.targetTileX, c.targetTileY);
@@ -738,6 +762,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
             c.skillFarming += 0.5f;
             if (c.skillFarming > 100.0f)
               c.skillFarming = 100.0f;
+            c.experience += 12.0f; // XP for harvesting
 
             TraceLog(
                 LOG_INFO,
@@ -933,6 +958,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
               t.resourceAmount -= 1.0f;
               c.carryingResource += 1;
               c.skillMining += 0.2f;
+              c.experience += 5.0f; // XP for mining stone
 
               if (t.resourceAmount <= 0) {
                 t.decoration = DecorationType::None; // Destroyed
@@ -946,6 +972,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
             // Infinite mining on mountain tiles?
             c.carryingResource += 1;
             c.skillMining += 0.1f;
+            c.experience += 5.0f; // XP for mining mountain
           } else {
             // Rock disappeared
             c.workState = Citizen::WorkState::Idle;

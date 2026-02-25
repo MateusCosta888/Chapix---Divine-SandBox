@@ -52,51 +52,39 @@ void UIManager::DrawHumanPopup(const World &world) {
   int cw = texPopup2TL.width;
   int ch = texPopup2TL.height;
 
-  // --- TABS LOGIC ---
-  float tabW = 96; // User requested 96x32 stretched
+  // --- TABS (fixed position, no animation) ---
+  float tabW = 96;
   float tabH = 32;
-  float tabX = x - 30; // Initial X (partially hidden)
   float tabY = y + 80;
 
-  auto DrawTab = [&](int index, const char *icon) {
-    float currentTabX = tabX;
-    float targetX =
-        x - tabW - 14; // Hover: Pop out 14px (more distinct) -- x-110
+  auto DrawTab = [&](int index, const char *label) {
+    float rectY = tabY + index * (tabH + 10);
+    bool isActive = (humanWindowTab == index);
 
-    Rectangle tabRect = {currentTabX, tabY + index * (tabH + 10), tabW, tabH};
+    // Tab position: active sticks out a bit, inactive is tucked further inside
+    float tabX = isActive ? (x - tabW + 25) : (x - tabW + 50);
 
-    // Hover Animation
-    if (CheckCollisionPointRec(GetMousePosition(),
-                               {x - tabW - 20, tabRect.y, tabW + 50, tabH})) {
-      tabRect.x = Lerp(tabRect.x, targetX, 15.0f * GetFrameTime());
-      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        humanWindowTab = index;
-      }
-    } else {
-      // If active, fully visible (touch edge), else stick out more (x-80) but
-      // still tucked
-      float restX = (humanWindowTab == index) ? x - tabW : x - 80;
-      tabRect.x = Lerp(tabRect.x, restX, 10.0f * GetFrameTime());
+    Rectangle tabRect = {tabX, rectY, tabW, tabH};
 
-      // Snap to target if close to avoid jitter
-      if (fabs(tabRect.x - restX) < 0.5f)
-        tabRect.x = restX;
+    // Hover detection
+    bool isHovered = CheckCollisionPointRec(GetMousePosition(), tabRect);
+    if (isHovered && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      humanWindowTab = index;
     }
 
-    // Draw Tab Background (RedFlagButton) - Using DrawTexturePro
-    // Round to nearest pixel to avoid shimmering
-    Rectangle drawRect = {(float)(int)tabRect.x, (float)(int)tabRect.y,
-                          tabRect.width, tabRect.height};
+    // Color: active = white, hovered = light, inactive = dimmed
+    Color tint = isActive ? WHITE : (isHovered ? (Color){220, 220, 255, 255} : (Color){160, 160, 180, 255});
 
+    // Draw tab texture
     DrawTexturePro(
         texTabRedFlag,
         {0, 0, (float)texTabRedFlag.width, (float)texTabRedFlag.height},
-        drawRect, {0, 0}, 0.0f, WHITE);
+        {(float)(int)tabRect.x, (float)(int)tabRect.y, tabW, tabH},
+        {0, 0}, 0.0f, tint);
 
-    // Draw Icon/Text (Simple number for now or icon)
-    // Adjusted X offset to 25 (more to the left)
-    DrawText(TextFormat("%d", index + 1), (int)drawRect.x + 25,
-             (int)drawRect.y + 6, 20, WHITE);
+    // Draw label
+    DrawText(TextFormat("%d", index + 1), (int)tabRect.x + 25,
+             (int)tabRect.y + 6, 20, WHITE);
   };
 
   // Draw Tabs (behind window)
@@ -239,15 +227,49 @@ void UIManager::DrawHumanPopup(const World &world) {
     }
 
     contentY += 35;
-    // XP Bar Visual
+    // XP Bar Visual (with gradient color)
     float barWidth = 330.0f;
     float barX = x + (w - barWidth) / 2;
-
-    DrawRectangle(barX, contentY, barWidth, 15, BLACK);
     float xpPct = c->experience / c->maxExperience;
     if (xpPct > 1.0f)
       xpPct = 1.0f;
-    DrawRectangle(barX, contentY, (int)(barWidth * xpPct), 15, GREEN);
+    if (xpPct < 0.0f)
+      xpPct = 0.0f;
+
+    // Background
+    DrawRectangle(barX - 1, contentY - 1, barWidth + 2, 17, {40, 40, 40, 255});
+    DrawRectangle(barX, contentY, barWidth, 15, {20, 20, 30, 255});
+
+    // XP bar color gradient: red -> orange -> yellow -> green -> cyan
+    Color xpColor;
+    if (xpPct < 0.25f) {
+      xpColor = {220, 50, 50, 255}; // Red
+    } else if (xpPct < 0.5f) {
+      xpColor = {240, 150, 30, 255}; // Orange
+    } else if (xpPct < 0.75f) {
+      xpColor = {240, 220, 40, 255}; // Yellow
+    } else {
+      xpColor = {50, 220, 80, 255}; // Green
+    }
+
+    // Draw filled portion
+    int fillWidth = (int)(barWidth * xpPct);
+    if (fillWidth > 0) {
+      DrawRectangle(barX, contentY, fillWidth, 15, xpColor);
+      // Highlight on top half for shine effect
+      Color highlight = {(unsigned char)(xpColor.r + 40 > 255 ? 255 : xpColor.r + 40),
+                         (unsigned char)(xpColor.g + 40 > 255 ? 255 : xpColor.g + 40),
+                         (unsigned char)(xpColor.b + 40 > 255 ? 255 : xpColor.b + 40), 80};
+      DrawRectangle(barX, contentY, fillWidth, 6, highlight);
+    }
+
+    // Border
+    DrawRectangleLines(barX - 1, contentY - 1, barWidth + 2, 17, {100, 100, 120, 255});
+
+    // XP Text centered on bar
+    const char *xpText = TextFormat("%.0f / %.0f XP", c->experience, c->maxExperience);
+    int xpTextW = MeasureText(xpText, 12);
+    DrawText(xpText, (int)(barX + (barWidth - xpTextW) / 2), (int)contentY + 1, 12, WHITE);
     contentY += 30;
 
     // 2.5 STAMINA BAR
@@ -298,9 +320,19 @@ void UIManager::DrawHumanPopup(const World &world) {
                WHITE);
     contentY += 25;
 
-    // Quick sync: carryingResource to Slot 0 (Visual only for now)
-    c->inventory[0].type =
-        c->carryingResource > 0 ? 1 : 0; // Simplified type assumption
+    // Quick sync: carryingResource to Slot 0 based on profession
+    if (c->carryingResource > 0) {
+      if (c->profession == Profession::Lumberjack)
+        c->inventory[0].type = 1; // Wood
+      else if (c->profession == Profession::Miner)
+        c->inventory[0].type = 2; // Stone
+      else if (c->profession == Profession::Farmer)
+        c->inventory[0].type = 3; // Food
+      else
+        c->inventory[0].type = 1; // Default to wood
+    } else {
+      c->inventory[0].type = 0; // None
+    }
     c->inventory[0].amount = c->carryingResource;
 
     float invGridWidth = 170.0f;
@@ -312,10 +344,60 @@ void UIManager::DrawHumanPopup(const World &world) {
       DrawRectangleLines(slotX, slotY, 50, 50, LIGHTGRAY);
 
       if (c->inventory[i].amount > 0) {
-        DrawText(TextFormat("%d", c->inventory[i].amount), (int)slotX + 5,
-                 (int)slotY + 5, 20, WHITE);
-        // Draw Icon based on type (TODO: Real icons)
-        DrawCircle((int)slotX + 25, (int)slotY + 25, 10, BROWN);
+        int iconType = c->inventory[i].type;
+        int cx = (int)slotX + 25;
+        int cy = (int)slotY + 28;
+
+        if (iconType == 1) {
+          // === WOOD ICON (log) ===
+          Color logBrown = {139, 90, 43, 255};
+          Color logLight = {181, 126, 68, 255};
+          Color ringColor = {101, 60, 25, 255};
+          // Main log body (horizontal rectangle)
+          DrawRectangle(cx - 10, cy - 5, 20, 10, logBrown);
+          // Light top edge
+          DrawRectangle(cx - 10, cy - 5, 20, 3, logLight);
+          // Log end (circle on right side)
+          DrawCircle(cx + 10, cy, 6, logLight);
+          DrawCircleLines(cx + 10, cy, 6, ringColor);
+          // Wood rings inside the circle
+          DrawCircleLines(cx + 10, cy, 3, ringColor);
+          DrawCircle(cx + 10, cy, 1, ringColor);
+          // Bark outline
+          DrawRectangleLines(cx - 10, cy - 5, 20, 10, ringColor);
+        } else if (iconType == 2) {
+          // === STONE ICON (rock) ===
+          Color stoneGrey = {140, 140, 150, 255};
+          Color stoneLight = {180, 180, 190, 255};
+          Color stoneDark = {90, 90, 100, 255};
+          // Main rock shape (polygon via overlapping shapes)
+          DrawCircle(cx, cy, 9, stoneGrey);
+          DrawCircle(cx - 2, cy - 2, 7, stoneLight);
+          // Shadow/depth
+          DrawCircle(cx + 3, cy + 3, 5, stoneDark);
+          // Highlights
+          DrawRectangle(cx - 4, cy - 6, 3, 2, {210, 210, 220, 255});
+        } else if (iconType == 3) {
+          // === FOOD ICON (wheat) ===
+          Color stalkColor = {160, 130, 50, 255};
+          Color grainColor = {220, 190, 60, 255};
+          Color grainBright = {245, 215, 80, 255};
+          // Center stalk
+          DrawLine(cx, cy + 8, cx, cy - 6, stalkColor);
+          // Grain kernels (small ovals on each side)
+          DrawEllipse(cx - 3, cy - 4, 3, 2, grainColor);
+          DrawEllipse(cx + 3, cy - 4, 3, 2, grainColor);
+          DrawEllipse(cx - 3, cy - 1, 3, 2, grainColor);
+          DrawEllipse(cx + 3, cy - 1, 3, 2, grainColor);
+          DrawEllipse(cx, cy - 7, 3, 2, grainBright);
+          // Top grain
+          DrawEllipse(cx - 2, cy - 6, 2, 2, grainBright);
+          DrawEllipse(cx + 2, cy - 6, 2, 2, grainBright);
+        }
+
+        // Amount text (bottom-right corner of slot)
+        DrawText(TextFormat("%d", c->inventory[i].amount), (int)slotX + 30,
+                 (int)slotY + 34, 16, WHITE);
       }
     }
     contentY += 130;
