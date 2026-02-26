@@ -340,6 +340,8 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
         // Entity pos is in Grid Coords (e.g. 50.5), TileSize = 10.0f
         Vector2 entPosPx = {e.position.x * 10.0f, e.position.y * 10.0f};
         // Hitbox radius ~8px (almost full tile)
+        // Note: This O(N) spatial loop is fine for UI clicks as it happens
+        // rarely and spatial partitioned queries are out of scope.
         if (CheckCollisionPointCircle(worldPos, entPosPx, 8.0f)) {
           clickedCitizenID = e.citizenID;
           break;
@@ -479,8 +481,7 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
               // Skip water/snow tiles
               Tile &t = world.GetTile(nx, ny);
               if (t.type == TileType::DeepOcean || t.type == TileType::Ocean ||
-                  t.type == TileType::ShallowOcean ||
-                  t.type == TileType::Snow)
+                  t.type == TileType::ShallowOcean || t.type == TileType::Snow)
                 continue;
 
               // Skip if already has a decoration
@@ -589,6 +590,31 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
 }
 
 void UIManager::Draw(const World &world) {
+  // --- NOTIFICATION TRACKING ---
+  // Check for newly founded cities to spawn the notification popup
+  const auto &cities = world.GetSimulation().GetCities();
+  int maxCityID = -1;
+  const City *newestCity = nullptr;
+  for (const auto &pair : cities) {
+    if (pair.first > maxCityID) {
+      maxCityID = pair.first;
+      newestCity = &pair.second;
+    }
+  }
+
+  // If a new city was discovered (and it's not the initial boot load where
+  // lastKnown is -1)
+  if (lastKnownCityID != -1 && maxCityID > lastKnownCityID &&
+      newestCity != nullptr) {
+    AddNotification(TextFormat("Cidade Fundada: %s", newestCity->name.c_str()),
+                    newestCity->flagID);
+  }
+
+  // Set tracking variable to prevent showing again
+  if (maxCityID > lastKnownCityID) {
+    lastKnownCityID = maxCityID;
+  }
+
   Vector2 mousePos = GetMousePosition();
 
   DrawToolbar(world);
@@ -636,6 +662,11 @@ void UIManager::Draw(const World &world) {
     DrawFlagSelector(world);
   }
 
+  // Draw Profession Selector
+  if (showProfessionSelector) {
+    DrawProfessionSelector(world);
+  }
+
   // Draw Save Popup
   if (showSavePopup) {
     DrawSavePopup(world);
@@ -646,6 +677,123 @@ void UIManager::Draw(const World &world) {
     DrawOptionsPopup();
   }
 
+  // Draw Active Notifications
+  DrawNotifications(world);
+
   // Draw Cursor (Always Top)
   DrawTextureEx(texCursor, mousePos, 0.0f, cursorScale, WHITE);
+}
+
+void UIManager::AddNotification(const std::string &text, int flagID) {
+  UINotification notif;
+  notif.text = text;
+  notif.iconFlagID = flagID;
+  notif.timer = 5.0f; // 5 seconds total lifespan
+  notif.maxTimer = 5.0f;
+  notif.yOffset =
+      activeNotifications.size() * 60.0f; // Stack slightly separated
+
+  activeNotifications.push_back(notif);
+}
+
+void UIManager::DrawNotifications(const World &world) {
+  float dt = GetFrameTime();
+  const ResourceManager &rm = world.GetResourceManager();
+
+  if (!rm.IsLoaded())
+    return;
+
+  Texture2D texLeft = const_cast<ResourceManager &>(rm).texNotifLeft;
+  Texture2D texMid = const_cast<ResourceManager &>(rm).texNotifMid;
+  Texture2D texRight = const_cast<ResourceManager &>(rm).texNotifRight;
+
+  // Clean up expired notifications
+  activeNotifications.erase(
+      std::remove_if(activeNotifications.begin(), activeNotifications.end(),
+                     [](const UINotification &n) { return n.timer <= 0.0f; }),
+      activeNotifications.end());
+
+  float topY = 100.0f; // Baseline: Below the calendar UI
+
+  for (size_t i = 0; i < activeNotifications.size(); i++) {
+    UINotification &n = activeNotifications[i];
+
+    // Update timer
+    n.timer -= dt;
+
+    // Dimensions
+    int textWidth = MeasureTextEx(uiFont, n.text.c_str(), 18, 1).x;
+    float iconWidth = 32.0f;
+    float spacing = 10.0f;
+    float totalContentWidth = iconWidth + spacing + textWidth;
+
+    // Dynamic Mid calculation
+    float leftW = texLeft.width;
+    float rightW = texRight.width;
+    float padding = 20.0f;
+    float midPartsNeeded =
+        std::ceil((totalContentWidth + padding) / texMid.width);
+    float renderedMidW = midPartsNeeded * texMid.width;
+
+    // Total physical width of the banner
+    float bannerWidth = leftW + renderedMidW + rightW;
+
+    // Animation Logic (Slide from right edge)
+    // 5.0s -> 4.5s (Slide in)
+    // 4.5s -> 0.5s (Hold)
+    // 0.5s -> 0.0s (Slide out)
+    float animProgress = 0.0f;
+    if (n.timer > n.maxTimer - 0.5f) {
+      // Sliding IN
+      animProgress = 1.0f - ((n.timer - (n.maxTimer - 0.5f)) / 0.5f);
+    } else if (n.timer < 0.5f) {
+      // Sliding OUT
+      animProgress = n.timer / 0.5f;
+    } else {
+      // Hold
+      animProgress = 1.0f;
+    }
+
+    // Lerp from Out of Screen to In Screen
+    float onScreenX = getScreenW() - bannerWidth - 20.0f;
+    float offScreenX = getScreenW() + 50.0f;
+    float startX = offScreenX + (onScreenX - offScreenX) * animProgress;
+
+    // Render Y Coordinate
+    // Target offset drops to 0 smoothly if elements below were erased
+    float targetOffset = i * 70.0f;
+    n.yOffset += (targetOffset - n.yOffset) * (dt * 5.0f); // Smooth catchup
+
+    float startY = topY + n.yOffset; // Stack downwards below calendar
+
+    // Draw the 3 splits
+    DrawTextureV(texLeft, {startX, startY}, WHITE);
+
+    float cx = startX + leftW;
+    for (int m = 0; m < midPartsNeeded; m++) {
+      DrawTextureV(texMid, {cx, startY}, WHITE);
+      cx += texMid.width;
+    }
+
+    DrawTextureV(texRight, {cx, startY}, WHITE);
+
+    // Draw Content
+    float contentX = startX + leftW + 5.0f;
+    float contentY = startY + texMid.height / 2.0f - 16.0f; // Centered vertical
+
+    // Draw Flag Icon
+    if (n.iconFlagID >= 0 && n.iconFlagID < (int)rm.cityFlags.size()) {
+      Texture2D flagTex =
+          const_cast<ResourceManager &>(rm).cityFlags[n.iconFlagID];
+      DrawTexturePro(flagTex,
+                     {0, 0, (float)flagTex.width, (float)flagTex.height},
+                     {contentX, contentY, iconWidth, 32.0f}, // Assume 32 height
+                     {0, 0}, 0.0f, WHITE);
+    }
+
+    // Draw Text
+    contentX += iconWidth + spacing;
+    DrawTextEx(uiFont, n.text.c_str(), {contentX, contentY + 6.0f}, 18, 1,
+               WHITE);
+  }
 }

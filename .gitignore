@@ -13,7 +13,10 @@ build_log*.txt
 
 # Build artifacts
 bin/
+build/
 compiler/
+compile_commands.json
+CMakeCache.txt
 
 # Save data
 saves/

@@ -73,14 +73,16 @@ void UIManager::DrawHumanPopup(const World &world) {
     }
 
     // Color: active = white, hovered = light, inactive = dimmed
-    Color tint = isActive ? WHITE : (isHovered ? (Color){220, 220, 255, 255} : (Color){160, 160, 180, 255});
+    Color tint = isActive ? WHITE
+                          : (isHovered ? (Color){220, 220, 255, 255}
+                                       : (Color){160, 160, 180, 255});
 
     // Draw tab texture
     DrawTexturePro(
         texTabRedFlag,
         {0, 0, (float)texTabRedFlag.width, (float)texTabRedFlag.height},
-        {(float)(int)tabRect.x, (float)(int)tabRect.y, tabW, tabH},
-        {0, 0}, 0.0f, tint);
+        {(float)(int)tabRect.x, (float)(int)tabRect.y, tabW, tabH}, {0, 0},
+        0.0f, tint);
 
     // Draw label
     DrawText(TextFormat("%d", index + 1), (int)tabRect.x + 25,
@@ -257,19 +259,23 @@ void UIManager::DrawHumanPopup(const World &world) {
     if (fillWidth > 0) {
       DrawRectangle(barX, contentY, fillWidth, 15, xpColor);
       // Highlight on top half for shine effect
-      Color highlight = {(unsigned char)(xpColor.r + 40 > 255 ? 255 : xpColor.r + 40),
-                         (unsigned char)(xpColor.g + 40 > 255 ? 255 : xpColor.g + 40),
-                         (unsigned char)(xpColor.b + 40 > 255 ? 255 : xpColor.b + 40), 80};
+      Color highlight = {
+          (unsigned char)(xpColor.r + 40 > 255 ? 255 : xpColor.r + 40),
+          (unsigned char)(xpColor.g + 40 > 255 ? 255 : xpColor.g + 40),
+          (unsigned char)(xpColor.b + 40 > 255 ? 255 : xpColor.b + 40), 80};
       DrawRectangle(barX, contentY, fillWidth, 6, highlight);
     }
 
     // Border
-    DrawRectangleLines(barX - 1, contentY - 1, barWidth + 2, 17, {100, 100, 120, 255});
+    DrawRectangleLines(barX - 1, contentY - 1, barWidth + 2, 17,
+                       {100, 100, 120, 255});
 
     // XP Text centered on bar
-    const char *xpText = TextFormat("%.0f / %.0f XP", c->experience, c->maxExperience);
+    const char *xpText =
+        TextFormat("%.0f / %.0f XP", c->experience, c->maxExperience);
     int xpTextW = MeasureText(xpText, 12);
-    DrawText(xpText, (int)(barX + (barWidth - xpTextW) / 2), (int)contentY + 1, 12, WHITE);
+    DrawText(xpText, (int)(barX + (barWidth - xpTextW) / 2), (int)contentY + 1,
+             12, WHITE);
     contentY += 30;
 
     // 2.5 STAMINA BAR
@@ -295,12 +301,9 @@ void UIManager::DrawHumanPopup(const World &world) {
                   staminaColor);
     contentY += 20;
 
-    // DEBUG INFO: Home & State
-    const char *homeText = (c->homeID == -1)
-                               ? "Homeless"
-                               : TextFormat("Home: Building %d", c->homeID);
-    DrawTextEx(uiFont, homeText, {x + 35, contentY}, 18, 1,
-               (c->homeID == -1) ? RED : LIGHTGRAY);
+    // DEBUG INFO: Age & State
+    const char *ageText = TextFormat("Age: %.0f", c->age);
+    DrawTextEx(uiFont, ageText, {x + 35, contentY}, 18, 1, LIGHTGRAY);
 
     const char *stateText = "State: Idle";
     if (c->isResting)
@@ -417,8 +420,19 @@ void UIManager::DrawHumanPopup(const World &world) {
 
     const char *profLabel = TextFormat("Profession: %s", prof);
     Vector2 profSize = MeasureTextEx(uiFont, profLabel, 20, 1);
-    DrawTextEx(uiFont, profLabel, {x + (w - profSize.x) / 2, contentY}, 20, 1,
-               YELLOW);
+    float profX = x + (w - profSize.x) / 2;
+    Rectangle profRect = {profX - 5, contentY - 2, profSize.x + 10, 24};
+
+    // Check click for Profissao popup
+    if (CheckCollisionPointRec(GetMousePosition(), profRect)) {
+      DrawRectangleRec(profRect, {255, 255, 255, 50});
+      DrawRectangleLinesEx(profRect, 1, YELLOW);
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        showProfessionSelector = true;
+      }
+    }
+
+    DrawTextEx(uiFont, profLabel, {profX, contentY}, 20, 1, YELLOW);
 
   } else if (humanWindowTab == 1) {
     // TAB 1: ABILITIES
@@ -545,4 +559,82 @@ void UIManager::DrawFlagSelector(const World &world) {
   }
 
   EndScissorMode();
+}
+
+void UIManager::DrawProfessionSelector(const World &world) {
+  auto &sim = const_cast<World &>(world).GetSimulation();
+  Citizen *c = sim.GetCitizen(popupCitizenID);
+
+  if (!c || !c->isAlive) {
+    showProfessionSelector = false;
+    return;
+  }
+
+  // Dimensions (smaller than flag selector)
+  float w = 300;
+  float h = 400;
+  float x = (getScreenW() - w) / 2;
+  float y = (getScreenH() - h) / 2;
+
+  // Background
+  DrawRectangle((int)x, (int)y, (int)w, (int)h, Fade(DARKBLUE, 0.95f));
+  DrawRectangleLines((int)x, (int)y, (int)w, (int)h, WHITE);
+
+  // Title
+  DrawTextEx(uiFont, "Select Profession", {x + 20, y + 20}, 24, 1, WHITE);
+
+  // Close Button
+  Rectangle closeBtn = {x + w - 30, y + 10, 20, 20};
+  DrawText("X", (int)closeBtn.x + 5, (int)closeBtn.y + 2, 20, RED);
+  if (CheckCollisionPointRec(GetMousePosition(), closeBtn) &&
+      IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+    showProfessionSelector = false;
+  }
+
+  // Profession List
+  std::vector<const char *> profs;
+  std::vector<Profession> typeMap;
+
+  if (c->isFemale) {
+    profs = {"Unemployed", "Farmer"};
+    typeMap = {Profession::None, Profession::Farmer};
+  } else {
+    profs = {"Unemployed", "Lumberjack", "Miner",
+             "Farmer",     "Builder",    "Soldier"};
+    typeMap = {Profession::None,   Profession::Lumberjack, Profession::Miner,
+               Profession::Farmer, Profession::Builder,    Profession::Soldier};
+  }
+
+  float contentY = y + 70;
+  float contentX = x + 20;
+
+  for (size_t i = 0; i < profs.size(); i++) {
+    Rectangle btnRect = {contentX, contentY, w - 40, 40};
+
+    // Highlight if selected
+    if (c->profession == typeMap[i]) {
+      DrawRectangleRec(btnRect, {255, 255, 0, 50}); // Yellow tint
+    }
+
+    // Hover logic
+    if (CheckCollisionPointRec(GetMousePosition(), btnRect)) {
+      DrawRectangleLinesEx(btnRect, 2, YELLOW);
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        c->profession = typeMap[i];
+
+        // Reset current working state effectively
+        c->workState = Citizen::WorkState::Idle;
+        c->isWorking = false;
+        c->carryingResource = 0; // Drop items when resetting class
+
+        showProfessionSelector = false;
+      }
+    } else {
+      DrawRectangleLinesEx(btnRect, 1, LIGHTGRAY);
+    }
+
+    // Text
+    DrawTextEx(uiFont, profs[i], {contentX + 10, contentY + 10}, 20, 1, WHITE);
+    contentY += 50;
+  }
 }

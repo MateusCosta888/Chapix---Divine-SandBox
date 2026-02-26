@@ -6,7 +6,6 @@
 #include <cmath>
 #include <cstdlib>
 
-
 // ============================================================================
 // UPDATE SUBSYSTEMS - CITIZEN AI
 // ============================================================================
@@ -25,14 +24,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       continue;
 
     // === FIND ENTITY ===
-    Entity *myEntity = nullptr;
-    std::vector<Entity> &entities = world.GetEntitiesMutable();
-    for (Entity &e : entities) {
-      if (e.citizenID == c.id) {
-        myEntity = &e;
-        break;
-      }
-    }
+    Entity *myEntity = world.GetEntityByCitizenID(c.id);
 
     // Age - much faster for gameplay!
     // Children age faster to become adults sooner (game-years per second)
@@ -56,11 +48,11 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       c.stats.endurance += 0.5f;
       c.stats.intelligence += 0.3f;
       c.maxHealth += 5.0f;
-      c.health = c.maxHealth; // Full heal on level up
+      c.health = c.maxHealth;  // Full heal on level up
       c.maxCarryCapacity += 1; // Can carry more
       TraceLog(LOG_INFO,
-               "LEVEL UP: Citizen %d reached level %d! (next: %.0f XP)",
-               c.id, c.level, c.maxExperience);
+               "LEVEL UP: Citizen %d reached level %d! (next: %.0f XP)", c.id,
+               c.level, c.maxExperience);
     }
 
     if (c.age > c.genes.maxAge) {
@@ -205,50 +197,48 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
     // Timeout for GoingToWork (stuck pathfinding or unreachable target)
     if (c.workState == Citizen::WorkState::GoingToWork &&
         c.stateTimer > 40.0f) {
-      c.workState = Citizen::WorkState::Idle;
+      c.workState = Citizen::WorkState::Wandering;
       c.isWorking = false;
       c.stateTimer = 0.0f;
-      // Force a random wander to break loops
-      c.workState = Citizen::WorkState::Wandering;
+      if (myEntity) {
+        myEntity->hasTarget = false;
+        myEntity->state = EntityState::Idle;
+      }
       TraceLog(LOG_INFO,
                "SIMULATION: Citizen %d stuck GoingToWork (>40s) - WANDERING",
-               c.id);
-      c.isWorking = false;
-      c.stateTimer = 0.0f;
-      TraceLog(LOG_INFO,
-               "SIMULATION: Citizen %d stuck GoingToWork (>40s) - RESETTING",
                c.id);
     }
     // Timeout for Working (stuck animation or missing logic)
     else if (c.workState == Citizen::WorkState::Working &&
              c.stateTimer > 60.0f) {
-      c.workState = Citizen::WorkState::Idle;
+      c.workState = Citizen::WorkState::Wandering;
       c.isWorking = false;
       c.stateTimer = 0.0f;
-      c.workState = Citizen::WorkState::Wandering;
+      if (myEntity) {
+        myEntity->hasTarget = false;
+        myEntity->state = EntityState::Idle;
+      }
       TraceLog(LOG_INFO,
                "SIMULATION: Citizen %d stuck Working (>60s) - WANDERING", c.id);
-      c.isWorking = false;
-      c.stateTimer = 0.0f;
-      TraceLog(LOG_INFO,
-               "SIMULATION: Citizen %d stuck Working (>60s) - RESETTING", c.id);
     }
     // Timeout for ReturningHome
     else if (c.workState == Citizen::WorkState::ReturningHome &&
              c.stateTimer > 40.0f) {
-      c.workState = Citizen::WorkState::Idle;
+      c.workState = Citizen::WorkState::Wandering;
       c.isWorking = false;
       c.stateTimer = 0.0f;
-      c.workState = Citizen::WorkState::Wandering;
+      if (myEntity) {
+        myEntity->hasTarget = false;
+        myEntity->state = EntityState::Idle;
+      }
       TraceLog(LOG_INFO,
                "SIMULATION: Citizen %d stuck ReturningHome (>40s) - WANDERING",
                c.id);
-      c.isWorking = false;
-      c.stateTimer = 0.0f;
-      TraceLog(LOG_INFO,
-               "SIMULATION: Citizen %d stuck ReturningHome (>40s) - RESETTING",
-               c.id);
     }
+
+    if (!myEntity)
+      continue; // CRITICAL FIX: Prevent massive crashes when iterating over
+                // entities inside Jobs
 
     // === GENERIC WANDERING ===
     // If wandering, pick a random spot and move there
@@ -272,11 +262,12 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         }
       }
 
-      // Check if reached wander target
+      // Check if reached wander target or timeout (stuck against wall)
       float dist = std::hypot(myEntity->position.x - myEntity->targetPos.x,
                               myEntity->position.y - myEntity->targetPos.y);
-      if (dist < 0.5f || !myEntity->hasTarget) {
+      if (dist < 0.5f || !myEntity->hasTarget || c.stateTimer > 10.0f) {
         c.workState = Citizen::WorkState::Idle;
+        c.stateTimer = 0.0f; // Reset timer for the next state
         myEntity->hasTarget = false;
         myEntity->state = EntityState::Idle;
       }

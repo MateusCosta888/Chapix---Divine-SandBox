@@ -494,14 +494,19 @@ void WorldRenderer::Draw(const Camera2D &camera,
           if (tile.decoration == DecorationType::Rock)
             tColor = LIGHTGRAY;
 
-          // Sort Y is the visual bottom of the object
-          float sortY = dest.y + h / 2; // Approximate center/bottom
+          // Sort Y: anchor to TILE BASE (where trunk meets ground)
+          // This ensures correct Z-ordering with entities on the same row
+          float sortY;
           if (tile.decoration == DecorationType::Tree ||
               tile.decoration == DecorationType::PineTree ||
               tile.decoration == DecorationType::PalmTree ||
               (tile.decoration == DecorationType::DesertPlant &&
-               (tile.decorationVariant % 3) != 0)) // Cactus variants
-            sortY = dest.y + h * 0.85f;
+               (tile.decorationVariant % 3) != 0)) {
+            // Tall objects: sortY = bottom of the TILE, not the sprite
+            sortY = (float)(y * tileSize + tileSize);
+          } else {
+            sortY = dest.y + h / 2; // Small objects keep center sort
+          }
 
           items.push_back({*tex, src, dest, origin, tColor, sortY});
         }
@@ -933,14 +938,11 @@ void WorldRenderer::Draw(const Camera2D &camera,
   if (selectedCitizenID >= 0) {
     Citizen *citizen = sim.GetCitizen(selectedCitizenID);
     if (citizen && citizen->isAlive) {
-      // Find entity for position update
-      const std::vector<Entity> &entities = world.GetEntities();
-      for (const Entity &e : entities) {
-        if (e.citizenID == selectedCitizenID) {
-          selectedCitizenScreenPos = {e.position.x * tileSize,
-                                      e.position.y * tileSize};
-          break;
-        }
+      // Find entity for position update in O(1)
+      const Entity *e = world.GetEntityByCitizenID(selectedCitizenID);
+      if (e) {
+        selectedCitizenScreenPos = {e->position.x * tileSize,
+                                    e->position.y * tileSize};
       }
 
       // Draw popup above the citizen

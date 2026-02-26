@@ -877,16 +877,31 @@ void ResourceManager::Load() {
     SetTextureFilter(texTurkey[i], TEXTURE_FILTER_POINT);
   }
 
+  // UI Notifications
+  texNotifLeft = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/AvisoPupUp/AvisoPupUp-Esquerda.png");
+  texNotifMid =
+      LoadTexture("assets/UI/Pup-Up Backgroud/AvisoPupUp/AvisoPupUp-Meio.png");
+  texNotifRight = LoadTexture(
+      "assets/UI/Pup-Up Backgroud/AvisoPupUp/AvisoPupUp-Direita.png");
+  SetTextureFilter(texNotifLeft, TEXTURE_FILTER_POINT);
+  SetTextureFilter(texNotifMid, TEXTURE_FILTER_POINT);
+  SetTextureFilter(texNotifRight, TEXTURE_FILTER_POINT);
+
   texturesLoaded = true;
 }
 
 void ResourceManager::Unload() {
+  if (!texturesLoaded)
+    return;
+
+  UnloadTexture(texNotifLeft);
+  UnloadTexture(texNotifMid);
+  UnloadTexture(texNotifRight);
+
   UnloadTexture(texUIWaterDeep);
   UnloadTexture(texUIWaterMedium);
   UnloadTexture(texUIWaterShallow);
-
-  if (!texturesLoaded)
-    return;
 
   for (int i = 0; i < NUM_WATER_VARIANTS; i++) {
     UnloadTexture(texDeepOcean[i]);

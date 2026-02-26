@@ -1,83 +1,52 @@
 ========================================
   ChapiX - Divine SandBox
   Otimizações e Melhorias Futuras
-  Criado em: 23/02/2026
+  Atualizado em: 26/02/2026
 ========================================
+
+=== FINALIZADOS (✓) ===
+
+[✓] MIGRAR PARA CMAKE (Build modular via build_cmake.bat)
+[✓] LOOKUP DE ENTIDADES O(1) (citizenEntityMap em World.h)
+[✓] FEEDBACK VISUAL (Notificações UI implementadas para "Cidade Fundada")
+[✓] REVISÃO E DETECÇÃO DE STUCK DE IA (Bug de Loop e Timeout infinito arrumados e Nullpointers prevenidos)
+[✓] DIVIDIR ARQUIVOS GRANDES (SimulationManager.cpp separado em CitizenAI.cpp, etc.)
+[✓] OPÇÕES: SISTEMA MUDO NO VOLUME DA MÚSICA (Áudio silenciado via updates transparentes)
 
 === PRIORIDADE ALTA ===
 
-1. DIVIDIR ARQUIVOS GRANDES
-   - SimulationManager.cpp (2666 linhas) → CitizenAI.cpp, CityManager.cpp, KingdomManager.cpp, BuildingManager.cpp
-   - UIManager.cpp (2584 linhas) → UIToolbar.cpp, UICityPopup.cpp, UIHumanPopup.cpp, UISavePopup.cpp, UIMainMenu.cpp
-   - Facilita manutenção e reduz tempo de busca por bugs
+1. OTIMIZAÇÃO: BUSCA ESPACIAL AVANÇADA PARA JOBS (Árvores e Inimigos)
+   - Lenhadores fazem buscas custosas em raio 50 e 60 por frame na IA.
+   - Soldados escanneiam todos os NPCs em cena no mapa sem poda direcional.
+   - Solução: Implementar um Spatial Hashing ou QuadTree em `World.h` para encontrar entidades/tiles alvos perto rápido.
 
-2. MIGRAR PARA CMAKE
-   - build.bat compila TUDO toda vez (11+ arquivos)
-   - CMake permite compilação incremental (só recompila o que mudou)
-   - Reduz tempo de build significativamente
-
-3. LOOKUP DE ENTIDADES O(1)
-   - Atualmente: loop linear para achar entidade por citizenID (O(N×M) por frame)
-   - Solução: std::unordered_map<int, Entity*> citizenEntityMap
-   - Local: SimulationManager.cpp linha ~380
+2. SISTEMA DE SALVAMENO MAIS LEVE E SEGURO
+   - Saves atuais pesam muito por causa de redundância no JSON.
+   - Opções: Compressão Zlib no json inteiro, formato binário para chunks ou não serializar campos em default.
+   - Tratar o loading com mais segurança se o JSON for truncado.
 
 === PRIORIDADE MÉDIA ===
 
-4. SUBSTITUIR rand() POR Random
-   - O projeto tem classe Random com seed, mas vários lugares usam rand()
-   - Locais: SimulationManager.cpp linhas ~74, ~587, ~791
-   - Quebra reprodutibilidade do seed
+3. SUBSTITUIR rand() POR Random Nativo ou PRNG
+   - Vários lugares usam `rand()`, quebrando reprodutibilidade e afetando o multithreading no mundo.
+   - Mudar para standard libs (std::mt19937) e guardar states no core da seed.
 
-5. REMOVER VARIÁVEIS static LOCAIS
-   - static bool hasRebuiltCollision (SimulationManager.cpp:30)
-   - static float regrowthCheckTimer (SimulationManager.cpp:40)
-   - static float settlerCheckTimer (SimulationManager.cpp:368)
-   - Mover para membros da classe SimulationManager
+4. REMOÇÃO DE VARIÁVEIS static INTERNAS
+   - static float regrowthCheckTimer, etc..
+   - Movimentá-las para a classe do `SimulationManager`.
 
-6. CORRIGIR const_cast NO UIMANAGER
-   - auto &sim = const_cast<World &>(world).GetSimulation();
-   - Aparece em vários métodos Draw
-   - Solução: mudar assinatura para World& ou criar métodos const adequados
-
-7. BUSCA DE ÁRVORES (PERFORMANCE)
-   - Lumberjack faz busca em raio 50 (101×101 = 10.201 tiles) por frame
-   - Local: SimulationManager.cpp:707
-   - Solução: cachear posições de árvores ou usar spatial grid
+5. RESOLVER CORRUPÇÃO DE TEXTURAS / DOUBLE UNLOAD NO FIM DO JOGO
+   - Na saída do binário, a Raylib cospe alertas de `Unloaded texture data from VRAM (GPU)` múltiplas vezes por textura duplicada no fechamento.
+   - Solução: Implementar um rastreador forte de Referências (Reference Counting) no `ResourceManager`.
 
 === PRIORIDADE BAIXA ===
 
-8. REDUZIR TAMANHO DOS SAVES
-   - Saves atuais: ~14-15MB cada (JSON puro)
-   - Opções: formato binário, compressão zlib, ou não serializar campos default
+6. CORRIGIR const_cast NO UIMANAGER
+   - Remover os perigos de `const_cast<World &>(world).GetSimulation()` trocando por getters constantes nas classes corretas para permitir Rendering imutável.
 
-9. CÓDIGO DUPLICADO NO STUCK DETECTION
-   - SimulationManager.cpp linhas 536-580
-   - Mesmo padrão repetido 3 vezes (reset para Idle depois Wandering)
-   - Extrair para função ResetCitizenToWander()
+7. FALTAS E WARNINGS MENORES DE UI
+   - TraceLog: "UI: Failed to load texTabRedFlag"
+   - Adicionar as texturas em falta nos assets em /UI/.
 
-10. ADICIONAR TESTES UNITÁRIOS
-    - Funções testáveis: ScoreTileForCity, DetermineBiome, IsWalkable
-    - Previne regressões ao adicionar features
-
-=== MELHORIAS DE UI ===
-
-11. MAIS OPÇÕES NO MENU DE CONFIGURAÇÕES
-    - Volume de efeitos sonoros (quando implementar SFX)
-    - Resolução da tela
-    - Fullscreen toggle
-    - Sensibilidade do zoom
-
-12. FEEDBACK VISUAL
-    - Notificações na tela (cidade fundada, cidadão nasceu, etc.)
-    - Tooltips nos botões da toolbar
-
-=== BUGS CONHECIDOS ===
-
-13. DOUBLE UNLOAD DE TEXTURAS
-    - Na saída do jogo, texturas são descarregadas 2 vezes (ver log)
-    - Causa exit code 1 mesmo com fechamento normal
-    - Verificar se Unload() está sendo chamado no destrutor E manualmente
-
-14. TEXTURA FALTANDO
-    - TraceLog: "UI: Failed to load texTabRedFlag"
-    - Verificar se o arquivo RedFlagButton.png existe em assets/UI/
+8. ADICIONAR TESTES UNITÁRIOS E PIPELINE DE TESTES CI
+   - Funções testáveis: Geração perlin noise, Walkable Pathfinding, Combate Matemático e Cálculos de Food/Stamina.

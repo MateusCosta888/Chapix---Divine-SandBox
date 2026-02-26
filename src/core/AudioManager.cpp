@@ -32,7 +32,8 @@ void AudioManager::Load() {
   }
 
   // Load space track
-  spaceTrack = LoadMusicStream("assets/SondTrack/Menuspace/02 Space Riddle.mp3");
+  spaceTrack =
+      LoadMusicStream("assets/SondTrack/Menuspace/02 Space Riddle.mp3");
   if (spaceTrack.frameCount > 0) {
     spaceTrack.looping = true; // Space track loops
     spaceTrackLoaded = true;
@@ -75,6 +76,8 @@ void AudioManager::Update() {
   if (!isLoaded)
     return;
 
+  // Removed early exit for volume 0.0f so streams can keep updating in mute
+
   if (currentMode == MusicMode::AMBIENT) {
     // Update current ambient track
     if (currentAmbientIndex >= 0 &&
@@ -82,10 +85,8 @@ void AudioManager::Update() {
       UpdateMusicStream(ambientTracks[currentAmbientIndex]);
 
       // Check if track finished — play next random
-      float timePlayed =
-          GetMusicTimePlayed(ambientTracks[currentAmbientIndex]);
-      float timeLength =
-          GetMusicTimeLength(ambientTracks[currentAmbientIndex]);
+      float timePlayed = GetMusicTimePlayed(ambientTracks[currentAmbientIndex]);
+      float timeLength = GetMusicTimeLength(ambientTracks[currentAmbientIndex]);
       if (timePlayed >= timeLength - 0.1f) {
         PlayRandomAmbient();
       }
@@ -118,6 +119,7 @@ void AudioManager::SetMusicMode(MusicMode mode) {
 }
 
 void AudioManager::SetMusicVolume(float volume) {
+  float oldVolume = musicVolume;
   musicVolume = volume;
   if (musicVolume < 0.0f)
     musicVolume = 0.0f;
@@ -131,6 +133,11 @@ void AudioManager::SetMusicVolume(float volume) {
   if (spaceTrackLoaded) {
     ::SetMusicVolume(spaceTrack, musicVolume);
   }
+
+  // Pausing streams manually at zero causes the track to lock at the previous
+  // auditory buffer inside Raylib. Instead, the engine naturally sets volume
+  // 0.0 while UpdateMusicStream stays active, ensuring perfect silence and
+  // track progression.
 }
 
 void AudioManager::PlayRandomAmbient() {

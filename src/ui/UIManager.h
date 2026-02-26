@@ -20,6 +20,15 @@ enum class GameState { MAIN_MENU, PLAYING };
 
 class UIManager {
 public:
+  // UI Notification Structure
+  struct UINotification {
+    std::string text;
+    int iconFlagID;
+    float timer;
+    float maxTimer;
+    float yOffset; // For stacking multiple notifications
+  };
+
   UIManager();
   ~UIManager();
 
@@ -144,6 +153,7 @@ private:
   char humanRenameBuffer[64] = {0};
   bool isRenamingHuman = false;
   int humanWindowTab = 0; // 0 = Main, 1 = Abilities
+  bool showProfessionSelector = false;
 
   // Drag State (Human)
   Vector2 humanPopupPos = {0, 0};
@@ -199,9 +209,18 @@ private:
   void DrawToolbar(const World &world);
   void DrawCityPopup(const World &world); // New City UI
   void DrawHumanPopup(const World &world);
-  void DrawSocialCityList(const World &world); // New Social Popup
-  void DrawSavePopup(const World &world);      // New Save Menu
-  void DrawFlagSelector(const World &world);   // Flag Selector UI
-  void DrawOptionsPopup();                     // Options/Settings Popup
+  void DrawSocialCityList(const World &world);     // New Social Popup
+  void DrawSavePopup(const World &world);          // New Save Menu
+  void DrawFlagSelector(const World &world);       // Flag Selector UI
+  void DrawProfessionSelector(const World &world); // Profession Selector UI
+  void DrawOptionsPopup();                         // Options/Settings Popup
+  void DrawNotifications(const World &world);      // Draw Notifications UI
   void HandleInput(World &world, Camera2D &camera);
+
+  // Notification Methods
+  void AddNotification(const std::string &text, int flagID);
+
+  // General Application State Helpers
+  int lastKnownCityID = -1; // To track newly founded cities
+  std::vector<UINotification> activeNotifications;
 };

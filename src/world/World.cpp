@@ -1006,7 +1006,41 @@ void World::AddEntity(EntityType type, Vector2 pos) {
            pos.x, pos.y);
 }
 
+void World::RebuildEntityCache() {
+  citizenEntityMap.clear();
+  // We reserve space to minimize rehashing
+  citizenEntityMap.reserve(entities.size() /
+                           2); // Roughly half entities are citizens
+  for (auto &e : entities) {
+    if (e.citizenID != -1) {
+      citizenEntityMap[e.citizenID] = &e;
+    }
+  }
+}
+
+Entity *World::GetEntityByCitizenID(int citizenID) {
+  auto it = citizenEntityMap.find(citizenID);
+  if (it != citizenEntityMap.end()) {
+    return it->second;
+  }
+  return nullptr; // Not found
+}
+
+const Entity *World::GetEntityByCitizenID(int citizenID) const {
+  auto it = citizenEntityMap.find(citizenID);
+  if (it != citizenEntityMap.end()) {
+    return it->second;
+  }
+  return nullptr; // Not found
+}
+
 void World::UpdateEntities(float deltaTime) {
+  // Always rebuild the pointer cache at the start of the frame.
+  // This guarantees pointers are valid even if entities vector reallocated in
+  // the previous frame. Rebuilding a hash map of 1000 items is much faster than
+  // doing massive O(N) searches everywhere.
+  RebuildEntityCache();
+
   for (size_t i = 0; i < entities.size(); i++) {
     Entity &e = entities[i];
 
@@ -1522,12 +1556,9 @@ void World::AddSpawnEffect(int tileX, int tileY, Color color) {
     p.lifetime = p.maxLife;
 
     p.color = color;
-    p.color.r =
-        (unsigned char)std::min(255, (int)color.r + (rand() % 60 - 30));
-    p.color.g =
-        (unsigned char)std::min(255, (int)color.g + (rand() % 60 - 30));
-    p.color.b =
-        (unsigned char)std::min(255, (int)color.b + (rand() % 60 - 30));
+    p.color.r = (unsigned char)std::min(255, (int)color.r + (rand() % 60 - 30));
+    p.color.g = (unsigned char)std::min(255, (int)color.g + (rand() % 60 - 30));
+    p.color.b = (unsigned char)std::min(255, (int)color.b + (rand() % 60 - 30));
     p.color.a = 255;
 
     p.size = 1.0f + (float)(rand() % 20) / 10.0f;

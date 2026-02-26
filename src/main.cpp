@@ -130,17 +130,13 @@ int main(int argc, char *argv[]) {
 
         // Camera Tracking (Human Popup)
         if (ui.IsHumanPopupOpen() && ui.GetPopupCitizenID() != -1) {
-          const auto &entities = world.GetEntities();
-          for (const auto &e : entities) {
-            if (e.citizenID == ui.GetPopupCitizenID()) {
-              Vector2 targetPos = {e.position.x * 10.0f + 5.0f,
-                                   e.position.y * 10.0f + 5.0f};
-              camera.target = Vector2Add(
-                  camera.target,
-                  Vector2Scale(Vector2Subtract(targetPos, camera.target),
-                               0.1f));
-              break;
-            }
+          const Entity *e = world.GetEntityByCitizenID(ui.GetPopupCitizenID());
+          if (e) {
+            Vector2 targetPos = {e->position.x * 10.0f + 5.0f,
+                                 e->position.y * 10.0f + 5.0f};
+            camera.target = Vector2Add(
+                camera.target,
+                Vector2Scale(Vector2Subtract(targetPos, camera.target), 0.1f));
           }
         }
 

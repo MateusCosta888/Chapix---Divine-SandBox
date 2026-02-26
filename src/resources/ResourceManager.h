@@ -187,6 +187,11 @@ public:
   // City Flags (80 flags)
   std::vector<Texture2D> cityFlags;
 
+  // Notification UI Assets
+  Texture2D texNotifLeft;
+  Texture2D texNotifMid;
+  Texture2D texNotifRight;
+
 private:
   bool texturesLoaded = false;
 };

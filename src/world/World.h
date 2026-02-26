@@ -7,6 +7,7 @@
 #include "Tile.h"
 #include "raylib.h"
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 // === SPAWN EFFECT SYSTEM ===
@@ -20,10 +21,10 @@ struct SpawnParticle {
 };
 
 struct SpawnEffect {
-  float worldX, worldY;             // Tile center in world pixels
-  float timer;                      // Time since spawn
-  float duration;                   // Total effect duration
-  float scale;                      // Current scale (0->1 for pop-in)
+  float worldX, worldY; // Tile center in world pixels
+  float timer;          // Time since spawn
+  float duration;       // Total effect duration
+  float scale;          // Current scale (0->1 for pop-in)
   std::vector<SpawnParticle> particles;
 };
 
@@ -45,6 +46,11 @@ public:
   std::vector<Entity> &GetEntitiesMutable() {
     return entities;
   } // For simulation
+
+  // O(1) Lookup cache
+  Entity *GetEntityByCitizenID(int citizenID);
+  const Entity *GetEntityByCitizenID(int citizenID) const;
+  void RebuildEntityCache();
 
   void LoadTextures();                   // Load tile textures
   void UnloadTextures();                 // Cleanup textures
@@ -104,6 +110,8 @@ private:
   Random rng_;
   std::vector<Tile> tiles;
   std::vector<Entity> entities; // Added entities vector
+  std::unordered_map<int, Entity *>
+      citizenEntityMap; // O(1) cache for citizen lookup
 
   // Spawn Effects
   std::vector<SpawnEffect> spawnEffects;
