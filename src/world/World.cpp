@@ -1406,7 +1406,10 @@ void World::UpdateEntities(float deltaTime) {
             e.hasTarget = false;
             e.state = EntityState::Idle;
           } else {
-            e.state = EntityState::Walking;
+            // Keep running if marching/attacking, else just walk
+            if (e.state != EntityState::Run) {
+              e.state = EntityState::Walking;
+            }
 
             // Force cardinal direction (no diagonal) - REMOVED
             if (fabs(dir.x) > fabs(dir.y)) {
@@ -1418,28 +1421,50 @@ void World::UpdateEntities(float deltaTime) {
             }
 
             dir = Vector2Normalize(dir);
+            float actualSpeed =
+                (e.state == EntityState::Run) ? (e.speed * 2.0f) : e.speed;
             Vector2 nextPos = Vector2Add(
                 e.position,
-                Vector2Scale(
-                    dir, e.speed * deltaTime)); // Use e.speed instead of 1.0f
+                Vector2Scale(dir,
+                             actualSpeed *
+                                 deltaTime)); // Use e.speed instead of 1.0f
 
-            // Collision Check
+            // Collision Check with Sliding
+            bool moved = false;
+            // 1. Try full diagonal move
             if (IsWalkable((int)nextPos.x, (int)nextPos.y)) {
               e.position = nextPos;
+              moved = true;
             } else {
+              // 2. Try sliding along X axis
+              if (IsWalkable((int)nextPos.x, (int)e.position.y)) {
+                e.position.x = nextPos.x;
+                moved = true;
+              }
+              // 3. Try sliding along Y axis
+              else if (IsWalkable((int)e.position.x, (int)nextPos.y)) {
+                e.position.y = nextPos.y;
+                moved = true;
+              }
+            }
+
+            // 4. Stuck (Hit a perfect corner or surrounded)
+            if (!moved) {
               e.hasTarget = false;
               e.state = EntityState::Idle;
             }
           }
-        } else if (!foundTarget && e.state == EntityState::Walking) {
-          // Only reset to Idle if we were Walking.
+        } else if (!foundTarget && (e.state == EntityState::Walking ||
+                                    e.state == EntityState::Run)) {
+          // Only reset to Idle if we were Walking or Running but lost target.
           // If we were Attacking (Working), don't reset!
           e.state = EntityState::Idle;
         }
       }
 
       // Anim
-      if (e.state == EntityState::Walking) {
+      if (e.state == EntityState::Walking || e.state == EntityState::Run) {
+        float animSpeed = (e.state == EntityState::Run) ? 0.05f : 0.1f;
         e.animTime += deltaTime;
         if (e.animTime >= 0.1f) {
           e.animTime = 0.0f;

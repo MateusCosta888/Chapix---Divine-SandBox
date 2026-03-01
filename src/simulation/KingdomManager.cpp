@@ -6,7 +6,6 @@
 #include <cmath>
 #include <cstdlib>
 
-
 // ============================================================================
 // UPDATE KINGDOMS
 // ============================================================================
@@ -30,8 +29,221 @@ void SimulationManager::UpdateKingdoms(World &world, float deltaTime) {
     // Kingdom dies if no cities left
     if (kingdom.cityIDs.empty()) {
       kingdom.isAlive = false;
+
+      // BROADCAST DEATH TO OTHER KINGDOMS (Erase memory of war)
+      for (auto &otherK_pair : kingdoms) {
+        if (otherK_pair.second.id != kingdom.id) {
+          otherK_pair.second.diplomaticStatus.erase(kingdom.id);
+          otherK_pair.second.relations.erase(kingdom.id);
+        }
+      }
     }
   }
+
+  // ==========================================
+  // BATTLEFIELD UPDATES
+  // ==========================================
+  std::vector<int> battlefieldsToRemove;
+  for (auto &bfPair : battlefields) {
+    Battlefield &bf = bfPair.second;
+    bf.timer -= deltaTime;
+
+    if (bf.timer <= 0.0f) {
+      // BATTLE IS OVER!
+      Kingdom *kA = GetKingdom(bf.kingdomA);
+      Kingdom *kB = GetKingdom(bf.kingdomB);
+
+      if (kA && kB) {
+        // Make peace
+        kA->diplomaticStatus[kB->id] = DiplomaticStatus::Neutral;
+        kB->diplomaticStatus[kA->id] = DiplomaticStatus::Neutral;
+        kA->SetRelation(kB->id, 0.0f);
+        kB->SetRelation(kA->id, 0.0f);
+
+        if (bf.killsA > bf.killsB) {
+          TraceLog(LOG_INFO,
+                   "BATTLE ENDED: %s WON against %s! (%d vs %d kills)",
+                   kA->name.c_str(), kB->name.c_str(), bf.killsA, bf.killsB);
+        } else if (bf.killsB > bf.killsA) {
+          TraceLog(LOG_INFO,
+                   "BATTLE ENDED: %s WON against %s! (%d vs %d kills)",
+                   kB->name.c_str(), kA->name.c_str(), bf.killsB, bf.killsA);
+        } else {
+          TraceLog(LOG_INFO,
+                   "BATTLE ENDED: DRAW between %s and %s! (%d kills each)",
+                   kA->name.c_str(), kB->name.c_str(), bf.killsA);
+        }
+      }
+      battlefieldsToRemove.push_back(bf.id);
+    }
+  }
+
+  for (int id : battlefieldsToRemove) {
+    RemoveBattlefield(id);
+  }
+}
+
+// ============================================================================
+// DIPLOMACY UPDATE (Autonomous War Declarations)
+// ============================================================================
+void SimulationManager::UpdateDiplomacy(World &world, float deltaTime) {
+  static float diplomacyTimer = 0.0f;
+  diplomacyTimer += deltaTime;
+
+  // Only evaluate diplomacy every 10 seconds to save CPU and simulate slower
+  // politics
+  if (diplomacyTimer < 10.0f)
+    return;
+  diplomacyTimer = 0.0f;
+
+  for (auto &pairA : kingdoms) {
+    if (!pairA.second.isAlive)
+      continue;
+    Kingdom &kA = pairA.second;
+
+    for (auto &pairB : kingdoms) {
+      if (!pairB.second.isAlive || pairA.first == pairB.first)
+        continue;
+      Kingdom &kB = pairB.second;
+
+      // Skip if already at war or allied
+      if (kA.IsAtWarWith(kB.id) || kA.IsAlliedWith(kB.id))
+        continue;
+
+      // Calculate border distance (shortest distance between any two cities of
+      // these kingdoms)
+      float minSqDist = 9999999.0f;
+      int foodA = 0;
+      int foodB = 0;
+
+      // Aggregate Resources and gather positions
+      for (int cityIdA : kA.cityIDs) {
+        if (const City *cA = GetCity(cityIdA)) {
+          foodA += cA->resources.food;
+          for (int cityIdB : kB.cityIDs) {
+            if (const City *cB = GetCity(cityIdB)) {
+              foodB += cB->resources.food;
+              float dx = cA->center.x - cB->center.x;
+              float dy = cA->center.y - cB->center.y;
+              float sqDist = (dx * dx) + (dy * dy);
+              if (sqDist < minSqDist)
+                minSqDist = sqDist;
+            }
+          }
+        }
+      }
+
+      // 1. BORDER FRICTION
+      // If borders are touching/cities are nearby (e.g., < 40 tiles away -> <
+      // 1600 sqDist)
+      if (minSqDist < 1600.0f) {
+        float friction = kA.totalAggression * 10.0f;
+        kA.ModifyRelation(kB.id, -friction);
+      }
+
+      // 2. RESOURCE ENVY (Hunger Mechanics)
+      // If kingdom A is starving and kingdom B is rich
+      if (foodA < 20 && foodB > 100) {
+        float envy = kA.totalAggression * 15.0f;
+        kA.ModifyRelation(kB.id, -envy);
+      }
+
+      // Default cooldown decay back to 0 (slowly cooling off)
+      float currentRel = kA.GetRelation(kB.id);
+      if (currentRel < 0.0f)
+        kA.ModifyRelation(kB.id, 1.0f);
+      else if (currentRel > 0.0f)
+        kA.ModifyRelation(kB.id, -1.0f);
+
+      // PEACE DECLARATION (Armistice)
+      if (currentRel >= 0.0f &&
+          kA.diplomaticStatus[kB.id] == DiplomaticStatus::Hostile) {
+        kA.diplomaticStatus[kB.id] = DiplomaticStatus::Neutral;
+        kB.diplomaticStatus[kA.id] = DiplomaticStatus::Neutral;
+        TraceLog(LOG_INFO, "PEACE SIGNED: %s and %s ended their war!",
+                 kA.name.c_str(), kB.name.c_str());
+      }
+
+      // WAR DECLARATION TRIGGER
+      if (kA.GetRelation(kB.id) <= -50.0f && kA.totalAggression > 0.3f) {
+        DeclareWar(kA.id, kB.id, world);
+      }
+    }
+  }
+}
+
+// ============================================================================
+// DECLARE WAR (Updates Internal Diplomatic Maps)
+// ============================================================================
+void SimulationManager::DeclareWar(int kingdomA, int kingdomB, World &world) {
+  Kingdom *kA = GetKingdom(kingdomA);
+  Kingdom *kB = GetKingdom(kingdomB);
+  if (!kA || !kB)
+    return;
+
+  // Set the relations bilaterally to -100 (locked in war)
+  kA->SetRelation(kingdomB, -100.0f);
+  kB->SetRelation(kingdomA, -100.0f);
+
+  // Alter exact state
+  kA->diplomaticStatus[kingdomB] = DiplomaticStatus::Hostile;
+  kB->diplomaticStatus[kingdomA] = DiplomaticStatus::Hostile;
+
+  // --- BATTLEFIELD GENERATION ---
+  City *cityA = GetCity(kA->capitalCityID);
+  City *cityB = GetCity(kB->capitalCityID);
+  if (!cityA && !kA->cityIDs.empty())
+    cityA = GetCity(kA->cityIDs[0]);
+  if (!cityB && !kB->cityIDs.empty())
+    cityB = GetCity(kB->cityIDs[0]);
+
+  if (cityA && cityB) {
+    Vector2 midPos = {(cityA->center.x + cityB->center.x) / 2.0f,
+                      (cityA->center.y + cityB->center.y) / 2.0f};
+
+    int cx = (int)midPos.x;
+    int cy = (int)midPos.y;
+    int bestX = cx;
+    int bestY = cy;
+    float minDiff = 999999.0f;
+    int searchRadius = 25; // Wide range to escape water lakes
+
+    for (int y = cy - searchRadius; y <= cy + searchRadius; y++) {
+      for (int x = cx - searchRadius; x <= cx + searchRadius; x++) {
+        if (x >= 0 && x < world.GetWidth() && y >= 0 && y < world.GetHeight()) {
+          const Tile &t = world.GetTileConst(x, y);
+          if (t.type == TileType::Grass || t.type == TileType::Sand ||
+              t.type == TileType::Forest || t.type == TileType::DesertSand) {
+            if (!t.isOccupied) { // Find open terrain
+              float dist = std::hypot(x - cx, y - cy);
+              if (dist < minDiff) {
+                minDiff = dist;
+                bestX = x;
+                bestY = y;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    midPos.x = (float)bestX;
+    midPos.y = (float)bestY;
+
+    Battlefield bf;
+    bf.kingdomA = kA->id;
+    bf.kingdomB = kB->id;
+    bf.centerPos = midPos;
+    bf.timer = 60.0f; // 60 Real Seconds War Clock
+    bf.killsA = 0;
+    bf.killsB = 0;
+    AddBattlefield(bf);
+    TraceLog(LOG_INFO, "BATTLEFIELD Spawned at (%.1f, %.1f) between %s and %s",
+             midPos.x, midPos.y, kA->name.c_str(), kB->name.c_str());
+  }
+
+  TraceLog(LOG_INFO, "WAR DECLARED: %s declared war on %s!", kA->name.c_str(),
+           kB->name.c_str());
 }
 
 // ============================================================================

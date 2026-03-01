@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 
-
 // Forward declarations
 struct City;
 
@@ -90,10 +89,26 @@ struct Kingdom {
 };
 
 // ============================================================================
+// BATTLEFIELD STRUCTURE
+// ============================================================================
+struct Battlefield {
+  int id = -1;
+  int kingdomA = -1;
+  int kingdomB = -1;
+  Vector2 centerPos = {0.0f, 0.0f};
+  float timer = 60.0f; // 60 seconds duration
+  int killsA = 0;
+  int killsB = 0;
+};
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 Kingdom CreateKingdom(int id, const std::string &name, Color color,
                       int capitalCityID);
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Battlefield, id, kingdomA, kingdomB,
+                                   centerPos, timer, killsA, killsB)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Kingdom, id, name, color, leaderCitizenID,
                                    capitalCityID, cityIDs, relations,

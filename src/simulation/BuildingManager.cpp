@@ -6,7 +6,6 @@
 #include <cmath>
 #include <cstdlib>
 
-
 // ============================================================================
 // NEW: ADAPTIVE CONSTRUCTION
 // ============================================================================
@@ -422,6 +421,46 @@ void SimulationManager::AssignJobs(City &city) {
   }
 
   int desiredSoldiers = barracksCount * 2; // Each barracks supports 2 soldiers
+
+  // === WAR DRAFT MECHANIC ===
+  bool isAtWar = false;
+  if (city.kingdomID != -1) {
+    if (const Kingdom *k = GetKingdom(city.kingdomID)) {
+      for (const auto &kv : k->diplomaticStatus) {
+        if (kv.second == DiplomaticStatus::Hostile) {
+          isAtWar = true;
+          // Draft 50% of the active population for war
+          desiredSoldiers = std::max(desiredSoldiers, population / 2);
+          break;
+        }
+      }
+    }
+  }
+
+  // If at war, fire non-essential workers (everyone except Farmers) to force
+  // them into the draft pool.
+  if (isAtWar) {
+    for (int id : city.citizenIDs) {
+      Citizen *c = GetCitizen(id);
+      if (c && c->isAlive && c->isAdult() && !c->isFemale) {
+        if (c->profession == Profession::Lumberjack ||
+            c->profession == Profession::Builder ||
+            c->profession == Profession::Miner) {
+          // Fire them
+          if (c->profession == Profession::Lumberjack)
+            lumberjacks--;
+          if (c->profession == Profession::Builder)
+            builders--;
+          if (c->profession == Profession::Miner)
+            miners--;
+
+          c->profession = Profession::None;
+          unemployed++;
+          availableWorkers.push_back(c);
+        }
+      }
+    }
+  }
 
   if (hasConstructionSites) {
     // If we have stuff to build, we NEED builders

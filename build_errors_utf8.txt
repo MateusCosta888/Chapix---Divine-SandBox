@@ -1,0 +1,79 @@
+﻿Configurando ambiente do compilador local...
+Compiling...
+cmd : src/simulation/CitizenAI.cpp: In member 
+function 'void 
+SimulationManager::UpdateCitizens(World&, 
+float)':
+No linha:1 caractere:1
++ cmd /c build.bat > build_errors.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (sr 
+   c/simulation/...orld&, float)'::String) [],  
+   RemoteException
+    + FullyQualifiedErrorId : NativeCommandErro 
+   r
+ 
+src/simulation/CitizenAI.cpp:1215:19: error: 
+'enemyCityPos' was not declared in this scope
+ 1215 |                   enemyCityPos = 
+bf.centerPos;
+      |                   ^~~~~~~~~~~~
+src/simulation/CitizenAI.cpp:1227:42: error: 
+'enemyCityPos' was not declared in this scope
+ 1227 |                   myEntity->targetPos = 
+{enemyCityPos.x + rx,
+      |                                         
+ ^~~~~~~~~~~~
+src/simulation/CitizenAI.cpp:1228:61: error: no 
+match for 'operator=' (operand types are 
+'Vector2' and '<brace-enclosed initializer 
+list>')
+ 1228 |                                         
+ enemyCityPos.y + ry};
+      |                                         
+                    ^
+In file included from src/simulation/../world/..
+/utils/JsonHelpers.h:3,
+                 from 
+src/simulation/../world/Entity.h:2,
+                 from 
+src/simulation/CitizenAI.cpp:1:
+lib/raylib/include/raylib.h:204:16: note: 
+candidate: 'constexpr Vector2& 
+Vector2::operator=(const Vector2&)'
+  204 | typedef struct Vector2 {
+      |                ^~~~~~~
+lib/raylib/include/raylib.h:204:16: note:   no 
+known conversion for argument 1 from 
+'<brace-enclosed initializer list>' to 'const 
+Vector2&'
+lib/raylib/include/raylib.h:204:16: note: 
+candidate: 'constexpr Vector2& 
+Vector2::operator=(Vector2&&)'
+lib/raylib/include/raylib.h:204:16: note:   no 
+known conversion for argument 1 from 
+'<brace-enclosed initializer list>' to 
+'Vector2&&'
+src/simulation/KingdomManager.cpp: In member 
+function 'void 
+SimulationManager::UpdateDiplomacy(World&, 
+float)':
+src/simulation/KingdomManager.cpp:169:19: 
+error: no matching function for call to 
+'SimulationManager::DeclareWar(int&, int&)'
+  169 |         DeclareWar(kA.id, kB.id);
+      |         ~~~~~~~~~~^~~~~~~~~~~~~~
+In file included from 
+src/simulation/../world/World.h:3,
+                 from 
+src/simulation/KingdomManager.cpp:3:
+src/simulation/../world/../simulation/Simulation
+Manager.h:48:8: note: candidate: 'void 
+SimulationManager::DeclareWar(int, int, World&)'
+   48 |   void DeclareWar(int kingdomA, int 
+kingdomB, World &world);
+      |        ^~~~~~~~~~
+src/simulation/../world/../simulation/Simulation
+Manager.h:48:8: note:   candidate expects 3 
+arguments, 2 provided
+Compilation Failed!

@@ -83,6 +83,10 @@ private:
   Vector2 socialPopupPos = {0, 0};
   bool isDraggingSocial = false;
 
+  // God Mode: Force War
+  bool isTargetingWar = false;
+  int warTargetCityA = -1;
+
   // Save Popup State
   bool showSavePopup = false;
   Vector2 savePopupPos = {0, 0};

@@ -401,6 +401,94 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
     }
   }
 
+  // === GOD MODE WAR TARGETING ===
+  if (isTargetingWar && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+      !isPointerOnUI && !showCityPopup) {
+    Vector2 worldPos = GetScreenToWorld2D(mousePos, camera);
+    auto &sim = const_cast<World &>(world).GetSimulation();
+
+    int clickedCityID = -1;
+    for (const auto &pair : sim.GetCities()) {
+      const City &city = pair.second;
+      for (const auto &b : city.buildings) {
+        float bx = b.tileX * 10.0f + 5.0f;
+        float by = b.tileY * 10.0f + 5.0f;
+        if (CheckCollisionPointCircle(worldPos, {bx, by}, 15.0f)) {
+          clickedCityID = city.id;
+          break;
+        }
+      }
+      if (clickedCityID != -1)
+        break;
+    }
+
+    if (clickedCityID != -1) {
+      if (warTargetCityA == -1) {
+        warTargetCityA = clickedCityID;
+        AddNotification("Cidade A selecionada. Selecione o alvo B.", -1);
+      } else {
+        if (warTargetCityA != clickedCityID) {
+          City *cityA = sim.GetCity(warTargetCityA);
+          City *cityB = sim.GetCity(clickedCityID);
+
+          if (cityA && cityB) {
+            int kA = cityA->kingdomID;
+            int kB = cityB->kingdomID;
+
+            // 1. A nao tem faccao? Criar uma.
+            if (kA == -1) {
+              Kingdom newK;
+              newK.name = "Faccao " + cityA->name;
+              newK.color = cityA->color;
+              newK.capitalCityID = cityA->id;
+              newK.cityIDs.push_back(cityA->id);
+              kA = sim.AddKingdom(newK);
+              cityA->kingdomID = kA;
+            }
+
+            // 2. B nao tem faccao? Criar uma.
+            if (kB == -1) {
+              Kingdom newK;
+              newK.name = "Faccao " + cityB->name;
+              newK.color = cityB->color;
+              newK.capitalCityID = cityB->id;
+              newK.cityIDs.push_back(cityB->id);
+              kB = sim.AddKingdom(newK);
+              cityB->kingdomID = kB;
+            }
+
+            // 3. Mesma Faccao? Guerra Civil (Rebeliao da Cidade B)
+            if (kA == kB && kA != -1) {
+              Kingdom *oldK = sim.GetKingdom(kA);
+              if (oldK) {
+                oldK->cityIDs.erase(std::remove(oldK->cityIDs.begin(),
+                                                oldK->cityIDs.end(), cityB->id),
+                                    oldK->cityIDs.end());
+              }
+              Kingdom newK;
+              newK.name = "Rebeldes de " + cityB->name;
+              newK.color = RED;
+              newK.capitalCityID = cityB->id;
+              newK.cityIDs.push_back(cityB->id);
+              kB = sim.AddKingdom(newK);
+              cityB->kingdomID = kB;
+            }
+
+            // 4. Declarar a Guerra
+            if (kA != -1 && kB != -1 && kA != kB) {
+              sim.DeclareWar(kA, kB, const_cast<World &>(world));
+              AddNotification("Guerra Divina Declarada!", -1);
+            }
+          }
+        }
+        // Reset targeting mode
+        isTargetingWar = false;
+        warTargetCityA = -1;
+      }
+    }
+    return; // Consumed input
+  }
+
   // World Interaction (Painting)
   if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !isPointerOnUI &&
       !showBrushPopup && currentTab != UIState::Settings) {
@@ -794,6 +882,6 @@ void UIManager::DrawNotifications(const World &world) {
     // Draw Text
     contentX += iconWidth + spacing;
     DrawTextEx(uiFont, n.text.c_str(), {contentX, contentY + 6.0f}, 18, 1,
-               WHITE);
+               DARKGRAY);
   }
 }

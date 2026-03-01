@@ -882,6 +882,29 @@ void WorldRenderer::Draw(const Camera2D &camera,
     // Draw city name above center
     DrawText(city.name.c_str(), cx, cy - 15, 10, WHITE);
 
+    // Check if at war and draw visual indicator
+    bool isAtWar = false;
+    if (city.kingdomID != -1) {
+      if (const Kingdom *k = sim.GetKingdom(city.kingdomID)) {
+        for (const auto &kv : k->diplomaticStatus) {
+          if (kv.second == DiplomaticStatus::Hostile) {
+            isAtWar = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (isAtWar) {
+      // Draw an angry red text to signify war
+      DrawText("EM GUERRA!", cx - 10, cy - 30, 10, RED);
+      // Add a pulsing red rectangle under the city
+      float pulseTime = GetTime() * 3.0f;
+      int alpha = 100 + (int)(sinf(pulseTime) * 50);
+      DrawRectangle(cx - 5, cy - 5, tileSize + 10, tileSize + 10,
+                    (Color){255, 0, 0, (unsigned char)alpha});
+    }
+
     // Check if mouse is hovering over city center (in WORLD coordinates)
     float distToMouse = std::hypot(worldMousePos.x - cx, worldMousePos.y - cy);
     if (distToMouse < tileSize * 3) {
@@ -933,6 +956,34 @@ void WorldRenderer::Draw(const Camera2D &camera,
                hoveredCity->resources.stone);
       DrawText(stoneText, tooltipX, tooltipY + 65, 12, DARKGRAY);
     }
+  }
+
+  // === BATTLEFIELD VISUALIZATION ===
+  for (const auto &bfPair : sim.GetAllBattlefields()) {
+    const Battlefield &bf = bfPair.second;
+    int cx = static_cast<int>(bf.centerPos.x) * tileSize;
+    int cy = static_cast<int>(bf.centerPos.y) * tileSize;
+
+    float pulseTime = GetTime() * 4.0f;
+    float radius = 40.0f + sinf(pulseTime) * 10.0f;
+
+    DrawCircleLines(cx, cy, radius, RED);
+    DrawCircleLines(cx, cy, radius - 5.0f, MAROON);
+
+    const char *warText = "ZONA DE GUERRA";
+    int textWidth = MeasureText(warText, 20);
+    DrawRectangle(cx - textWidth / 2 - 5, cy - 30, textWidth + 10, 24,
+                  Fade(BLACK, 0.7f));
+    DrawText(warText, cx - textWidth / 2, cy - 28, 20, RED);
+
+    // Draw Timer and Kills
+    char infoText[64];
+    snprintf(infoText, sizeof(infoText), "Tempo: %.0fs | Mortes: %d - %d",
+             bf.timer, bf.killsA, bf.killsB);
+    int infoWidth = MeasureText(infoText, 14);
+    DrawRectangle(cx - infoWidth / 2 - 5, cy + 15, infoWidth + 10, 20,
+                  Fade(BLACK, 0.7f));
+    DrawText(infoText, cx - infoWidth / 2, cy + 18, 14, WHITE);
   }
 
   // === CITIZEN SELECTION (Right-click) ===

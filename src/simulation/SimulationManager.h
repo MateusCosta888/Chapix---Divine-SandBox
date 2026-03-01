@@ -45,6 +45,16 @@ public:
   const Kingdom *GetKingdom(int id) const;
   void RemoveKingdom(int id);
   const std::map<int, Kingdom> &GetAllKingdoms() const { return kingdoms; }
+  void DeclareWar(int kingdomA, int kingdomB, World &world);
+
+  // === BATTLEFIELD MANAGEMENT ===
+  int AddBattlefield(const Battlefield &bf);
+  Battlefield *GetBattlefield(int id);
+  const Battlefield *GetBattlefield(int id) const;
+  void RemoveBattlefield(int id);
+  const std::map<int, Battlefield> &GetAllBattlefields() const {
+    return battlefields;
+  }
 
   // === BUILDING MANAGEMENT ===
   int AddBuilding(const Building &building);
@@ -106,17 +116,20 @@ private:
   std::map<int, City> cities;
   std::map<int, Kingdom> kingdoms;
   std::map<int, Building> buildings;
+  std::map<int, Battlefield> battlefields;
 
   // === ID COUNTERS ===
   int nextCitizenID = 1;
   int nextCityID = 1;
   int nextKingdomID = 1;
   int nextBuildingID = 1;
+  int nextBattlefieldID = 1;
 
   // === UPDATE SUBSYSTEMS ===
   void UpdateCitizens(World &world, float deltaTime);
   void UpdateCities(World &world, float deltaTime);
   void UpdateKingdoms(World &world, float deltaTime);
+  void UpdateDiplomacy(World &world, float deltaTime);
 
   // === TIME TRACKING ===
   float gameTime = 0.0f;  // Total elapsed time
@@ -132,8 +145,8 @@ public:
   float GetYearProgress() const { return yearTimer / secondsPerYear; }
 
   // === SAVE & LOAD ===
-  NLOHMANN_DEFINE_TYPE_INTRUSIVE(SimulationManager, citizens, cities, kingdoms,
-                                 buildings, nextCitizenID, nextCityID,
-                                 nextKingdomID, nextBuildingID, gameTime,
-                                 yearTimer, currentYear, secondsPerYear)
+  NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(
+      SimulationManager, citizens, cities, kingdoms, buildings, battlefields,
+      nextCitizenID, nextCityID, nextKingdomID, nextBuildingID,
+      nextBattlefieldID, gameTime, yearTimer, currentYear, secondsPerYear)
 };

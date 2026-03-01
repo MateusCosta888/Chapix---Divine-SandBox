@@ -377,25 +377,47 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Social) {
-    numTools = 1; // Just "Cidades" for now
+    numTools = 2; // "Cidades" and "Guerra!"
+    const char *toolNames[] = {"Cidades", "Guerra!"};
+
     for (int i = 0; i < numTools; i++) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
                            btnSize};
       bool isHover = CheckCollisionPointRec(mousePos, btnRect);
 
-      DrawTexturedButton(texButton, btnRect, false, isHover);
+      // Highlight the button if it's the active targeting mode
+      bool isActive = false;
+      if (i == 1 && isTargetingWar)
+        isActive = true;
 
-      // Draw "Cidades" Text
-      const char *btnName = "Cidades";
+      DrawTexturedButton(texButton, btnRect, isActive, isHover);
+
+      // Draw Tool Text
+      const char *btnName = toolNames[i];
       Vector2 ts = MeasureTextEx(uiFont, btnName, 20, 1);
+
+      // If Guerra, make it Red
+      Color textColor = WHITE;
+      if (i == 1)
+        textColor = RED;
+
       DrawTextEx(
           uiFont, btnName,
           {btnRect.x + (btnSize - ts.x) / 2, btnRect.y + (btnSize - ts.y) / 2},
-          20, 1, WHITE);
+          20, 1, textColor);
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
           !showBrushPopup) {
-        showSocialCityList = !showSocialCityList; // Toggle city list
+        if (i == 0) {
+          showSocialCityList = !showSocialCityList; // Toggle city list
+        } else if (i == 1) {
+          isTargetingWar = !isTargetingWar; // Toggle God Mode War
+          warTargetCityA = -1;              // Reset selection
+          if (isTargetingWar) {
+            AddNotification(
+                "Modo Guerra ativo! Clique em duas cidades inimigas.", -1);
+          }
+        }
       }
     }
   } else if (currentTab == UIState::Creatures) {

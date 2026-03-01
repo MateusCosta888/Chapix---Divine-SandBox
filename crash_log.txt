@@ -627,3 +627,187 @@ Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
 ========== FIM DO RELATORIO ==========
 
 === SESSAO INICIADA: 2026-02-27 23:58:33 ===
+=== SESSAO INICIADA: 2026-03-01 17:43:48 ===
+=== SESSAO INICIADA: 2026-03-01 18:07:09 ===
+=== SESSAO INICIADA: 2026-03-01 18:18:00 ===
+=== SESSAO INICIADA: 2026-03-01 18:28:50 ===
+=== SESSAO INICIADA: 2026-03-01 18:39:42 ===
+=== SESSAO INICIADA: 2026-03-01 19:45:34 ===
+=== SESSAO INICIADA: 2026-03-01 20:07:44 ===
+=== SESSAO INICIADA: 2026-03-01 20:24:58 ===
+=== SESSAO INICIADA: 2026-03-01 20:53:49 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-03-01 20:54:06
+Sinal: SIGABRT (Abort - Erro interno / assert falhou) (codigo: 22)
+
+=== CONTEXTO DO JOGO ===
+Estado: Main Menu
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 32635 MB
+RAM Usada: 15041 MB
+RAM Disponivel: 17593 MB
+Uso de Memoria: 46%
+
+=== STACK TRACE ===
+Stack Trace (24 frames):
+  [0] 0x7ff6e11a3daa
+  [1] 0x7ff6e11a4397
+  [2] 0x7ff91ef7ec01
+  [3] 0x7ff91ef8305b
+  [4] 0x7ff6e130f259
+  [5] 0x7ff6e12e9366
+  [6] 0x7ff6e13ce861
+  [7] 0x7ff6e13d2e6f
+  [8] 0x7ff6e131347a
+  [9] 0x7ff6e12e7a89
+  [10] 0x7ff6e1317cdf
+  [11] 0x7ff6e12f3d48
+  [12] 0x7ff6e1315c00
+  [13] 0x7ff6e11ac354
+  [14] 0x7ff6e1317d9f
+  [15] 0x7ff6e12f44c8
+  [16] 0x7ff6e1315c60
+  [17] 0x7ff6e11a2d34
+  [18] 0x7ff6e11de44e
+  [19] 0x7ff6e11a18ae
+  [20] 0x7ff6e11a12c4
+  [21] 0x7ff6e11a132e
+  [22] 0x7ff91dd2e8d7
+  [23] 0x7ff91f0cc40c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-03-01 20:54:15 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-03-01 20:54:27
+Sinal: SIGABRT (Abort - Erro interno / assert falhou) (codigo: 22)
+
+=== CONTEXTO DO JOGO ===
+Estado: Main Menu
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 32635 MB
+RAM Usada: 14885 MB
+RAM Disponivel: 17750 MB
+Uso de Memoria: 45%
+
+=== STACK TRACE ===
+Stack Trace (24 frames):
+  [0] 0x7ff6e11a3daa
+  [1] 0x7ff6e11a4397
+  [2] 0x7ff91ef7ec01
+  [3] 0x7ff91ef8305b
+  [4] 0x7ff6e130f259
+  [5] 0x7ff6e12e9366
+  [6] 0x7ff6e13ce861
+  [7] 0x7ff6e13d2e6f
+  [8] 0x7ff6e131347a
+  [9] 0x7ff6e12e7a89
+  [10] 0x7ff6e1317cdf
+  [11] 0x7ff6e12f3d48
+  [12] 0x7ff6e1315c00
+  [13] 0x7ff6e11ac354
+  [14] 0x7ff6e1317d9f
+  [15] 0x7ff6e12f44c8
+  [16] 0x7ff6e1315c60
+  [17] 0x7ff6e11a2d34
+  [18] 0x7ff6e11de44e
+  [19] 0x7ff6e11a18ae
+  [20] 0x7ff6e11a12c4
+  [21] 0x7ff6e11a132e
+  [22] 0x7ff91dd2e8d7
+  [23] 0x7ff91f0cc40c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-03-01 20:54:32 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-03-01 20:54:44
+Sinal: SIGABRT (Abort - Erro interno / assert falhou) (codigo: 22)
+
+=== CONTEXTO DO JOGO ===
+Estado: Main Menu
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 32635 MB
+RAM Usada: 14883 MB
+RAM Disponivel: 17752 MB
+Uso de Memoria: 45%
+
+=== STACK TRACE ===
+Stack Trace (24 frames):
+  [0] 0x7ff6e11a3daa
+  [1] 0x7ff6e11a4397
+  [2] 0x7ff91ef7ec01
+  [3] 0x7ff91ef8305b
+  [4] 0x7ff6e130f259
+  [5] 0x7ff6e12e9366
+  [6] 0x7ff6e13ce861
+  [7] 0x7ff6e13d2e6f
+  [8] 0x7ff6e131347a
+  [9] 0x7ff6e12e7a89
+  [10] 0x7ff6e1317cdf
+  [11] 0x7ff6e12f3d48
+  [12] 0x7ff6e1315c00
+  [13] 0x7ff6e11ac354
+  [14] 0x7ff6e1317d9f
+  [15] 0x7ff6e12f44c8
+  [16] 0x7ff6e1315c60
+  [17] 0x7ff6e11a2d34
+  [18] 0x7ff6e11de44e
+  [19] 0x7ff6e11a18ae
+  [20] 0x7ff6e11a12c4
+  [21] 0x7ff6e11a132e
+  [22] 0x7ff91dd2e8d7
+  [23] 0x7ff91f0cc40c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-03-01 21:57:58 ===
+=== SESSAO INICIADA: 2026-03-01 22:11:39 ===

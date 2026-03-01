@@ -26,6 +26,14 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
     // === FIND ENTITY ===
     Entity *myEntity = world.GetEntityByCitizenID(c.id);
 
+    // Ensure non-soldiers revert their visual representation (in case they were
+    // fired)
+    if (myEntity && c.profession != Profession::Soldier &&
+        myEntity->type == EntityType::HumanArmed) {
+      myEntity->type =
+          c.isFemale ? EntityType::HumanWoman : EntityType::HumanUnarmed;
+    }
+
     // Age - much faster for gameplay!
     // Children age faster to become adults sooner (game-years per second)
     float ageMultiplier = c.isChild() ? 5.0f : 1.0f; // Children grow 5x faster
@@ -123,6 +131,31 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
                c.workState == Citizen::WorkState::ReturningHome) {
       decayRate = 0.8f; // Walking tires less than working
     }
+    // --- WAR ADRENALINE BYPASS ---
+    bool isAtWar = false;
+    if (c.profession == Profession::Soldier && c.cityID != -1) {
+      City *myCity = GetCity(c.cityID);
+      if (myCity && myCity->kingdomID != -1) {
+        Kingdom *myK = GetKingdom(myCity->kingdomID);
+        if (myK) {
+          for (const auto &kv : myK->diplomaticStatus) {
+            if (kv.second == DiplomaticStatus::Hostile) {
+              isAtWar = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (isAtWar) {
+      decayRate = 0.0f;
+      c.energy = 100.0f;
+      c.isGoingHome = false;
+      c.isResting = false;
+    }
+    // -----------------------------
+
     c.energy -= deltaTime * decayRate;
 
     // 3. Go Home if Tired
@@ -242,7 +275,8 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
 
     // === GENERIC WANDERING ===
     // If wandering, pick a random spot and move there
-    if (c.workState == Citizen::WorkState::Wandering) {
+    if (c.workState == Citizen::WorkState::Wandering &&
+        c.profession != Profession::Soldier) {
       if (!myEntity->hasTarget) {
         int rx = (rand() % 11) - 5;
         int ry = (rand() % 11) - 5;
@@ -1170,9 +1204,44 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           TraceLog(LOG_INFO, "SOLDIER: Citizen %d locked onto Enemy %d", c.id,
                    enemyID);
         } else {
-          // Patrol logic: Walk in straight lines through the city streets
-          if (!myEntity->hasTarget) {
-            // Pick a random cardinal direction
+          // NO LOCAL ENEMY SPOTTED. Check if we are at war!
+          bool isMarching = false;
+          if (myCity->kingdomID != -1) {
+            const Kingdom *myK = GetKingdom(myCity->kingdomID);
+            if (myK) {
+              Vector2 enemyCityPos = {0.0f, 0.0f};
+
+              for (const auto &bfPair : GetAllBattlefields()) {
+                const Battlefield &bf = bfPair.second;
+                if (bf.kingdomA == myK->id || bf.kingdomB == myK->id) {
+                  enemyCityPos = bf.centerPos;
+                  isMarching = true;
+                  break;
+                }
+              }
+
+              if (isMarching) {
+                c.isWorking = true;
+                // Re-evaluate path frequently when marching
+                if (c.stateTimer > 3.0f || !myEntity->hasTarget) {
+                  float rx = (rand() % 11 - 5) * 0.5f;
+                  float ry = (rand() % 11 - 5) * 0.5f;
+
+                  myEntity->targetPos.x = enemyCityPos.x + rx;
+                  myEntity->targetPos.y = enemyCityPos.y + ry;
+
+                  myEntity->hasTarget = true;
+                  myEntity->state = EntityState::Run;
+                  c.stateTimer = 0.0f;
+                }
+              }
+            }
+          }
+
+          if (!isMarching && !myEntity->hasTarget) {
+            c.isWorking = false; // Reset if at peace
+            // PEACE TIME PATROL: Walk in straight lines through the city
+            // streets
             int r = rand() % 4;
             int dx = 0, dy = 0;
             if (r == 0)
@@ -1219,7 +1288,6 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
               myEntity->state = EntityState::Walking;
             } else {
               // Stuck or at border, will pick a new direction next frame
-              // Minimal fallback to turn visually
               myEntity->facingDirection = (myEntity->facingDirection + 1) % 4;
             }
           }
@@ -1307,11 +1375,36 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           c.workTimer = 0.0f;
 
           // Damage formula
-          float damage = 15.0f;
+          float damage = 35.0f;
           enemy->health -= damage;
           enemyEntity->state = EntityState::Hurt;
           enemyEntity->animTime = 0.0f;
           enemyEntity->currentFrame = 0;
+
+          if (enemy->health <= 0.0f) {
+            City *myCity = GetCity(c.cityID);
+            City *enemyCity = GetCity(enemy->cityID);
+            if (myCity && enemyCity && myCity->kingdomID != -1 &&
+                enemyCity->kingdomID != -1) {
+
+              // Register kill in Battlefield
+              for (auto &bfPair : const_cast<std::map<int, Battlefield> &>(
+                       GetAllBattlefields())) {
+                Battlefield &bf = bfPair.second;
+                if ((bf.kingdomA == myCity->kingdomID &&
+                     bf.kingdomB == enemyCity->kingdomID) ||
+                    (bf.kingdomB == myCity->kingdomID &&
+                     bf.kingdomA == enemyCity->kingdomID)) {
+
+                  if (bf.kingdomA == myCity->kingdomID)
+                    bf.killsA++;
+                  else
+                    bf.killsB++;
+                  break;
+                }
+              }
+            }
+          }
 
           TraceLog(
               LOG_INFO,
