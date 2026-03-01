@@ -620,7 +620,7 @@ void UIManager::Draw(const World &world) {
   DrawToolbar(world);
 
   // Draw Standalone Calendar Window
-  float calW = 160;
+  float calW = 200;
   float calH = 50;
   float calX = getScreenW() - calW - 20;
   float calY = 20;

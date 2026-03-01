@@ -557,3 +557,73 @@ Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
 === SESSAO INICIADA: 2026-02-25 23:14:49 ===
 === SESSAO INICIADA: 2026-02-26 00:10:24 ===
 === SESSAO INICIADA: 2026-02-26 00:21:01 ===
+=== SESSAO INICIADA: 2026-02-27 20:50:46 ===
+=== SESSAO INICIADA: 2026-02-27 21:05:31 ===
+=== SESSAO INICIADA: 2026-02-27 21:13:29 ===
+=== SESSAO INICIADA: 2026-02-27 21:20:13 ===
+=== SESSAO INICIADA: 2026-02-27 21:28:00 ===
+=== SESSAO INICIADA: 2026-02-27 21:35:12 ===
+=== SESSAO INICIADA: 2026-02-27 21:35:52 ===
+=== SESSAO INICIADA: 2026-02-27 21:43:00 ===
+=== SESSAO INICIADA: 2026-02-27 21:53:12 ===
+=== SESSAO INICIADA: 2026-02-27 22:03:59 ===
+=== SESSAO INICIADA: 2026-02-27 22:32:45 ===
+=== SESSAO INICIADA: 2026-02-27 22:36:10 ===
+=== SESSAO INICIADA: 2026-02-27 22:46:36 ===
+=== SESSAO INICIADA: 2026-02-27 22:57:54 ===
+=== SESSAO INICIADA: 2026-02-27 23:03:10 ===
+=== SESSAO INICIADA: 2026-02-27 23:12:01 ===
+=== SESSAO INICIADA: 2026-02-27 23:29:08 ===
+=== SESSAO INICIADA: 2026-02-27 23:38:49 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-02-27 23:51:56
+Sinal: SIGFPE (Floating Point Exception - Divisao por zero) (codigo: 8)
+
+=== CONTEXTO DO JOGO ===
+Estado: Playing
+Cidades: 21
+Entidades: 461
+Populacao: 431
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 32635 MB
+RAM Usada: 12919 MB
+RAM Disponivel: 19716 MB
+Uso de Memoria: 39%
+
+=== STACK TRACE ===
+Stack Trace (15 frames):
+  [0] 0x7ff7759e2cb6
+  [1] 0x7ff7759e54b2
+  [2] 0x7ff775b0a6c2
+  [3] 0x7ff8a4001853
+  [4] 0x7ff8a404618f
+  [5] 0x7ff8a3ef2327
+  [6] 0x7ff8a4045ace
+  [7] 0x7ff775a01d05
+  [8] 0x7ff775a08bc8
+  [9] 0x7ff775a0ce5c
+  [10] 0x7ff775baf92f
+  [11] 0x7ff7759e12c4
+  [12] 0x7ff7759e132e
+  [13] 0x7ff8a1f7e8d7
+  [14] 0x7ff8a3f6c40c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-02-27 23:58:33 ===

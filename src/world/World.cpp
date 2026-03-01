@@ -764,9 +764,9 @@ void World::SetTileType(int x, int y, TileType newType) {
   if (newType == TileType::DeepOcean) {
     tile.liquidLevel = 1.0f;
   } else if (newType == TileType::Ocean) {
-    tile.liquidLevel = 0.8f;
-  } else if (newType == TileType::ShallowOcean) {
     tile.liquidLevel = 0.5f;
+  } else if (newType == TileType::ShallowOcean) {
+    tile.liquidLevel = 0.2f;
   } else {
     // Non-water tile - clear liquid
     tile.liquidLevel = 0.0f;

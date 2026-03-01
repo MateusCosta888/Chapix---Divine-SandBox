@@ -300,6 +300,56 @@ void WorldRenderer::Draw(const Camera2D &camera,
     }
   }
 
+  // PASS 1.5: Draw City Territories Base (Under Entities)
+  const auto &citiesBase = world.GetSimulation().GetAllCities();
+  for (const auto &pair : citiesBase) {
+    const City &city = pair.second;
+    if (!city.isAlive)
+      continue;
+
+    Color territoryColor = city.color;
+    territoryColor.a = 60; // Very transparent
+    Color borderColor = city.color;
+    borderColor.a = 200; // Very visible border
+    float thick = 2.0f;
+    float ftp = (float)tileSize;
+
+    for (const Vector2 &tile : city.territory) {
+      int tx = static_cast<int>(tile.x);
+      int ty = static_cast<int>(tile.y);
+      // Draw transparent ground fill
+      DrawRectangle(tx * tileSize, ty * tileSize, tileSize, tileSize,
+                    territoryColor);
+
+      // Top Edge
+      if (ty == 0 || world.GetTileConst(tx, ty - 1).ownerCityID != city.id) {
+        DrawLineEx({(float)tx * ftp, (float)ty * ftp},
+                   {(float)(tx + 1) * ftp, (float)ty * ftp}, thick,
+                   borderColor);
+      }
+      // Bottom Edge
+      if (ty == world.GetHeight() - 1 ||
+          world.GetTileConst(tx, ty + 1).ownerCityID != city.id) {
+        DrawLineEx({(float)tx * ftp, (float)(ty + 1) * ftp},
+                   {(float)(tx + 1) * ftp, (float)(ty + 1) * ftp}, thick,
+                   borderColor);
+      }
+      // Left Edge
+      if (tx == 0 || world.GetTileConst(tx - 1, ty).ownerCityID != city.id) {
+        DrawLineEx({(float)tx * ftp, (float)ty * ftp},
+                   {(float)tx * ftp, (float)(ty + 1) * ftp}, thick,
+                   borderColor);
+      }
+      // Right Edge
+      if (tx == world.GetWidth() - 1 ||
+          world.GetTileConst(tx + 1, ty).ownerCityID != city.id) {
+        DrawLineEx({(float)(tx + 1) * ftp, (float)ty * ftp},
+                   {(float)(tx + 1) * ftp, (float)(ty + 1) * ftp}, thick,
+                   borderColor);
+      }
+    }
+  }
+
   // PASS 2: Collect Renderable Items (Decorations & Entities)
   std::vector<RenderItem> items;
   if (resourceManager.IsLoaded()) {
@@ -462,33 +512,27 @@ void WorldRenderer::Draw(const Camera2D &camera,
           float w = tileSize * scale;
           float h = w * ((float)tex->height / (float)tex->width);
 
-          // Randomized offset used in original renderer
-          float offX = ((v % 20) - 10) / 10.0f * (tileSize * 0.2f);
-          float offY = (((v / 20) % 20) - 10) / 10.0f * (tileSize * 0.2f);
-          if (tile.decoration == DecorationType::Tree ||
-              tile.decoration == DecorationType::PineTree ||
-              tile.decoration == DecorationType::PalmTree) {
-            offX = ((v % 20) - 10) / 10.0f * (tileSize * 0.3f);
-            offY = (((v / 20) % 20) - 10) / 10.0f * (tileSize * 0.3f);
-          }
+          // Absolute rigid centering for pixel-perfect grid look
+          float offX = 0.0f;
+          float offY = 0.0f;
 
           Rectangle src = {0, 0, (float)tex->width, (float)tex->height};
           Rectangle dest = {(float)(x * tileSize + tileSize / 2 + offX),
                             (float)(y * tileSize + tileSize / 2 + offY), w, h};
 
-          // Origin sets the "pivot" point. For sorting, we want Y to be the
-          // bottom. Trees: Pivot near bottom.
-          Vector2 origin = {w / 2, h * 0.85f};
-          if (tile.decoration == DecorationType::Rock ||
-              tile.decoration == DecorationType::BigRock)
-            origin = {w / 2, h / 2};
-          else if (tile.decoration == DecorationType::DesertPlant &&
-                   (tile.decorationVariant % 3) == 0) // Rock variant
-            origin = {w / 2, h / 2};
-          else if (tile.decoration == DecorationType::GrassTuft)
-            origin = {w / 2, h / 2};
-          else if (tile.decoration == DecorationType::Crystal)
-            origin = {w / 2, h / 2};
+          // Origin sets the "pivot" point.
+          // Centered by default for bushes, flowers, rocks, and small entities
+          Vector2 origin = {w / 2, h / 2};
+
+          if (tile.decoration == DecorationType::Tree ||
+              tile.decoration == DecorationType::PineTree ||
+              tile.decoration == DecorationType::PalmTree ||
+              tile.decoration == DecorationType::Cactus ||
+              (tile.decoration == DecorationType::DesertPlant &&
+               (tile.decorationVariant % 3) != 0)) { // Tall Plants
+            origin = {w / 2, h * 0.78f}; // Previously 0.85f, lowered to
+                                         // properly root in center
+          }
 
           Color tColor = WHITE;
           if (tile.decoration == DecorationType::Rock)
@@ -519,6 +563,9 @@ void WorldRenderer::Draw(const Camera2D &camera,
     const auto &cityMap = *cities;
     for (const auto &pair : cityMap) {
       const City &city = pair.second;
+      if (!city.isAlive)
+        continue;
+
       for (const Building &b : city.buildings) {
         if (!b.isComplete)
           continue;
@@ -824,18 +871,8 @@ void WorldRenderer::Draw(const Camera2D &camera,
     if (!city.isAlive)
       continue;
 
-    // Draw territory tiles with semi-transparent city color
-    Color territoryColor = city.color;
-    territoryColor.a = 60; // Very transparent
-
-    for (const Vector2 &tile : city.territory) {
-      int tx = static_cast<int>(tile.x);
-      int ty = static_cast<int>(tile.y);
-      DrawRectangle(tx * tileSize, ty * tileSize, tileSize, tileSize,
-                    territoryColor);
-    }
-
-    // Draw city center marker (brighter)
+    // Territory has already been drawn in PASS 1.5, draw only markers and names
+    // here Draw city center marker (brighter)
     Color centerColor = city.color;
     centerColor.a = 200;
     int cx = static_cast<int>(city.center.x) * tileSize;
@@ -1203,6 +1240,140 @@ void WorldRenderer::DrawWaterEffects(int tileX, int tileY, TileType type,
 
   // 3. Foam on edges (where water meets land)
   DrawWaterFoam(tileX, tileY, screenX, screenY, tileSize, time);
+
+  // 4. Depth Gradients (Open sea transitions - deep water shadowed by shallow)
+  if (type == TileType::Ocean || type == TileType::DeepOcean) {
+    int width = world.GetWidth();
+    int height = world.GetHeight();
+    bool shallowerNorth = false, shallowerSouth = false, shallowerWest = false,
+         shallowerEast = false;
+    bool shallowerNW = false, shallowerNE = false, shallowerSW = false,
+         shallowerSE = false;
+
+    if (type == TileType::Ocean) {
+      if (tileY > 0)
+        shallowerNorth =
+            (world.GetTile(tileX, tileY - 1).type == TileType::ShallowOcean);
+      if (tileY < height - 1)
+        shallowerSouth =
+            (world.GetTile(tileX, tileY + 1).type == TileType::ShallowOcean);
+      if (tileX > 0)
+        shallowerWest =
+            (world.GetTile(tileX - 1, tileY).type == TileType::ShallowOcean);
+      if (tileX < width - 1)
+        shallowerEast =
+            (world.GetTile(tileX + 1, tileY).type == TileType::ShallowOcean);
+
+      if (tileY > 0 && tileX > 0)
+        shallowerNW = (world.GetTile(tileX - 1, tileY - 1).type ==
+                       TileType::ShallowOcean);
+      if (tileY > 0 && tileX < width - 1)
+        shallowerNE = (world.GetTile(tileX + 1, tileY - 1).type ==
+                       TileType::ShallowOcean);
+      if (tileY < height - 1 && tileX > 0)
+        shallowerSW = (world.GetTile(tileX - 1, tileY + 1).type ==
+                       TileType::ShallowOcean);
+      if (tileY < height - 1 && tileX < width - 1)
+        shallowerSE = (world.GetTile(tileX + 1, tileY + 1).type ==
+                       TileType::ShallowOcean);
+    } else if (type == TileType::DeepOcean) {
+      if (tileY > 0)
+        shallowerNorth =
+            (world.GetTile(tileX, tileY - 1).type == TileType::Ocean ||
+             world.GetTile(tileX, tileY - 1).type == TileType::ShallowOcean);
+      if (tileY < height - 1)
+        shallowerSouth =
+            (world.GetTile(tileX, tileY + 1).type == TileType::Ocean ||
+             world.GetTile(tileX, tileY + 1).type == TileType::ShallowOcean);
+      if (tileX > 0)
+        shallowerWest =
+            (world.GetTile(tileX - 1, tileY).type == TileType::Ocean ||
+             world.GetTile(tileX - 1, tileY).type == TileType::ShallowOcean);
+      if (tileX < width - 1)
+        shallowerEast =
+            (world.GetTile(tileX + 1, tileY).type == TileType::Ocean ||
+             world.GetTile(tileX + 1, tileY).type == TileType::ShallowOcean);
+
+      if (tileY > 0 && tileX > 0)
+        shallowerNW =
+            (world.GetTile(tileX - 1, tileY - 1).type == TileType::Ocean ||
+             world.GetTile(tileX - 1, tileY - 1).type ==
+                 TileType::ShallowOcean);
+      if (tileY > 0 && tileX < width - 1)
+        shallowerNE =
+            (world.GetTile(tileX + 1, tileY - 1).type == TileType::Ocean ||
+             world.GetTile(tileX + 1, tileY - 1).type ==
+                 TileType::ShallowOcean);
+      if (tileY < height - 1 && tileX > 0)
+        shallowerSW =
+            (world.GetTile(tileX - 1, tileY + 1).type == TileType::Ocean ||
+             world.GetTile(tileX - 1, tileY + 1).type ==
+                 TileType::ShallowOcean);
+      if (tileY < height - 1 && tileX < width - 1)
+        shallowerSE =
+            (world.GetTile(tileX + 1, tileY + 1).type == TileType::Ocean ||
+             world.GetTile(tileX + 1, tileY + 1).type ==
+                 TileType::ShallowOcean);
+    }
+
+    if (shallowerNorth || shallowerSouth || shallowerWest || shallowerEast ||
+        shallowerNW || shallowerNE || shallowerSW || shallowerSE) {
+
+      int gradientSize = tileSize / 2; // Gradient spans half a tile
+      Color shadowTint = {0, 20, 60,
+                          80}; // Rich deep blue shadow, softened opacity
+      Color shadowTransparent = {0, 20, 60, 0};
+
+      if (shallowerNorth)
+        DrawRectangleGradientV(screenX, screenY, tileSize, gradientSize,
+                               shadowTint, shadowTransparent);
+      if (shallowerSouth)
+        DrawRectangleGradientV(screenX, screenY + tileSize - gradientSize,
+                               tileSize, gradientSize, shadowTransparent,
+                               shadowTint);
+      if (shallowerWest)
+        DrawRectangleGradientH(screenX, screenY, gradientSize, tileSize,
+                               shadowTint, shadowTransparent);
+      if (shallowerEast)
+        DrawRectangleGradientH(screenX + tileSize - gradientSize, screenY,
+                               gradientSize, tileSize, shadowTransparent,
+                               shadowTint);
+
+      // Inner corner fixes using DrawRectangleGradientEx (TopLeft, BottomLeft,
+      // BottomRight, TopRight)
+      if (shallowerNW && !shallowerNorth && !shallowerWest) {
+        DrawRectangleGradientEx((Rectangle){(float)screenX, (float)screenY,
+                                            (float)gradientSize,
+                                            (float)gradientSize},
+                                shadowTint, shadowTransparent,
+                                shadowTransparent, shadowTransparent);
+      }
+      if (shallowerNE && !shallowerNorth && !shallowerEast) {
+        DrawRectangleGradientEx(
+            (Rectangle){(float)(screenX + tileSize - gradientSize),
+                        (float)screenY, (float)gradientSize,
+                        (float)gradientSize},
+            shadowTransparent, shadowTransparent, shadowTransparent,
+            shadowTint);
+      }
+      if (shallowerSW && !shallowerSouth && !shallowerWest) {
+        DrawRectangleGradientEx(
+            (Rectangle){(float)screenX,
+                        (float)(screenY + tileSize - gradientSize),
+                        (float)gradientSize, (float)gradientSize},
+            shadowTransparent, shadowTint, shadowTransparent,
+            shadowTransparent);
+      }
+      if (shallowerSE && !shallowerSouth && !shallowerEast) {
+        DrawRectangleGradientEx(
+            (Rectangle){(float)(screenX + tileSize - gradientSize),
+                        (float)(screenY + tileSize - gradientSize),
+                        (float)gradientSize, (float)gradientSize},
+            shadowTransparent, shadowTransparent, shadowTint,
+            shadowTransparent);
+      }
+    }
+  }
 }
 
 void WorldRenderer::DrawWaterWaves(int screenX, int screenY, int tileSize,

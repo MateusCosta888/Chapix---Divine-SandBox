@@ -3,7 +3,6 @@
 #include <cstring>
 #include <string>
 
-
 void UIManager::DrawCityPopup(const World &world) {
   auto &sim = const_cast<World &>(world).GetSimulation(); // Access simulation
   City *city = sim.GetCity(popupCityID);
@@ -153,8 +152,9 @@ void UIManager::DrawCityPopup(const World &world) {
 
     if (CheckCollisionPointRec(GetMousePosition(), flagRect)) {
       DrawRectangleLinesEx(flagRect, 3, YELLOW); // Thicker highlight
-      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+      if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
         showFlagSelector = true;
+        flagSelectorJustOpened = true;
         flagSelectorScroll = 0.0f;
       }
     }

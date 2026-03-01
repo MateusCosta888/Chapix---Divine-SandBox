@@ -75,6 +75,7 @@ private:
   float cityPopupScroll = 0.0f;
   bool showFlagSelector = false;
   float flagSelectorScroll = 0.0f;
+  bool flagSelectorJustOpened = false;
 
   // Social / Kingdom List State
   bool showSocialCityList = false;
@@ -154,6 +155,7 @@ private:
   bool isRenamingHuman = false;
   int humanWindowTab = 0; // 0 = Main, 1 = Abilities
   bool showProfessionSelector = false;
+  bool professionSelectorJustOpened = false;
 
   // Drag State (Human)
   Vector2 humanPopupPos = {0, 0};

@@ -7,7 +7,6 @@
 #include <cstdlib>
 #include <string>
 
-
 // ============================================================================
 // CITY FOUNDING - SCORE ALGORITHM
 // ============================================================================
@@ -315,8 +314,34 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
 
     // City dies if no citizens left
     if (city.citizenIDs.empty()) {
+      // Clean-up operation: Purge phantom structures and release map territory
+      for (const Vector2 &tpos : city.territory) {
+        int tx = static_cast<int>(tpos.x);
+        int ty = static_cast<int>(tpos.y);
+        Tile &mapTile = world.GetTile(tx, ty);
+
+        // Surrender the ground back to wild nature
+        if (mapTile.ownerCityID == city.id)
+          mapTile.ownerCityID = -1;
+        if (mapTile.farmOwnerCityID == city.id) {
+          mapTile.farmOwnerCityID = -1;
+          mapTile.isPlanted = false; // Destroy phantom crops
+          mapTile.growthProgress = 0.0f;
+        }
+      }
+
+      for (const Building &b : city.buildings) {
+        Tile &buildTile = world.GetTile(b.tileX, b.tileY);
+        buildTile.isOccupied = false; // Free spatial physics for new settlers
+      }
+
+      city.territory.clear();
+      city.buildings.clear();
       city.isAlive = false;
-      TraceLog(LOG_INFO, "SIMULATION: City %d has fallen! (No citizens remain)",
+
+      TraceLog(LOG_INFO,
+               "SIMULATION: City %d has fallen! Territory and architecture "
+               "purged from the simulation.",
                city.id);
     }
 
