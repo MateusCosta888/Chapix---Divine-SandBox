@@ -455,8 +455,25 @@ void SimulationManager::AssignJobs(City &city) {
             miners--;
 
           c->profession = Profession::None;
+          c->workState = Citizen::WorkState::Idle;
           unemployed++;
           availableWorkers.push_back(c);
+        }
+      }
+    }
+  } else {
+    // If NOT at war, fire excess soldiers drafted for the war!
+    if (soldiers > desiredSoldiers) {
+      for (int id : city.citizenIDs) {
+        Citizen *c = GetCitizen(id);
+        if (c && c->isAlive && c->profession == Profession::Soldier) {
+          c->profession = Profession::None;
+          c->workState = Citizen::WorkState::Idle;
+          soldiers--;
+          unemployed++;
+          availableWorkers.push_back(c);
+          if (soldiers <= desiredSoldiers)
+            break;
         }
       }
     }

@@ -842,19 +842,7 @@ void WorldRenderer::Draw(const Camera2D &camera,
                    item.tint);
   }
 
-  // Draw Visual Boundaries
-  int padding = 10;
-  float startX = padding * tileSize;
-  float startY = padding * tileSize;
-  float endX = (width - padding) * tileSize;
-  float endY = (height - padding) * tileSize;
-  Color boundaryColor = (Color){200, 200, 200, 150};
-  float dashLen = 20.0f;
-  float gapLen = 10.0f;
-
-  for (float py = startY; py < endY; py += dashLen + gapLen)
-    DrawRectangle((int)endX, (int)py, 4, (int)std::min(dashLen, endY - py),
-                  boundaryColor);
+  // (Draw Visual Boundaries was removed per user request)
 
   // === CITY TERRITORY VISUALIZATION ===
   // Draw colored overlays for city territories
@@ -961,8 +949,8 @@ void WorldRenderer::Draw(const Camera2D &camera,
   // === BATTLEFIELD VISUALIZATION ===
   for (const auto &bfPair : sim.GetAllBattlefields()) {
     const Battlefield &bf = bfPair.second;
-    int cx = static_cast<int>(bf.centerPos.x) * tileSize;
-    int cy = static_cast<int>(bf.centerPos.y) * tileSize;
+    int cx = static_cast<int>(bf.centerPos.x * tileSize);
+    int cy = static_cast<int>(bf.centerPos.y * tileSize);
 
     float pulseTime = GetTime() * 4.0f;
     float radius = 40.0f + sinf(pulseTime) * 10.0f;

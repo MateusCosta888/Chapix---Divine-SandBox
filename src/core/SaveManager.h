@@ -26,4 +26,5 @@ private:
   static void EnsureSaveDirectory();
 
   static std::string GetSaveFilePath(int slotIndex);
+  static std::string GetLegacySaveFilePath(int slotIndex);
 };

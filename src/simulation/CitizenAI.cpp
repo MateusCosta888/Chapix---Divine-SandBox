@@ -273,6 +273,12 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       continue; // CRITICAL FIX: Prevent massive crashes when iterating over
                 // entities inside Jobs
 
+    // Remove weapons if fired from Soldier profession
+    if (c.profession != Profession::Soldier &&
+        myEntity->type == EntityType::HumanArmed) {
+      myEntity->type = EntityType::HumanUnarmed;
+    }
+
     // === GENERIC WANDERING ===
     // If wandering, pick a random spot and move there
     if (c.workState == Citizen::WorkState::Wandering &&
@@ -1172,7 +1178,10 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         // SCAN FOR ENEMIES
         int enemyID = -1;
         float closestDist = 999999.0f;
-        float detectRange = 25.0f; // High visual range
+        float detectRange =
+            2.5f; // REDUZIDO: Força os exércitos a trombarem NA zona de guerra,
+                  // evitando emboscadas pela estrada (que causavam o combate
+                  // desviar para cima/baixo do círculo)!
 
         for (Entity &otherE : world.GetEntitiesMutable()) {
           if (otherE.id == myEntity->id)
@@ -1240,55 +1249,76 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
 
           if (!isMarching && !myEntity->hasTarget) {
             c.isWorking = false; // Reset if at peace
-            // PEACE TIME PATROL: Walk in straight lines through the city
-            // streets
-            int r = rand() % 4;
-            int dx = 0, dy = 0;
-            if (r == 0)
-              dx = 1;
-            else if (r == 1)
-              dx = -1;
-            else if (r == 2)
-              dy = 1;
-            else
-              dy = -1;
 
-            int maxDist = 4 + rand() % 8; // Patrol 4 to 11 tiles
-            int cx = (int)myEntity->position.x;
-            int cy = (int)myEntity->position.y;
-            int validDist = 0;
-
-            for (int i = 1; i <= maxDist; i++) {
-              int checkX = cx + dx * i;
-              int checkY = cy + dy * i;
-
-              // Check bounds and walkability
-              if (checkX >= 0 && checkX < world.GetWidth() && checkY >= 0 &&
-                  checkY < world.GetHeight()) {
-                if (world.IsWalkable(checkX, checkY)) {
-                  // Stay within own city if possible to defend it
-                  if (world.GetTileConst(checkX, checkY).ownerCityID ==
-                      c.cityID) {
-                    validDist = i;
-                  } else {
-                    break; // Reached border
-                  }
-                } else {
-                  break; // Hit wall/building
-                }
-              } else {
-                break; // Map edge
+            // If stranded outside city bounds, run back to city!
+            bool isStranded = false;
+            if (c.cityID >= 0) {
+              const Tile &t = world.GetTileConst((int)myEntity->position.x,
+                                                 (int)myEntity->position.y);
+              if (t.ownerCityID != c.cityID) {
+                isStranded = true;
               }
             }
 
-            if (validDist > 0) {
-              myEntity->targetPos = {(float)(cx + dx * validDist) + 0.5f,
-                                     (float)(cy + dy * validDist) + 0.5f};
-              myEntity->hasTarget = true;
-              myEntity->state = EntityState::Walking;
+            if (isStranded) {
+              City *myC = GetCity(c.cityID);
+              if (myC) {
+                myEntity->targetPos = {myC->center.x + 0.5f,
+                                       myC->center.y + 0.5f};
+                myEntity->hasTarget = true;
+                myEntity->state = EntityState::Run;
+              }
             } else {
-              // Stuck or at border, will pick a new direction next frame
-              myEntity->facingDirection = (myEntity->facingDirection + 1) % 4;
+              // PEACE TIME PATROL: Walk in straight lines through the city
+              // streets
+              int r = rand() % 4;
+              int dx = 0, dy = 0;
+              if (r == 0)
+                dx = 1;
+              else if (r == 1)
+                dx = -1;
+              else if (r == 2)
+                dy = 1;
+              else
+                dy = -1;
+
+              int maxDist = 4 + rand() % 8; // Patrol 4 to 11 tiles
+              int cx = (int)myEntity->position.x;
+              int cy = (int)myEntity->position.y;
+              int validDist = 0;
+
+              for (int i = 1; i <= maxDist; i++) {
+                int checkX = cx + dx * i;
+                int checkY = cy + dy * i;
+
+                // Check bounds and walkability
+                if (checkX >= 0 && checkX < world.GetWidth() && checkY >= 0 &&
+                    checkY < world.GetHeight()) {
+                  if (world.IsWalkable(checkX, checkY)) {
+                    // Stay within own city if possible to defend it
+                    if (world.GetTileConst(checkX, checkY).ownerCityID ==
+                        c.cityID) {
+                      validDist = i;
+                    } else {
+                      break; // Reached border
+                    }
+                  } else {
+                    break; // Hit wall/building
+                  }
+                } else {
+                  break; // Map edge
+                }
+              }
+
+              if (validDist > 0) {
+                myEntity->targetPos = {(float)(cx + dx * validDist) + 0.5f,
+                                       (float)(cy + dy * validDist) + 0.5f};
+                myEntity->hasTarget = true;
+                myEntity->state = EntityState::Walking;
+              } else {
+                // Stuck or at border, will pick a new direction next frame
+                myEntity->facingDirection = (myEntity->facingDirection + 1) % 4;
+              }
             }
           }
         }

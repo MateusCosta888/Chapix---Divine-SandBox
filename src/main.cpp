@@ -27,6 +27,9 @@ int main(int argc, char *argv[]) {
   // Dynamic resolution: detect monitor and adapt
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
   InitWindow(800, 600, "ChapiX - Divine SandBox"); // Temp size, resized below
+  Image myicon = LoadImage("assets/UI/main menu/Ilustration.png");
+  SetWindowIcon(myicon);
+  UnloadImage(myicon);
   int monitor = GetCurrentMonitor();
   int monW = GetMonitorWidth(monitor);
   int monH = GetMonitorHeight(monitor);
@@ -139,6 +142,12 @@ int main(int argc, char *argv[]) {
                 Vector2Scale(Vector2Subtract(targetPos, camera.target), 0.1f));
           }
         }
+
+        // Camera Bounds Clamping (Prevent losing sandbox rendering limits)
+        float mapPixelW = world.GetWidth() * 10.0f;
+        float mapPixelH = world.GetHeight() * 10.0f;
+        camera.target.x = Clamp(camera.target.x, 0.0f, mapPixelW);
+        camera.target.y = Clamp(camera.target.y, 0.0f, mapPixelH);
 
         // World Interaction (Painting)
         ui.Update(world, camera);

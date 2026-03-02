@@ -227,8 +227,8 @@ void SimulationManager::DeclareWar(int kingdomA, int kingdomB, World &world) {
       }
     }
 
-    midPos.x = (float)bestX;
-    midPos.y = (float)bestY;
+    midPos.x = (float)bestX + 0.5f;
+    midPos.y = (float)bestY + 0.5f;
 
     Battlefield bf;
     bf.kingdomA = kA->id;
