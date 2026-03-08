@@ -1,5 +1,6 @@
 #include "core/AudioManager.h"
 #include "core/CrashHandler.h"
+#include "core/SaveManager.h"
 #include "core/TimeManager.h"
 #include "graphics/CloudManager.h"
 #include "graphics/WorldRenderer.h"
@@ -101,21 +102,16 @@ int main(int argc, char *argv[]) {
     World world(128, 128, seed);
     world.Generate(DrawLoadingScreen);
 
-    for (int i = 0; i < 2; i++)
-      DrawLoadingScreen("Loading textures...");
-    world.LoadTextures();
+    world.LoadTextures(DrawLoadingScreen);
 
-    for (int i = 0; i < 2; i++)
-      DrawLoadingScreen("Loading UI...");
     WorldRenderer worldRenderer(world);
-
     UIManager ui;
-    ui.Load();
+    ui.Load(DrawLoadingScreen);
 
     for (int i = 0; i < 2; i++)
       DrawLoadingScreen("Loading audio...");
-    // Load music
-    AudioManager::Get().Load();
+    // Load music with progress updates to keep planet animated
+    AudioManager::Get().Load(DrawLoadingScreen);
     CloudManager cloudManager;
     cloudManager.Load();
 
@@ -175,8 +171,34 @@ int main(int argc, char *argv[]) {
                                  std::to_string(world.GetEntities().size()));
         ui.popupJustOpened = false;
 
+        // --- AUTOSAVE SYSTEM ---
+        static float autosaveTimer = 0.0f;
+        static const float AUTOSAVE_INTERVAL = 300.0f; // 5 minutes
+        static int autosaveIndex = 1;
+
+        autosaveTimer += GetFrameTime();
+        if (autosaveTimer >= AUTOSAVE_INTERVAL) {
+          autosaveTimer = 0.0f;
+          std::string filename =
+              "autosave_" + std::to_string(autosaveIndex) + ".json";
+          SaveManager::SaveGameAsync(filename, world);
+          ui.ShowAutosaveNotification();
+          autosaveIndex = (autosaveIndex == 1) ? 2 : 1;
+        }
+
         Vector2 mousePos = GetMousePosition();
         bool isPointerOnUI = ui.IsPointerOnUI();
+
+        // Autosave Update Logic (Only while playing)
+        autosaveTimer += GetFrameTime();
+        if (autosaveTimer >= AUTOSAVE_INTERVAL) {
+          autosaveTimer = 0.0f;
+          std::string filename =
+              "autosave_" + std::to_string(autosaveIndex) + ".json";
+          SaveManager::SaveGameAsync(filename, world);
+          ui.ShowAutosaveNotification();
+          autosaveIndex = (autosaveIndex == 1) ? 2 : 1;
+        }
 
         // Camera Controls
         if (!isPointerOnUI && !ui.showBrushPopup) {

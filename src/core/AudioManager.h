@@ -1,5 +1,6 @@
 #pragma once
 #include "raylib.h"
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -12,7 +13,7 @@ public:
     return instance;
   }
 
-  void Load();
+  void Load(std::function<void(const char *)> loadingCallback = nullptr);
   void Unload();
   void Update(); // Call every frame to keep music streaming
 

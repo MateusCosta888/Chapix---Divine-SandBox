@@ -302,8 +302,30 @@ void UIManager::DrawHumanPopup(const World &world) {
     contentY += 20;
 
     // DEBUG INFO: Age & State
-    const char *ageText = TextFormat("Age: %.0f", c->age);
-    DrawTextEx(uiFont, ageText, {x + 35, contentY}, 18, 1, LIGHTGRAY);
+    int ageYears = (int)c->age;
+    int ageMonths = (int)((c->age - ageYears) * 12.0f);
+    if (ageMonths >= 12)
+      ageMonths = 11; // Clamp for float precision
+    if (ageMonths < 0)
+      ageMonths = 0;
+
+    // Life phase label
+    const char *phase = "Adult";
+    Color phaseColor = WHITE;
+    if (c->age < 12.0f) {
+      phase = "Child";
+      phaseColor = {130, 220, 255, 255};
+    } else if (c->age < 18.0f) {
+      phase = "Teen";
+      phaseColor = {255, 200, 100, 255};
+    } else if (c->age >= 60.0f) {
+      phase = "Elder";
+      phaseColor = {200, 180, 160, 255};
+    }
+
+    const char *ageText =
+        TextFormat("Age: %d years, %d months (%s)", ageYears, ageMonths, phase);
+    DrawTextEx(uiFont, ageText, {x + 35, contentY}, 18, 1, phaseColor);
 
     const char *stateText = "State: Idle";
     if (c->isResting)
@@ -312,7 +334,7 @@ void UIManager::DrawHumanPopup(const World &world) {
       stateText = "State: Going Home";
     else if (c->isWorking)
       stateText = "State: Working";
-    DrawTextEx(uiFont, stateText, {x + 200, contentY}, 18, 1, WHITE);
+    DrawTextEx(uiFont, stateText, {x + 35, contentY + 20}, 18, 1, WHITE);
 
     contentY += 40;
 

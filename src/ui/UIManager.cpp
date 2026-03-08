@@ -10,7 +10,9 @@
 UIManager::UIManager() {}
 UIManager::~UIManager() { Unload(); }
 
-void UIManager::Load() {
+void UIManager::Load(std::function<void(const char *)> loadingCallback) {
+  if (loadingCallback)
+    loadingCallback("Loading UI assets...");
   texCursor = LoadTexture("assets/cursor.png");
 
   // Load 9-Slice Panel Textures
@@ -124,6 +126,14 @@ void UIManager::Load() {
   texIconWaterOcean = LoadTexture("assets/UI/Icons/water/media agua.png");
   texIconWaterShallow = LoadTexture("assets/UI/Icons/water/rasa agua.png");
   texSaveIcon = LoadTexture("assets/UI/Icons/SaveIcon.png"); // New Save Icon
+
+  // Load Power Icons
+  texIconLightning =
+      LoadTexture("assets/Effects/Pixel Effects "
+                  "Gigapack/PNG/Lightning/lightning_strike_001/"
+                  "lightning_strike_001_large_violet/frame0003.png");
+  texIconFire = LoadTexture(
+      "assets/Fire Sprites/png/orange/loops/burning_loop_1/burning_loop_1.png");
 
   // Load Pergaminho (Save popup) 9-Slice Textures
   texPergaminhoTL = LoadTexture(
@@ -245,6 +255,8 @@ void UIManager::Unload() {
   UnloadTexture(texIconWaterOcean);
   UnloadTexture(texIconWaterShallow);
   UnloadTexture(texSaveIcon);
+  UnloadTexture(texIconLightning);
+  UnloadTexture(texIconFire);
   UnloadFont(uiFont);
   UnloadShader(circleMaskShader);
 }
@@ -316,6 +328,14 @@ bool UIManager::IsPointerOnUI() const {
   return false;
 }
 
+bool UIManager::IsAnyPopupOpen() const {
+  return showHumanPopup || showCityPopup || showSavePopup || showOptionsPopup ||
+         showHumanSpawnMenu || showProfessionSelector || showFlagSelector ||
+         showConfirmOverwrite || showSaveActionPopup ||
+         showDeleteConfirmPopup || showForceWarConfirm ||
+         showWorldCreatorPopup || showSocialCityList;
+}
+
 void UIManager::Update(World &world, Camera2D &camera) {
   popupJustOpened = false;
   HandleInput(world, camera);
@@ -323,8 +343,7 @@ void UIManager::Update(World &world, Camera2D &camera) {
 
 void UIManager::HandleInput(World &world, Camera2D &camera) {
   Vector2 mousePos = GetMousePosition();
-  bool isPointerOnUI =
-      IsPointerOnUI() || showCityPopup || showHumanSpawnMenu; // Block clicks if popup is open
+  bool isPointerOnUI = IsPointerOnUI() || IsAnyPopupOpen(); // Block ALL popups
 
   // City Popup Interaction
   if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !isPointerOnUI) {
@@ -542,9 +561,9 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
           EntityType::HumanUnarmed, EntityType::Boar,  EntityType::Cow,
           EntityType::Chicken,      EntityType::Sheep, EntityType::Bull,
           EntityType::Chicken2,     EntityType::Lamb,  EntityType::Pig,
-          EntityType::Turkey};
+          EntityType::Turkey,       EntityType::Slime};
 
-      if (selectedToolIndex >= 0 && selectedToolIndex < 10 &&
+      if (selectedToolIndex >= 0 && selectedToolIndex < 11 &&
           IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !showHumanSpawnMenu) {
 
         // Determine the entity type to spawn
@@ -555,19 +574,23 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
           if (humanSpawnSelection == 2) {
             spawnType = EntityType::HumanWoman; // Explicit woman
           } else if (humanSpawnSelection == 1) {
-            spawnType = EntityType::HumanUnarmed; // Explicit man (no random swap)
+            spawnType =
+                EntityType::HumanUnarmed; // Explicit man (no random swap)
           }
-          // humanSpawnSelection == 0 is Random, uses default HumanUnarmed (with random swap in AddEntity)
+          // humanSpawnSelection == 0 is Random, uses default HumanUnarmed (with
+          // random swap in AddEntity)
         }
 
-        // Should we skip gender randomization? (for explicit Man/Woman selection)
+        // Should we skip gender randomization? (for explicit Man/Woman
+        // selection)
         bool skipGender = (selectedToolIndex == 0 && humanSpawnSelection > 0);
 
         if (size <= 1) {
           // Single brush: exact placement
           if (tx >= padding && tx < world.GetWidth() - padding &&
               ty >= padding && ty < world.GetHeight() - padding) {
-            world.AddEntity(spawnType, {(float)tx + 0.5f, (float)ty + 0.5f}, skipGender);
+            world.AddEntity(spawnType, {(float)tx + 0.5f, (float)ty + 0.5f},
+                            skipGender);
             world.AddSpawnEffect(tx, ty, {255, 215, 0, 255});
           }
         } else {
@@ -588,6 +611,19 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
                 skipGender);
             world.AddSpawnEffect(rx, ry, {255, 215, 0, 255});
           }
+        }
+      }
+    } else if (currentTab == UIState::Powers) {
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !isPointerOnUI &&
+          !showBrushPopup) {
+        if (selectedToolIndex == 0) {
+          world.TriggerGodPower(0, tx, ty); // Lightning
+        } else if (selectedToolIndex == 1) {
+          world.TriggerGodPower(1, tx, ty); // Fire
+        } else if (selectedToolIndex == 2) {
+          world.SetTileDecoration(tx, ty, DecorationType::Ruins);
+        } else if (selectedToolIndex == 3) {
+          world.SetTileDecoration(tx, ty, DecorationType::Crystal);
         }
       }
     }
@@ -636,7 +672,8 @@ void UIManager::Draw(const World &world) {
   Vector2 dateSize = MeasureTextEx(uiFont, dateLabel, 16, 1);
 
   float calW = dateSize.x + 30; // Dynamic width: text + padding
-  if (calW < 160) calW = 160;   // Minimum width
+  if (calW < 160)
+    calW = 160; // Minimum width
   float calH = 50;
   float calX = getScreenW() - calW - 20;
   float calY = 20;
@@ -686,8 +723,26 @@ void UIManager::Draw(const World &world) {
   // Draw Active Notifications
   DrawNotifications(world);
 
+  // Draw Autosave Notification
+  if (isAutosaving) {
+    autosaveUIRemaining -= GetFrameTime();
+    if (autosaveUIRemaining <= 0.0f) {
+      isAutosaving = false;
+    } else {
+      const char *text = "Autosaving...";
+      int textWidth = MeasureText(text, 20);
+      DrawTextEx(uiFont, text, {(float)GetScreenWidth() - textWidth - 20, 20},
+                 20, 1, GREEN);
+    }
+  }
+
   // Draw Cursor (Always Top)
   DrawTextureEx(texCursor, mousePos, 0.0f, cursorScale, WHITE);
+}
+
+void UIManager::ShowAutosaveNotification() {
+  isAutosaving = true;
+  autosaveUIRemaining = 2.0f;
 }
 
 void UIManager::AddNotification(const std::string &text, int flagID) {

@@ -242,6 +242,7 @@ void WorldRenderer::Draw(const Camera2D &camera,
           color = (Color){70, (unsigned char)(150 + variation * 30),
                           (unsigned char)(200 + variation * 20), 255};
           break;
+        case TileType::DesertSand:
         case TileType::Sand:
           color = (Color){(unsigned char)(210 + variation * 20),
                           (unsigned char)(180 + variation * 20),
@@ -439,6 +440,10 @@ void WorldRenderer::Draw(const Camera2D &camera,
                      .texCrystalsRed[v % ResourceManager::NUM_CRYSTAL_VARIANTS];
         }
           scale = 1.0f;
+          break;
+        case DecorationType::Ruins:
+          tex = &resourceManager.texRuins[v % 5];
+          scale = 3.0f;
           break;
         case DecorationType::GrassTuft:
           tex = &resourceManager.texGraminhas;
@@ -718,6 +723,59 @@ void WorldRenderer::Draw(const Camera2D &camera,
         tex = getIdx(resourceManager.texBoarDeath, 6);
       else
         tex = getIdx(resourceManager.texBoarIdle, 4);
+    }
+    // === SLIME DRAWING (sprite sheet) ===
+    else if (e.type == EntityType::Slime) {
+      Texture2D sheet;
+      int framesPerRow = 6; // 6 columns in sprite sheet
+      int numRows = 4;      // 4 rows (directions or states)
+
+      if (e.state == EntityState::Idle)
+        sheet = resourceManager.texSlimeIdle;
+      else if (e.state == EntityState::Walking)
+        sheet = resourceManager.texSlimeWalk;
+      else if (e.state == EntityState::Run)
+        sheet = resourceManager.texSlimeRun;
+      else if (e.state == EntityState::Attack)
+        sheet = resourceManager.texSlimeAttack;
+      else if (e.state == EntityState::Hurt)
+        sheet = resourceManager.texSlimeHurt;
+      else if (e.state == EntityState::Die)
+        sheet = resourceManager.texSlimeDeath;
+      else
+        sheet = resourceManager.texSlimeIdle;
+
+      if (sheet.id > 0) {
+        int frameW = 64; // Known Slime frame size
+        int frameH = 64;
+        int framesPerRow = sheet.width / frameW;
+        int frame = e.currentFrame % framesPerRow;
+        // Row 0 for all directions (sprite sheet has 4 rows but we use first)
+        int row = 0; // Idle
+        if (e.state == EntityState::Walking)
+          row = 1;
+        else if (e.state == EntityState::Run || e.state == EntityState::Attack)
+          row = 2;
+        else if (e.state == EntityState::Hurt || e.state == EntityState::Die)
+          row = 3;
+
+        Rectangle src = {(float)(frame * frameW), (float)(row * frameH),
+                         (float)frameW, (float)frameH};
+        float scale = 0.4f;
+        float destW = frameW * scale;
+        float destH = frameH * scale;
+        Rectangle dest = {e.position.x * tileSize, e.position.y * tileSize,
+                          destW, destH};
+        Vector2 origin = {destW / 2, destH * 0.9f};
+
+        // Tint red when hurt
+        Color tint = (e.state == EntityState::Hurt)
+                         ? (Color){255, 100, 100, 255}
+                         : WHITE;
+        items.push_back(
+            {sheet, src, dest, origin, tint, dest.y + destH * 0.9f});
+        continue; // Skip the tex.id > 0 check below since we already pushed
+      }
     } else {
       // Animals (Cow, Chicken, Sheep, etc)
       int base = 0;
@@ -793,6 +851,85 @@ void WorldRenderer::Draw(const Camera2D &camera,
   for (const auto &item : items) {
     DrawTexturePro(item.texture, item.src, item.dest, item.origin, 0.0f,
                    item.tint);
+  }
+
+  // === COMBAT VFX & HEALTH BARS (drawn above entities) ===
+  for (const Entity &e : entities) {
+    if (e.health <= 0)
+      continue;
+
+    float screenX = e.position.x * tileSize;
+    float screenY = e.position.y * tileSize;
+
+    // --- Combat VFX: Attack flash ---
+    if (e.state == EntityState::Attack) {
+      float effectX = screenX;
+      float effectY = screenY - 5.0f;
+      if (e.facingDirection == 1)
+        effectX += 5.0f;
+      else if (e.facingDirection == -1)
+        effectX -= 5.0f;
+      else if (e.facingDirection == 2)
+        effectY -= 5.0f;
+      else
+        effectY += 5.0f;
+      DrawCircle((int)effectX, (int)effectY, 3.0f, Fade(WHITE, 0.7f));
+      DrawCircle((int)effectX, (int)effectY, 1.5f, Fade(YELLOW, 0.5f));
+    }
+
+    // --- Combat VFX: Hurt red flash ---
+    if (e.state == EntityState::Hurt) {
+      DrawCircle((int)screenX, (int)screenY - 3, 4.0f, Fade(RED, 0.4f));
+    }
+
+    // --- Health Bar ---
+    // Determine max HP based on entity type
+    float maxHP = 20.0f; // Default (unarmed human)
+    if (e.type == EntityType::Boar)
+      maxHP = 40.0f;
+    else if (e.type == EntityType::HumanArmed)
+      maxHP = 50.0f;
+    else if (e.type == EntityType::HumanWoman)
+      maxHP = 20.0f;
+    else if (e.type == EntityType::Slime)
+      maxHP = 25.0f;
+    // Animals
+    else if (e.type == EntityType::Cow || e.type == EntityType::Bull)
+      maxHP = 10.0f;
+    else if (e.type == EntityType::Sheep || e.type == EntityType::Pig ||
+             e.type == EntityType::Lamb)
+      maxHP = 10.0f;
+    else if (e.type == EntityType::Chicken || e.type == EntityType::Chicken2 ||
+             e.type == EntityType::Turkey)
+      maxHP = 5.0f;
+
+    // Only show bar when damaged or in combat, AND selected.
+    // The user requested: "show health bar only when: - entity is damaged -
+    // entity is selected"
+    bool inCombat =
+        (e.state == EntityState::Attack || e.state == EntityState::Hurt);
+    bool isDamaged = (e.health < maxHP);
+    if (!isDamaged && !inCombat)
+      continue;
+
+    float ratio = e.health / maxHP;
+    if (ratio > 1.0f)
+      ratio = 1.0f;
+    if (ratio < 0.0f)
+      ratio = 0.0f;
+
+    float barW = 20.0f, barH = 3.0f;
+    float barX = screenX - barW / 2.0f;
+    float barY = screenY - 12.0f; // Above entity sprite
+
+    Color barColor = (ratio > 0.5f) ? GREEN : (ratio > 0.25f) ? YELLOW : RED;
+
+    // Background
+    DrawRectangle((int)barX - 1, (int)barY - 1, (int)barW + 2, (int)barH + 2,
+                  (Color){10, 10, 10, 180});
+    // Filled portion
+    DrawRectangle((int)barX, (int)barY, (int)(barW * ratio), (int)barH,
+                  barColor);
   }
 
   // Draw Visual Boundaries
@@ -1120,6 +1257,107 @@ void WorldRenderer::DrawEntities() {
         Vector2 origin = {destW / 2, destH * 0.8f}; // Pivot near feet
 
         DrawTexturePro(tex, src, dest, origin, 0.0f, WHITE);
+      }
+    } else if (e.type == EntityType::Boar) {
+      // Boar specific logic
+      const std::vector<Texture2D> *frames = nullptr;
+      int framesPerDir = 1;
+
+      if (e.state == EntityState::Idle) {
+        frames = &resourceManager.texBoarIdle;
+        framesPerDir = 4;
+      } else if (e.state == EntityState::Walking) {
+        frames = &resourceManager.texBoarWalk;
+        framesPerDir = 6;
+      } else if (e.state == EntityState::Attack) {
+        frames = &resourceManager.texBoarAttack;
+        framesPerDir = 5;
+      } else if (e.state == EntityState::Hurt) {
+        frames = &resourceManager.texBoarHurt;
+        framesPerDir = 4;
+      } else if (e.state == EntityState::Die) {
+        frames = &resourceManager.texBoarDeath;
+        framesPerDir = 6;
+      } else {
+        frames = &resourceManager.texBoarWalk; // Fallback
+        framesPerDir = 6;
+      }
+
+      if (frames && !frames->empty()) {
+        int dirIdx = 0; // Down, Right, Left, Up
+        if (e.facingDirection == 1)
+          dirIdx = 1;
+        else if (e.facingDirection == -1)
+          dirIdx = 2;
+        else if (e.facingDirection == 2)
+          dirIdx = 3;
+
+        int frame = e.currentFrame % framesPerDir;
+        int finalIdx = dirIdx * framesPerDir + frame;
+        if (finalIdx >= frames->size())
+          finalIdx = 0;
+
+        Texture2D tex = (*frames)[finalIdx];
+        if (tex.id > 0) {
+          float destW = tex.width * 0.5f;
+          float destH = tex.height * 0.5f;
+          float screenX = e.position.x * tileSize;
+          float screenY = e.position.y * tileSize;
+
+          Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+          Rectangle dest = {screenX, screenY, destW, destH};
+          Vector2 origin = {destW / 2.0f, destH * 0.8f};
+          DrawTexturePro(tex, src, dest, origin, 0.0f, WHITE);
+        }
+      }
+    } else if (e.type == EntityType::Slime) {
+      // Slime logic - using 64x64 slicing from sheet
+      Texture2D sheet;
+      int framesInSheet = 1;
+
+      if (e.state == EntityState::Idle) {
+        sheet = resourceManager.texSlimeIdle;
+        framesInSheet = 6;
+      } else if (e.state == EntityState::Walking) {
+        sheet = resourceManager.texSlimeWalk;
+        framesInSheet = 6;
+      } else if (e.state == EntityState::Attack) {
+        sheet = resourceManager.texSlimeAttack;
+        framesInSheet = 6;
+      } else if (e.state == EntityState::Hurt) {
+        sheet = resourceManager.texSlimeHurt;
+        framesInSheet = 6;
+      } else if (e.state == EntityState::Die) {
+        sheet = resourceManager.texSlimeDeath;
+        framesInSheet = 6;
+      } else {
+        sheet = resourceManager.texSlimeIdle;
+        framesInSheet = 6;
+      }
+
+      if (sheet.id > 0) {
+        // Slime sheets are usually 4 rows (Down, Right, Left, Up) and N columns
+        int dirIdx = 0; // Down
+        if (e.facingDirection == 1)
+          dirIdx = 1; // Right
+        else if (e.facingDirection == -1)
+          dirIdx = 2; // Left
+        else if (e.facingDirection == 2)
+          dirIdx = 3; // Up
+
+        int frame = e.currentFrame % framesInSheet;
+
+        Rectangle src = {(float)frame * 64.0f, (float)dirIdx * 64.0f, 64.0f,
+                         64.0f};
+        float destW =
+            16.0f; // Scale to world size (slightly larger than 1 tile)
+        float destH = 16.0f;
+        float screenX = e.position.x * tileSize;
+        float screenY = e.position.y * tileSize;
+
+        Rectangle dest = {screenX, screenY, destW, destH};
+        Vector2 origin = {destW / 2.0f, destH * 0.8f};
+        DrawTexturePro(sheet, src, dest, origin, 0.0f, WHITE);
       }
     } else if (e.type == EntityType::Cow || e.type == EntityType::Chicken ||
                e.type == EntityType::Sheep || e.type == EntityType::Bull ||

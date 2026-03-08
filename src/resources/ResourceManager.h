@@ -96,6 +96,7 @@ public:
   Texture2D texCrystalsBlue[NUM_CRYSTAL_VARIANTS];
   Texture2D texCrystalsGreen[NUM_CRYSTAL_VARIANTS];
   Texture2D texCrystalsRed[NUM_CRYSTAL_VARIANTS];
+  Texture2D texRuins[5];
 
   Texture2D texBigRocks[NUM_BIG_ROCK_TYPES];
   Texture2D texSnowRockShadows[NUM_SNOW_ROCK_SHADOWS];
@@ -138,10 +139,11 @@ public:
   Texture2D texWorkshop[NUM_WORKSHOP_VARIANTS];
 
   // Helpers
-  Texture2D GetTextureForTile(TileType type);
-  Texture2D GetTextureForUI(TileType type);
-  Texture2D GetTextureForUI(DecorationType type);
-  Texture2D GetHumanTexture(bool isWalking, int direction); // New Helper
+  Texture2D GetTextureForTile(TileType type) const;
+  Texture2D GetTextureForUI(TileType type) const;
+  Texture2D GetTextureForUI(DecorationType type) const;
+  Texture2D GetHumanTexture(bool isWalking, int direction)
+      const; // New Helper (TODO: Implement or Remove)
 
   // Human Assets (3 States: Idle, Walk, Attack | 4 Directions | Variable
   // Frames) Directions: 0:Down, 1:Right, 2:Left, 3:Up (Matches standard order)
@@ -191,6 +193,17 @@ public:
   Texture2D texNotifLeft;
   Texture2D texNotifMid;
   Texture2D texNotifRight;
+
+  // Slime Mob
+  Texture2D texSlimeIdle;
+  Texture2D texSlimeWalk;
+  Texture2D texSlimeRun;
+  Texture2D texSlimeAttack;
+  Texture2D texSlimeHurt;
+  Texture2D texSlimeDeath;
+  // VFX
+  std::vector<Texture2D> texVfxLightning;
+  std::vector<Texture2D> texVfxFire;
 
 private:
   bool texturesLoaded = false;

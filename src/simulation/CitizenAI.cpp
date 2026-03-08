@@ -2,9 +2,11 @@
 #include "../world/Tile.h"
 #include "../world/World.h"
 #include "SimulationManager.h"
+#include "raymath.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <vector>
 
 // ============================================================================
 // UPDATE SUBSYSTEMS - CITIZEN AI
@@ -33,6 +35,41 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         deltaTime * 0.05f *
         ageMultiplier; // ~0.2 years per second base (Slower aging)
     c.age += yearProgress;
+
+    // === HOSTILE DETECTION (Flee Logic) ===
+    if (myEntity && c.isAlive && c.health > 0) {
+      float fleeRadius = 8.0f; // Detect hostiles within 8 tiles
+      Entity *threat = nullptr;
+      float minThreatDist = 999.0f;
+
+      auto &allEntities = world.GetEntitiesMutable();
+      for (auto &ae : allEntities) {
+        if (ae.health <= 0 || ae.state == EntityState::Die)
+          continue;
+        if (ae.type == EntityType::Boar || ae.type == EntityType::Slime) {
+          float d = std::hypot(myEntity->position.x - ae.position.x,
+                               myEntity->position.y - ae.position.y);
+          if (d < fleeRadius && d < minThreatDist) {
+            minThreatDist = d;
+            threat = &ae;
+          }
+        }
+      }
+
+      if (threat) {
+        // Unarmed citizens (or non-soldiers) FLEE
+        if (c.profession != Profession::Soldier) {
+          Vector2 fleeDir = Vector2Normalize(
+              Vector2Subtract(myEntity->position, threat->position));
+          myEntity->targetPos =
+              Vector2Add(myEntity->position, Vector2Scale(fleeDir, 3.0f));
+          myEntity->hasTarget = true;
+          myEntity->state = EntityState::Run;
+          c.workState = Citizen::WorkState::Idle; // Interrupt current job
+          continue; // Skip rest of AI logic for this citizen this frame
+        }
+      }
+    }
 
     // === PASSIVE XP (survival experience) ===
     c.experience += deltaTime * 0.3f; // Small passive XP gain just for living
@@ -99,9 +136,8 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           if (c.homeID != -1) {
             Building *home = GetBuilding(c.homeID);
             if (home) {
-              float distToHome =
-                  std::hypot(myEntity->position.x - home->tileX,
-                             myEntity->position.y - home->tileY);
+              float distToHome = std::hypot(myEntity->position.x - home->tileX,
+                                            myEntity->position.y - home->tileY);
               if (distToHome < 5.0f) {
                 coolingRate *= 0.2f; // 80% reduction near home
               }
@@ -360,8 +396,9 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           myEntity->targetPos = allEntities[bestAnimalEntityIdx].position;
           myEntity->hasTarget = true;
           myEntity->state = EntityState::Run;
-          TraceLog(LOG_INFO, "HUNT: Citizen %d started hunting animal (entity %d)",
-                   c.id, c.targetEntityID);
+          TraceLog(LOG_INFO,
+                   "HUNT: Citizen %d started hunting animal (entity %d)", c.id,
+                   c.targetEntityID);
         }
       }
     }
@@ -395,18 +432,20 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           // Attack once per second
           if (c.workTimer >= 1.0f) {
             c.workTimer = 0.0f;
-            float damage = 10.0f + c.stats.strength;
+            float damage =
+                5.0f + c.stats.strength; // Nerfed from 10.0f for balance
             prey->health -= damage;
             prey->state = EntityState::Hurt;
             prey->animTime = 0.0f;
             prey->currentFrame = 0;
-            TraceLog(LOG_INFO, "HUNT: Citizen %d hit animal for %.0f dmg (HP: %.0f)",
+            TraceLog(LOG_INFO,
+                     "HUNT: Citizen %d hit animal for %.0f dmg (HP: %.0f)",
                      c.id, damage, prey->health);
             if (prey->health <= 0) {
               prey->state = EntityState::Die;
               // Harvest food from kill
-              bool isLarge =
-                  (prey->type == EntityType::Cow || prey->type == EntityType::Bull);
+              bool isLarge = (prey->type == EntityType::Cow ||
+                              prey->type == EntityType::Bull);
               int foodGain = isLarge ? 5 : 3;
               c.hunger -= (float)foodGain * 8.0f;
               if (c.hunger < 0.0f)
@@ -1451,13 +1490,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         }
 
         // Find enemy entity to get exact position
-        Entity *enemyEntity = nullptr;
-        for (Entity &otherE : world.GetEntitiesMutable()) {
-          if (otherE.citizenID == enemy->id) {
-            enemyEntity = &otherE;
-            break;
-          }
-        }
+        Entity *enemyEntity = world.GetEntityByCitizenID(enemy->id);
 
         if (!enemyEntity) {
           c.workState = Citizen::WorkState::Idle;
@@ -1492,13 +1525,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         }
 
         // Make sure they are still close
-        Entity *enemyEntity = nullptr;
-        for (Entity &otherE : world.GetEntitiesMutable()) {
-          if (otherE.citizenID == enemy->id) {
-            enemyEntity = &otherE;
-            break;
-          }
-        }
+        Entity *enemyEntity = world.GetEntityByCitizenID(enemy->id);
 
         if (!enemyEntity) {
           c.workState = Citizen::WorkState::Idle;

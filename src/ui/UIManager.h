@@ -2,11 +2,21 @@
 #include "../core/TimeManager.h"
 #include "../world/World.h"
 #include "raylib.h"
+#include <functional>
+#include <string>
 #include <vector>
 
 // Enums moved from main.cpp
 // Enums moved from main.cpp
-enum class UIState { Terrain, Nature, Rocks, Creatures, Social, Settings };
+enum class UIState {
+  Terrain,
+  Nature,
+  Rocks,
+  Creatures,
+  Social,
+  Powers,
+  Settings
+};
 
 enum class BrushSize {
   Single = 0, // Special case for exact 1x1 painting
@@ -32,13 +42,14 @@ public:
   UIManager();
   ~UIManager();
 
-  void Load();
+  void Load(std::function<void(const char *)> loadingCallback = nullptr);
   void Unload();
   void Update(World &world, Camera2D &camera);
   void Draw(const World &world);
 
   bool IsPointerOnUI() const;
   bool IsBrushPopupOpen() const { return showBrushPopup; }
+  bool IsAnyPopupOpen() const;
   UIState GetCurrentTab() const { return currentTab; }
   BrushSize GetBrushSize() const { return currentBrushSize; }
 
@@ -83,10 +94,10 @@ private:
   bool isDraggingSocial = false;
 
   // Force War State
-  bool forceWarMode = false;         // True when selecting kingdoms
-  int forceWarKingdomA = -1;         // First selected kingdom
-  int forceWarKingdomB = -1;         // Second selected kingdom
-  bool showForceWarConfirm = false;  // Show confirmation popup
+  bool forceWarMode = false;        // True when selecting kingdoms
+  int forceWarKingdomA = -1;        // First selected kingdom
+  int forceWarKingdomB = -1;        // Second selected kingdom
+  bool showForceWarConfirm = false; // Show confirmation popup
 
   // Save Popup State
   bool showSavePopup = false;
@@ -100,12 +111,18 @@ private:
   int selectedResolution = -1; // -1 = current/custom, 0-3 = preset index
   bool isBorderlessFullscreen = false; // Track borderless state manually
 
+  // Autosave Notification State
+  bool isAutosaving = false;
+  float autosaveUIRemaining = 0.0f;
+
   // PergaminhoBackgod (Save UI) 9-Slice Textures
   Texture2D texPergaminhoTL, texPergaminhoTC, texPergaminhoTR;
   Texture2D texPergaminhoML, texPergaminhoMC, texPergaminhoMR;
   Texture2D texPergaminhoBL, texPergaminhoBC, texPergaminhoBR;
 
 public:
+  void ShowAutosaveNotification();
+
   // Main Menu State
   GameState currentState = GameState::MAIN_MENU;
   bool isMainMenuNight = false;
@@ -204,6 +221,10 @@ private:
   Texture2D texIconWaterOcean;
   Texture2D texIconWaterShallow;
   Texture2D texSaveIcon;
+
+  // Power Icons
+  Texture2D texIconLightning;
+  Texture2D texIconFire;
 
   UIState currentTab = UIState::Terrain;
   BrushSize currentBrushSize = BrushSize::S;

@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <thread>
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -47,6 +48,31 @@ bool SaveManager::SaveGame(int slotIndex, const World &world) {
 
   TraceLog(LOG_INFO, "SAVE: Game saved to '%s'", path.c_str());
   return true;
+}
+
+void SaveManager::SaveGameAsync(const std::string &filename,
+                                const World &world) {
+  EnsureSaveDirectory();
+
+  json j;
+  j["world"] = world;
+
+  // Serialize to string on main thread (CPU bound), then write to disk on
+  // background thread (I/O bound)
+  std::string data = j.dump(4);
+  std::string path = std::string(SAVE_DIR) + "/" + filename;
+
+  std::thread([data, path]() {
+    std::ofstream o(path);
+    if (!o.is_open()) {
+      TraceLog(LOG_ERROR, "SAVE: Async failed to open file for writing: %s",
+               path.c_str());
+      return;
+    }
+    o << data;
+    o.close();
+    TraceLog(LOG_INFO, "SAVE: Async game saved to '%s'", path.c_str());
+  }).detach();
 }
 
 bool SaveManager::LoadGame(int slotIndex, World &world) {

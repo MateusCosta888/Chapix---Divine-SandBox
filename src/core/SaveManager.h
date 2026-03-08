@@ -9,6 +9,10 @@ public:
   // Saves the game state for the given slot (1-12)
   static bool SaveGame(int slotIndex, const World &world);
 
+  // Saves the game state asynchronously to avoid stalling the main thread (Disk
+  // I/O)
+  static void SaveGameAsync(const std::string &filename, const World &world);
+
   // Loads the game state for the given slot (1-12)
   static bool LoadGame(int slotIndex, World &world);
 

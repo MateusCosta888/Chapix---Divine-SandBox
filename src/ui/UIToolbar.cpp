@@ -75,9 +75,9 @@ void UIManager::DrawToolbar(const World &world) {
   Rectangle tabArea = {0, fullTaskbarRect.y, (float)getScreenW(),
                        (float)TAB_HEIGHT};
 
-  const char *tabNames[] = {"Terrains",  "Nature", "Rocks",
-                            "Creatures", "Social", "..."};
-  for (int i = 0; i < 6; i++) {
+  const char *tabNames[] = {"Terrains", "Nature", "Rocks", "Creatures",
+                            "Social",   "Powers", "..."};
+  for (int i = 0; i < 7; i++) {
     float tabW = 170;
     Rectangle tabRect = {i * tabW + 5, tabArea.y + 5, tabW - 5,
                          tabArea.height - 5};
@@ -326,7 +326,7 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Rocks) {
-    numTools = 3; // 2 types + eraser
+    numTools = 5; // 4 types + eraser
     for (int i = 0; i < numTools; i++) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
                            btnSize};
@@ -338,8 +338,10 @@ void UIManager::DrawToolbar(const World &world) {
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
       }
 
-      if (i < 2) {
-        DecorationType decs[] = {DecorationType::Rock, DecorationType::BigRock};
+      if (i < 4) {
+        DecorationType decs[] = {DecorationType::Rock, DecorationType::BigRock,
+                                 DecorationType::Ruins,
+                                 DecorationType::Crystal};
         Texture2D tex = const_cast<World &>(world).GetTextureForUI(decs[i]);
         if (tex.id > 0) {
           float scale =
@@ -420,12 +422,12 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Creatures) {
-    numTools = 10;
-    EntityType creatureTypes[] = {EntityType::HumanUnarmed, EntityType::Boar,
-                                  EntityType::Cow,          EntityType::Chicken,
-                                  EntityType::Sheep,        EntityType::Bull,
-                                  EntityType::Chicken2,     EntityType::Lamb,
-                                  EntityType::Pig,          EntityType::Turkey};
+    numTools = 11;
+    EntityType creatureTypes[] = {
+        EntityType::HumanUnarmed, EntityType::Boar,  EntityType::Cow,
+        EntityType::Chicken,      EntityType::Sheep, EntityType::Bull,
+        EntityType::Chicken2,     EntityType::Lamb,  EntityType::Pig,
+        EntityType::Turkey,       EntityType::Slime};
 
     for (int i = 0; i < numTools; i++) {
       // Apply Scroll Offset to X position
@@ -466,9 +468,24 @@ void UIManager::DrawToolbar(const World &world) {
 
         Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
 
-        // Center in button
         float offsetX = (btnSize - scaledW) / 2.0f;
         float offsetY = (btnSize - scaledH) / 2.0f;
+
+        // If it's a Slime, take only the first 64x64 frame for the icon
+        if (creatureTypes[i] == EntityType::Slime) {
+          src.width = 64.0f;
+          src.height = 64.0f;
+
+          // Recompute scale for the extracted 64x64 frame
+          scale = availableSize / 64.0f;
+          if (scale > 1.0f)
+            scale = std::floor(scale * 2.0f) / 2.0f;
+          scaledW = 64.0f * scale;
+          scaledH = 64.0f * scale;
+
+          offsetX = (btnSize - scaledW) / 2.0f;
+          offsetY = (btnSize - scaledH) / 2.0f;
+        }
 
         Rectangle dest = {btnRect.x + offsetX, btnRect.y + offsetY, scaledW,
                           scaledH};
@@ -488,6 +505,49 @@ void UIManager::DrawToolbar(const World &world) {
           showHumanSpawnMenu = false;
         }
       }
+    }
+  } else if (currentTab == UIState::Powers) {
+    numTools = 4; // Lightning, Fire, Ruins, Crystals
+    const char *powerNames[] = {"Lightning", "Fire", "Ruins", "Crystals"};
+    for (int i = 0; i < numTools; i++) {
+      Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
+                           btnSize};
+      bool isHover = CheckCollisionPointRec(mousePos, btnRect);
+
+      DrawTexturedButton(texButton, btnRect, selectedToolIndex == i, isHover);
+
+      if (selectedToolIndex == i)
+        DrawRectangleLinesEx(btnRect, 3, YELLOW);
+
+      Texture2D tex;
+      if (i == 0)
+        tex = texIconLightning;
+      else if (i == 1)
+        tex = texIconFire;
+      else if (i == 2)
+        tex = world.GetTextureForUI(DecorationType::Ruins);
+      else if (i == 3)
+        tex = world.GetTextureForUI(DecorationType::Crystal);
+
+      if (tex.id > 0) {
+        float scale =
+            std::min((btnSize - 10) / tex.width, (btnSize - 10) / tex.height);
+        if (scale > 1.0f)
+          scale = std::floor(scale);
+        Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+        Rectangle dest = {btnRect.x + 5, btnRect.y + 5, tex.width * scale,
+                          tex.height * scale};
+        DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
+      } else {
+        Vector2 ts = MeasureTextEx(uiFont, powerNames[i], 16, 1);
+        DrawTextEx(uiFont, powerNames[i],
+                   {btnRect.x + (btnSize - ts.x) / 2,
+                    btnRect.y + (btnSize - ts.y) / 2},
+                   16, 1, WHITE);
+      }
+
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover && !showBrushPopup)
+        selectedToolIndex = i;
     }
   }
 
