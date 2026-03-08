@@ -46,6 +46,13 @@ struct Entity {
   // SimulationManager
   int citizenID = -1; // -1 means not a citizen (animal, etc.)
 
+  // === SURVIVAL SYSTEMS ===
+  float bodyTemperature = 37.0f; // Normal = 37, below 30 = cold damage
+
+  // === ANIMAL REPRODUCTION ===
+  float reproductionTimer = 0.0f;
+  float reproductionCooldown = 60.0f; // Seconds between births
+
   // Helper to check if this entity is an intelligent creature
   bool IsIntelligent() const {
     return type == EntityType::HumanUnarmed || type == EntityType::HumanArmed ||
@@ -53,7 +60,8 @@ struct Entity {
   }
 };
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Entity, id, type, position, state,
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Entity, id, type, position, state,
                                    facingDirection, speed, health, animTime,
                                    currentFrame, hasTarget, targetPos,
-                                   citizenID)
+                                   citizenID, bodyTemperature,
+                                   reproductionTimer, reproductionCooldown)

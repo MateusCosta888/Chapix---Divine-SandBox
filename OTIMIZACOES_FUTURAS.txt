@@ -12,7 +12,6 @@
 [✓] REVISÃO E DETECÇÃO DE STUCK DE IA (Bug de Loop e Timeout infinito arrumados e Nullpointers prevenidos)
 [✓] DIVIDIR ARQUIVOS GRANDES (SimulationManager.cpp separado em CitizenAI.cpp, etc.)
 [✓] OPÇÕES: SISTEMA MUDO NO VOLUME DA MÚSICA (Áudio silenciado via updates transparentes)
-[✓] OTIMIZAÇÃO: SISTEMA DE SALVAMENTO I/O MAIS LEVE E SEGURO (MessagePack Binário Nativos no SaveManager)
 
 === PRIORIDADE ALTA ===
 
@@ -21,7 +20,10 @@
    - Soldados escanneiam todos os NPCs em cena no mapa sem poda direcional.
    - Solução: Implementar um Spatial Hashing ou QuadTree em `World.h` para encontrar entidades/tiles alvos perto rápido.
 
-
+2. SISTEMA DE SALVAMENO MAIS LEVE E SEGURO
+   - Saves atuais pesam muito por causa de redundância no JSON.
+   - Opções: Compressão Zlib no json inteiro, formato binário para chunks ou não serializar campos em default.
+   - Tratar o loading com mais segurança se o JSON for truncado.
 
 === PRIORIDADE MÉDIA ===
 

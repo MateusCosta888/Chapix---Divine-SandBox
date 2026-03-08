@@ -3,8 +3,10 @@
 #include "raylib.h"
 #include <cstdint>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
+
 
 // Forward declarations
 struct City;
@@ -51,6 +53,11 @@ struct Kingdom {
   bool isAlive = true;
   float age = 0.0f;
 
+  // === WAR SYSTEM ===
+  float warCheckTimer = 0.0f;      // Timer for periodic war evaluation
+  float warCooldown = 120.0f;      // Seconds between war checks
+  std::set<int> activeWarKingdoms; // Kingdom IDs currently at war with
+
   // === HELPERS ===
   int GetTotalPopulation() const; // Sum of all city populations
   int GetCityCount() const { return static_cast<int>(cityIDs.size()); }
@@ -86,19 +93,19 @@ struct Kingdom {
     return it != diplomaticStatus.end() &&
            it->second == DiplomaticStatus::Allied;
   }
-};
 
-// ============================================================================
-// BATTLEFIELD STRUCTURE
-// ============================================================================
-struct Battlefield {
-  int id = -1;
-  int kingdomA = -1;
-  int kingdomB = -1;
-  Vector2 centerPos = {0.0f, 0.0f};
-  float timer = 60.0f; // 60 seconds duration
-  int killsA = 0;
-  int killsB = 0;
+  void DeclareWar(int otherKingdomID) {
+    diplomaticStatus[otherKingdomID] = DiplomaticStatus::Hostile;
+    relations[otherKingdomID] = -80.0f;
+    activeWarKingdoms.insert(otherKingdomID);
+  }
+
+  void DeclarePeace(int otherKingdomID) {
+    diplomaticStatus[otherKingdomID] = DiplomaticStatus::Neutral;
+    if (relations[otherKingdomID] < 0.0f)
+      relations[otherKingdomID] = 0.0f;
+    activeWarKingdoms.erase(otherKingdomID);
+  }
 };
 
 // ============================================================================
@@ -107,10 +114,8 @@ struct Battlefield {
 Kingdom CreateKingdom(int id, const std::string &name, Color color,
                       int capitalCityID);
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Battlefield, id, kingdomA, kingdomB,
-                                   centerPos, timer, killsA, killsB)
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Kingdom, id, name, color, leaderCitizenID,
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Kingdom, id, name, color, leaderCitizenID,
                                    capitalCityID, cityIDs, relations,
                                    diplomaticStatus, totalAggression,
-                                   totalDiplomacy, isAlive, age)
+                                   totalDiplomacy, isAlive, age,
+                                   warCheckTimer, warCooldown)

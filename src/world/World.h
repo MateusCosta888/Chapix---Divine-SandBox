@@ -34,14 +34,16 @@ public:
   World(int width, int height, uint32_t seed = 0);
   ~World(); // Destructor to unload textures
 
-  void Generate();
-  void ResizeAndGenerate(int newWidth, int newHeight);
+  void Generate(std::function<void(const char *)> loadingCallback = nullptr);
+  void ResizeAndGenerate(
+      int newWidth, int newHeight,
+      std::function<void(const char *)> loadingCallback = nullptr);
   void Reset(uint32_t seed);
   void Update();                 // For future simulation steps
   void UpdateEntities(float dt); // Added
 
   // Entities
-  void AddEntity(EntityType type, Vector2 pos);
+  void AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom = false);
   const std::vector<Entity> &GetEntities() const { return entities; }
   std::vector<Entity> &GetEntitiesMutable() {
     return entities;
@@ -66,6 +68,8 @@ public:
   void SetTileBiome(int x, int y, BiomeType newBiome); // Interaction
   void SetTileType(int x, int y, TileType newType);
   void SetTileDecoration(int x, int y, DecorationType type);
+  void ClearTileContents(int x,
+                         int y); // Remove all entities/buildings/decorations
 
   // Updates edge mask for a specific tile/neighbors
   void UpdateTileEdgeMask(int x, int y);

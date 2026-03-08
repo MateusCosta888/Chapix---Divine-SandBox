@@ -324,7 +324,7 @@ void UIManager::Update(World &world, Camera2D &camera) {
 void UIManager::HandleInput(World &world, Camera2D &camera) {
   Vector2 mousePos = GetMousePosition();
   bool isPointerOnUI =
-      IsPointerOnUI() || showCityPopup; // Block clicks if popup is open
+      IsPointerOnUI() || showCityPopup || showHumanSpawnMenu; // Block clicks if popup is open
 
   // City Popup Interaction
   if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !isPointerOnUI) {
@@ -401,94 +401,6 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
     }
   }
 
-  // === GOD MODE WAR TARGETING ===
-  if (isTargetingWar && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
-      !isPointerOnUI && !showCityPopup) {
-    Vector2 worldPos = GetScreenToWorld2D(mousePos, camera);
-    auto &sim = const_cast<World &>(world).GetSimulation();
-
-    int clickedCityID = -1;
-    for (const auto &pair : sim.GetCities()) {
-      const City &city = pair.second;
-      for (const auto &b : city.buildings) {
-        float bx = b.tileX * 10.0f + 5.0f;
-        float by = b.tileY * 10.0f + 5.0f;
-        if (CheckCollisionPointCircle(worldPos, {bx, by}, 15.0f)) {
-          clickedCityID = city.id;
-          break;
-        }
-      }
-      if (clickedCityID != -1)
-        break;
-    }
-
-    if (clickedCityID != -1) {
-      if (warTargetCityA == -1) {
-        warTargetCityA = clickedCityID;
-        AddNotification("Cidade A selecionada. Selecione o alvo B.", -1);
-      } else {
-        if (warTargetCityA != clickedCityID) {
-          City *cityA = sim.GetCity(warTargetCityA);
-          City *cityB = sim.GetCity(clickedCityID);
-
-          if (cityA && cityB) {
-            int kA = cityA->kingdomID;
-            int kB = cityB->kingdomID;
-
-            // 1. A nao tem faccao? Criar uma.
-            if (kA == -1) {
-              Kingdom newK;
-              newK.name = "Faccao " + cityA->name;
-              newK.color = cityA->color;
-              newK.capitalCityID = cityA->id;
-              newK.cityIDs.push_back(cityA->id);
-              kA = sim.AddKingdom(newK);
-              cityA->kingdomID = kA;
-            }
-
-            // 2. B nao tem faccao? Criar uma.
-            if (kB == -1) {
-              Kingdom newK;
-              newK.name = "Faccao " + cityB->name;
-              newK.color = cityB->color;
-              newK.capitalCityID = cityB->id;
-              newK.cityIDs.push_back(cityB->id);
-              kB = sim.AddKingdom(newK);
-              cityB->kingdomID = kB;
-            }
-
-            // 3. Mesma Faccao? Guerra Civil (Rebeliao da Cidade B)
-            if (kA == kB && kA != -1) {
-              Kingdom *oldK = sim.GetKingdom(kA);
-              if (oldK) {
-                oldK->cityIDs.erase(std::remove(oldK->cityIDs.begin(),
-                                                oldK->cityIDs.end(), cityB->id),
-                                    oldK->cityIDs.end());
-              }
-              Kingdom newK;
-              newK.name = "Rebeldes de " + cityB->name;
-              newK.color = RED;
-              newK.capitalCityID = cityB->id;
-              newK.cityIDs.push_back(cityB->id);
-              kB = sim.AddKingdom(newK);
-              cityB->kingdomID = kB;
-            }
-
-            // 4. Declarar a Guerra
-            if (kA != -1 && kB != -1 && kA != kB) {
-              sim.DeclareWar(kA, kB, const_cast<World &>(world));
-              AddNotification("Guerra Divina Declarada!", -1);
-            }
-          }
-        }
-        // Reset targeting mode
-        isTargetingWar = false;
-        warTargetCityA = -1;
-      }
-    }
-    return; // Consumed input
-  }
-
   // World Interaction (Painting)
   if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !isPointerOnUI &&
       !showBrushPopup && currentTab != UIState::Settings) {
@@ -537,20 +449,9 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
           } else {
             // Eraser
             Tile &t = world.GetTile(nx, ny);
-
-            // Priority: Remove decoration first
-            if (t.decoration != DecorationType::None) {
-              TraceLog(LOG_INFO, "ERASER: Removing Decoration at %d,%d", nx,
-                       ny);
-              world.SetTileDecoration(nx, ny, DecorationType::None);
-            }
-            // Then remove terrain (Dig to Bedrock)
-            else if (t.type != TileType::Bedrock) {
-              TraceLog(LOG_INFO, "ERASER: Digging to Bedrock at %d,%d", nx, ny);
+            if (t.type != TileType::Bedrock) {
+              world.ClearTileContents(nx, ny);
               world.SetTileType(nx, ny, TileType::Bedrock);
-            } else {
-              TraceLog(LOG_INFO,
-                       "ERASER: Hit Bedrock at %d,%d (Indestructible)", nx, ny);
             }
           }
         } else if (currentTab == UIState::Nature) {
@@ -644,13 +545,29 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
           EntityType::Turkey};
 
       if (selectedToolIndex >= 0 && selectedToolIndex < 10 &&
-          IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+          IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !showHumanSpawnMenu) {
+
+        // Determine the entity type to spawn
+        EntityType spawnType = creatureTypesForPlacement[selectedToolIndex];
+
+        // If Human button (index 0), use the spawn menu selection
+        if (selectedToolIndex == 0 && humanSpawnSelection >= 0) {
+          if (humanSpawnSelection == 2) {
+            spawnType = EntityType::HumanWoman; // Explicit woman
+          } else if (humanSpawnSelection == 1) {
+            spawnType = EntityType::HumanUnarmed; // Explicit man (no random swap)
+          }
+          // humanSpawnSelection == 0 is Random, uses default HumanUnarmed (with random swap in AddEntity)
+        }
+
+        // Should we skip gender randomization? (for explicit Man/Woman selection)
+        bool skipGender = (selectedToolIndex == 0 && humanSpawnSelection > 0);
+
         if (size <= 1) {
           // Single brush: exact placement
           if (tx >= padding && tx < world.GetWidth() - padding &&
               ty >= padding && ty < world.GetHeight() - padding) {
-            world.AddEntity(creatureTypesForPlacement[selectedToolIndex],
-                            {(float)tx + 0.5f, (float)ty + 0.5f});
+            world.AddEntity(spawnType, {(float)tx + 0.5f, (float)ty + 0.5f}, skipGender);
             world.AddSpawnEffect(tx, ty, {255, 215, 0, 255});
           }
         } else {
@@ -662,13 +579,13 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
             if (rx < padding || rx >= world.GetWidth() - padding ||
                 ry < padding || ry >= world.GetHeight() - padding)
               continue;
-            // Only spawn on walkable land
             if (!world.IsWalkable(rx, ry))
               continue;
             world.AddEntity(
-                creatureTypesForPlacement[selectedToolIndex],
+                spawnType,
                 {(float)rx + 0.5f + (float)(rand() % 5) / 10.0f - 0.25f,
-                 (float)ry + 0.5f + (float)(rand() % 5) / 10.0f - 0.25f});
+                 (float)ry + 0.5f + (float)(rand() % 5) / 10.0f - 0.25f},
+                skipGender);
             world.AddSpawnEffect(rx, ry, {255, 215, 0, 255});
           }
         }
@@ -708,7 +625,18 @@ void UIManager::Draw(const World &world) {
   DrawToolbar(world);
 
   // Draw Standalone Calendar Window
-  float calW = 200;
+  int currentYear = const_cast<World &>(world).GetSimulation().GetCurrentYear();
+  float progress = const_cast<World &>(world).GetSimulation().GetYearProgress();
+  int currentMonth = (int)(progress * 12.0f) + 1;
+  if (currentMonth > 12)
+    currentMonth = 12;
+
+  const char *dateLabel =
+      TextFormat("Ano: %d       Mes: %d", currentYear, currentMonth);
+  Vector2 dateSize = MeasureTextEx(uiFont, dateLabel, 16, 1);
+
+  float calW = dateSize.x + 30; // Dynamic width: text + padding
+  if (calW < 160) calW = 160;   // Minimum width
   float calH = 50;
   float calX = getScreenW() - calW - 20;
   float calY = 20;
@@ -717,16 +645,6 @@ void UIManager::Draw(const World &world) {
   DrawRectangle(calX, calY, calW, calH, ColorAlpha(BLACK, 0.7f));
   DrawRectangleLines(calX, calY, calW, calH, GOLD);
 
-  int currentYear = const_cast<World &>(world).GetSimulation().GetCurrentYear();
-  float progress = const_cast<World &>(world).GetSimulation().GetYearProgress();
-  int currentMonth = (int)(progress * 12.0f) + 1;
-  // Ensure month doesn't display 13 if it reaches 1.0 boundary exact
-  if (currentMonth > 12)
-    currentMonth = 12;
-
-  const char *dateLabel =
-      TextFormat("Ano: %d       Mês: %d", currentYear, currentMonth);
-  Vector2 dateSize = MeasureTextEx(uiFont, dateLabel, 16, 1);
   DrawTextEx(uiFont, dateLabel, {calX + (calW - dateSize.x) / 2, calY + 8}, 16,
              1, WHITE);
 
@@ -882,6 +800,6 @@ void UIManager::DrawNotifications(const World &world) {
     // Draw Text
     contentX += iconWidth + spacing;
     DrawTextEx(uiFont, n.text.c_str(), {contentX, contentY + 6.0f}, 18, 1,
-               DARKGRAY);
+               WHITE);
   }
 }

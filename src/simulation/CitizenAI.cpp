@@ -26,14 +26,6 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
     // === FIND ENTITY ===
     Entity *myEntity = world.GetEntityByCitizenID(c.id);
 
-    // Ensure non-soldiers revert their visual representation (in case they were
-    // fired)
-    if (myEntity && c.profession != Profession::Soldier &&
-        myEntity->type == EntityType::HumanArmed) {
-      myEntity->type =
-          c.isFemale ? EntityType::HumanWoman : EntityType::HumanUnarmed;
-    }
-
     // Age - much faster for gameplay!
     // Children age faster to become adults sooner (game-years per second)
     float ageMultiplier = c.isChild() ? 5.0f : 1.0f; // Children grow 5x faster
@@ -94,6 +86,46 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       continue;
     }
 
+    // === COLD / HYPOTHERMIA SYSTEM ===
+    if (myEntity) {
+      int tileX = static_cast<int>(myEntity->position.x);
+      int tileY = static_cast<int>(myEntity->position.y);
+      if (tileX >= 0 && tileX < world.GetWidth() && tileY >= 0 &&
+          tileY < world.GetHeight()) {
+        const Tile &currentTile = world.GetTileConst(tileX, tileY);
+        if (currentTile.biome == BiomeType::Snow) {
+          // Cooling rate — reduced if citizen has shelter nearby
+          float coolingRate = 2.0f;
+          if (c.homeID != -1) {
+            Building *home = GetBuilding(c.homeID);
+            if (home) {
+              float distToHome =
+                  std::hypot(myEntity->position.x - home->tileX,
+                             myEntity->position.y - home->tileY);
+              if (distToHome < 5.0f) {
+                coolingRate *= 0.2f; // 80% reduction near home
+              }
+            }
+          }
+          c.bodyTemperature -= deltaTime * coolingRate;
+        } else {
+          // Warm up when not in snow
+          if (c.bodyTemperature < 37.0f) {
+            c.bodyTemperature += deltaTime * 1.5f;
+            if (c.bodyTemperature > 37.0f)
+              c.bodyTemperature = 37.0f;
+          }
+        }
+        // Cold damage
+        if (c.bodyTemperature < 30.0f) {
+          c.health -= deltaTime * 3.0f;
+        }
+        // Clamp
+        if (c.bodyTemperature < 0.0f)
+          c.bodyTemperature = 0.0f;
+      }
+    }
+
     // === STAMINA & HOME SYSTEM ===
     // 1. Recovery at Home (or Homeless Rest)
     if (c.isResting) {
@@ -131,31 +163,6 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
                c.workState == Citizen::WorkState::ReturningHome) {
       decayRate = 0.8f; // Walking tires less than working
     }
-    // --- WAR ADRENALINE BYPASS ---
-    bool isAtWar = false;
-    if (c.profession == Profession::Soldier && c.cityID != -1) {
-      City *myCity = GetCity(c.cityID);
-      if (myCity && myCity->kingdomID != -1) {
-        Kingdom *myK = GetKingdom(myCity->kingdomID);
-        if (myK) {
-          for (const auto &kv : myK->diplomaticStatus) {
-            if (kv.second == DiplomaticStatus::Hostile) {
-              isAtWar = true;
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    if (isAtWar) {
-      decayRate = 0.0f;
-      c.energy = 100.0f;
-      c.isGoingHome = false;
-      c.isResting = false;
-    }
-    // -----------------------------
-
     c.energy -= deltaTime * decayRate;
 
     // 3. Go Home if Tired
@@ -273,16 +280,9 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       continue; // CRITICAL FIX: Prevent massive crashes when iterating over
                 // entities inside Jobs
 
-    // Remove weapons if fired from Soldier profession
-    if (c.profession != Profession::Soldier &&
-        myEntity->type == EntityType::HumanArmed) {
-      myEntity->type = EntityType::HumanUnarmed;
-    }
-
     // === GENERIC WANDERING ===
     // If wandering, pick a random spot and move there
-    if (c.workState == Citizen::WorkState::Wandering &&
-        c.profession != Profession::Soldier) {
+    if (c.workState == Citizen::WorkState::Wandering) {
       if (!myEntity->hasTarget) {
         int rx = (rand() % 11) - 5;
         int ry = (rand() % 11) - 5;
@@ -315,6 +315,128 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
 
     // === SETTLER AI ===
     // Homeless adults periodically check if they should join or found a city
+
+    // === HUNTING AI (any profession, triggered by hunger) ===
+    if (c.hunger > 60.0f && c.isAdult() && myEntity &&
+        c.workState != Citizen::WorkState::Hunting) {
+      // Check if city has low food or citizen is cityless
+      bool needsHunting = (c.cityID < 0);
+      if (!needsHunting && c.cityID >= 0) {
+        City *myCity = GetCity(c.cityID);
+        if (myCity && myCity->resources.food < 10) {
+          needsHunting = true;
+        }
+      }
+      if (needsHunting) {
+        // Scan for nearest animal
+        float bestDist = 999999.0f;
+        int bestAnimalEntityIdx = -1;
+        auto &allEntities = world.GetEntitiesMutable();
+        for (size_t ei = 0; ei < allEntities.size(); ei++) {
+          Entity &ae = allEntities[ei];
+          if (ae.health <= 0 || ae.state == EntityState::Die)
+            continue;
+          // Only hunt non-hostile animals (not Boars or Humans)
+          bool isHuntable =
+              (ae.type == EntityType::Cow || ae.type == EntityType::Chicken ||
+               ae.type == EntityType::Sheep || ae.type == EntityType::Bull ||
+               ae.type == EntityType::Chicken2 || ae.type == EntityType::Lamb ||
+               ae.type == EntityType::Pig || ae.type == EntityType::Turkey);
+          if (!isHuntable)
+            continue;
+          float d = std::hypot(myEntity->position.x - ae.position.x,
+                               myEntity->position.y - ae.position.y);
+          if (d < 30.0f && d < bestDist) {
+            bestDist = d;
+            bestAnimalEntityIdx = (int)ei;
+          }
+        }
+        if (bestAnimalEntityIdx >= 0) {
+          // Enter hunting mode
+          c.workState = Citizen::WorkState::Hunting;
+          c.isWorking = true;
+          c.workTimer = 0.0f;
+          c.targetEntityID = allEntities[bestAnimalEntityIdx].id;
+          myEntity->targetPos = allEntities[bestAnimalEntityIdx].position;
+          myEntity->hasTarget = true;
+          myEntity->state = EntityState::Run;
+          TraceLog(LOG_INFO, "HUNT: Citizen %d started hunting animal (entity %d)",
+                   c.id, c.targetEntityID);
+        }
+      }
+    }
+
+    // === HUNTING STATE MACHINE ===
+    if (c.workState == Citizen::WorkState::Hunting && myEntity) {
+      // Find the target animal entity by ID
+      Entity *prey = nullptr;
+      auto &allEntities = world.GetEntitiesMutable();
+      for (auto &ae : allEntities) {
+        if (ae.id == c.targetEntityID && ae.health > 0 &&
+            ae.state != EntityState::Die) {
+          prey = &ae;
+          break;
+        }
+      }
+      if (!prey) {
+        // Prey died or disappeared
+        c.workState = Citizen::WorkState::Idle;
+        c.isWorking = false;
+        myEntity->hasTarget = false;
+        myEntity->state = EntityState::Idle;
+      } else {
+        float dist = std::hypot(myEntity->position.x - prey->position.x,
+                                myEntity->position.y - prey->position.y);
+        if (dist < 1.2f) {
+          // Attack prey
+          c.workTimer += deltaTime;
+          myEntity->state = EntityState::Attack;
+          myEntity->hasTarget = false;
+          // Attack once per second
+          if (c.workTimer >= 1.0f) {
+            c.workTimer = 0.0f;
+            float damage = 10.0f + c.stats.strength;
+            prey->health -= damage;
+            prey->state = EntityState::Hurt;
+            prey->animTime = 0.0f;
+            prey->currentFrame = 0;
+            TraceLog(LOG_INFO, "HUNT: Citizen %d hit animal for %.0f dmg (HP: %.0f)",
+                     c.id, damage, prey->health);
+            if (prey->health <= 0) {
+              prey->state = EntityState::Die;
+              // Harvest food from kill
+              bool isLarge =
+                  (prey->type == EntityType::Cow || prey->type == EntityType::Bull);
+              int foodGain = isLarge ? 5 : 3;
+              c.hunger -= (float)foodGain * 8.0f;
+              if (c.hunger < 0.0f)
+                c.hunger = 0.0f;
+              // Deposit food to city
+              if (c.cityID >= 0) {
+                City *myCity = GetCity(c.cityID);
+                if (myCity)
+                  myCity->resources.food += foodGain;
+              }
+              c.experience += 20.0f;
+              c.skillCombat += 0.5f;
+              TraceLog(LOG_INFO,
+                       "HUNT: Citizen %d killed animal, gained %d food", c.id,
+                       foodGain);
+              c.workState = Citizen::WorkState::Idle;
+              c.isWorking = false;
+              myEntity->state = EntityState::Idle;
+            }
+          }
+        } else {
+          // Chase prey
+          myEntity->targetPos = prey->position;
+          myEntity->hasTarget = true;
+          myEntity->state = EntityState::Run;
+        }
+      }
+      continue; // Skip profession AI while hunting
+    }
+
     if (doSettlerCheck && c.cityID == -1 && c.isAdult()) {
       int tx = static_cast<int>(myEntity->position.x);
       int ty = static_cast<int>(myEntity->position.y);
@@ -1175,29 +1297,47 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       switch (c.workState) {
       case Citizen::WorkState::Idle:
       case Citizen::WorkState::Wandering: {
-        // SCAN FOR ENEMIES
+        // SCAN FOR ENEMIES — only attack citizens from hostile kingdoms
         int enemyID = -1;
         float closestDist = 999999.0f;
-        float detectRange =
-            2.5f; // REDUZIDO: Força os exércitos a trombarem NA zona de guerra,
-                  // evitando emboscadas pela estrada (que causavam o combate
-                  // desviar para cima/baixo do círculo)!
+        float detectRange = 25.0f;
+
+        // Get my kingdom
+        Kingdom *myKingdom = nullptr;
+        if (myCity->kingdomID >= 0)
+          myKingdom = GetKingdom(myCity->kingdomID);
 
         for (Entity &otherE : world.GetEntitiesMutable()) {
           if (otherE.id == myEntity->id)
             continue;
 
-          // Check if it's an intelligent entity
           if (otherE.IsIntelligent()) {
             Citizen *otherCitizen = GetCitizen(otherE.citizenID);
             if (otherCitizen && otherCitizen->cityID != c.cityID &&
                 otherCitizen->cityID != -1) {
-              // Hostile found!
-              float d = std::hypot(myEntity->position.x - otherE.position.x,
-                                   myEntity->position.y - otherE.position.y);
-              if (d <= detectRange && d < closestDist) {
-                closestDist = d;
-                enemyID = otherCitizen->id;
+              // Check if we are at war with their kingdom
+              bool isEnemy = false;
+              City *otherCity = GetCity(otherCitizen->cityID);
+              if (myKingdom && otherCity && otherCity->kingdomID >= 0) {
+                isEnemy = myKingdom->IsAtWarWith(otherCity->kingdomID);
+              }
+              // Also attack anyone near our city who belongs to another city
+              if (!isEnemy && myCity) {
+                float distToMyCity =
+                    std::hypot(otherE.position.x - myCity->center.x,
+                               otherE.position.y - myCity->center.y);
+                if (distToMyCity < 20.0f) {
+                  isEnemy = true; // Trespasser in our territory
+                }
+              }
+
+              if (isEnemy) {
+                float d = std::hypot(myEntity->position.x - otherE.position.x,
+                                     myEntity->position.y - otherE.position.y);
+                if (d <= detectRange && d < closestDist) {
+                  closestDist = d;
+                  enemyID = otherCitizen->id;
+                }
               }
             }
           }
@@ -1206,119 +1346,93 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         if (enemyID != -1) {
           // Enemy spotted, transition to engage
           c.workState = Citizen::WorkState::GoingToWork;
-          c.targetEntityID = enemyID; // New field to track target
+          c.targetEntityID = enemyID;
           c.isWorking = true;
           myEntity->hasTarget = true;
-          myEntity->state = EntityState::Run; // Soldiers run to combat
+          myEntity->state = EntityState::Run;
           TraceLog(LOG_INFO, "SOLDIER: Citizen %d locked onto Enemy %d", c.id,
                    enemyID);
-        } else {
-          // NO LOCAL ENEMY SPOTTED. Check if we are at war!
-          bool isMarching = false;
-          if (myCity->kingdomID != -1) {
-            const Kingdom *myK = GetKingdom(myCity->kingdomID);
-            if (myK) {
-              Vector2 enemyCityPos = {0.0f, 0.0f};
+        } else if (myKingdom && !myKingdom->activeWarKingdoms.empty()) {
+          // AT WAR but no nearby enemies — march toward enemy city
+          float bestDist = 999999.0f;
+          Vector2 raidTarget = myEntity->position;
+          bool foundTarget = false;
 
-              for (const auto &bfPair : GetAllBattlefields()) {
-                const Battlefield &bf = bfPair.second;
-                if (bf.kingdomA == myK->id || bf.kingdomB == myK->id) {
-                  enemyCityPos = bf.centerPos;
-                  isMarching = true;
-                  break;
-                }
-              }
-
-              if (isMarching) {
-                c.isWorking = true;
-                // Re-evaluate path frequently when marching
-                if (c.stateTimer > 3.0f || !myEntity->hasTarget) {
-                  float rx = (rand() % 11 - 5) * 0.5f;
-                  float ry = (rand() % 11 - 5) * 0.5f;
-
-                  myEntity->targetPos.x = enemyCityPos.x + rx;
-                  myEntity->targetPos.y = enemyCityPos.y + ry;
-
-                  myEntity->hasTarget = true;
-                  myEntity->state = EntityState::Run;
-                  c.stateTimer = 0.0f;
-                }
+          for (int enemyKingID : myKingdom->activeWarKingdoms) {
+            Kingdom *enemyKingdom = GetKingdom(enemyKingID);
+            if (!enemyKingdom)
+              continue;
+            for (int eCityID : enemyKingdom->cityIDs) {
+              City *eCity = GetCity(eCityID);
+              if (!eCity || !eCity->isAlive)
+                continue;
+              float d = std::hypot(myEntity->position.x - eCity->center.x,
+                                   myEntity->position.y - eCity->center.y);
+              if (d < bestDist) {
+                bestDist = d;
+                raidTarget = {eCity->center.x + 0.5f, eCity->center.y + 0.5f};
+                foundTarget = true;
               }
             }
           }
 
-          if (!isMarching && !myEntity->hasTarget) {
-            c.isWorking = false; // Reset if at peace
+          if (foundTarget) {
+            myEntity->targetPos = raidTarget;
+            myEntity->hasTarget = true;
+            myEntity->state = EntityState::Walking;
+          }
+        } else {
+          // Patrol logic: Walk in straight lines through the city streets
+          if (!myEntity->hasTarget) {
+            // Pick a random cardinal direction
+            int r = rand() % 4;
+            int dx = 0, dy = 0;
+            if (r == 0)
+              dx = 1;
+            else if (r == 1)
+              dx = -1;
+            else if (r == 2)
+              dy = 1;
+            else
+              dy = -1;
 
-            // If stranded outside city bounds, run back to city!
-            bool isStranded = false;
-            if (c.cityID >= 0) {
-              const Tile &t = world.GetTileConst((int)myEntity->position.x,
-                                                 (int)myEntity->position.y);
-              if (t.ownerCityID != c.cityID) {
-                isStranded = true;
+            int maxDist = 4 + rand() % 8; // Patrol 4 to 11 tiles
+            int cx = (int)myEntity->position.x;
+            int cy = (int)myEntity->position.y;
+            int validDist = 0;
+
+            for (int i = 1; i <= maxDist; i++) {
+              int checkX = cx + dx * i;
+              int checkY = cy + dy * i;
+
+              // Check bounds and walkability
+              if (checkX >= 0 && checkX < world.GetWidth() && checkY >= 0 &&
+                  checkY < world.GetHeight()) {
+                if (world.IsWalkable(checkX, checkY)) {
+                  // Stay within own city if possible to defend it
+                  if (world.GetTileConst(checkX, checkY).ownerCityID ==
+                      c.cityID) {
+                    validDist = i;
+                  } else {
+                    break; // Reached border
+                  }
+                } else {
+                  break; // Hit wall/building
+                }
+              } else {
+                break; // Map edge
               }
             }
 
-            if (isStranded) {
-              City *myC = GetCity(c.cityID);
-              if (myC) {
-                myEntity->targetPos = {myC->center.x + 0.5f,
-                                       myC->center.y + 0.5f};
-                myEntity->hasTarget = true;
-                myEntity->state = EntityState::Run;
-              }
+            if (validDist > 0) {
+              myEntity->targetPos = {(float)(cx + dx * validDist) + 0.5f,
+                                     (float)(cy + dy * validDist) + 0.5f};
+              myEntity->hasTarget = true;
+              myEntity->state = EntityState::Walking;
             } else {
-              // PEACE TIME PATROL: Walk in straight lines through the city
-              // streets
-              int r = rand() % 4;
-              int dx = 0, dy = 0;
-              if (r == 0)
-                dx = 1;
-              else if (r == 1)
-                dx = -1;
-              else if (r == 2)
-                dy = 1;
-              else
-                dy = -1;
-
-              int maxDist = 4 + rand() % 8; // Patrol 4 to 11 tiles
-              int cx = (int)myEntity->position.x;
-              int cy = (int)myEntity->position.y;
-              int validDist = 0;
-
-              for (int i = 1; i <= maxDist; i++) {
-                int checkX = cx + dx * i;
-                int checkY = cy + dy * i;
-
-                // Check bounds and walkability
-                if (checkX >= 0 && checkX < world.GetWidth() && checkY >= 0 &&
-                    checkY < world.GetHeight()) {
-                  if (world.IsWalkable(checkX, checkY)) {
-                    // Stay within own city if possible to defend it
-                    if (world.GetTileConst(checkX, checkY).ownerCityID ==
-                        c.cityID) {
-                      validDist = i;
-                    } else {
-                      break; // Reached border
-                    }
-                  } else {
-                    break; // Hit wall/building
-                  }
-                } else {
-                  break; // Map edge
-                }
-              }
-
-              if (validDist > 0) {
-                myEntity->targetPos = {(float)(cx + dx * validDist) + 0.5f,
-                                       (float)(cy + dy * validDist) + 0.5f};
-                myEntity->hasTarget = true;
-                myEntity->state = EntityState::Walking;
-              } else {
-                // Stuck or at border, will pick a new direction next frame
-                myEntity->facingDirection = (myEntity->facingDirection + 1) % 4;
-              }
+              // Stuck or at border, will pick a new direction next frame
+              // Minimal fallback to turn visually
+              myEntity->facingDirection = (myEntity->facingDirection + 1) % 4;
             }
           }
         }
@@ -1405,36 +1519,11 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           c.workTimer = 0.0f;
 
           // Damage formula
-          float damage = 35.0f;
+          float damage = 15.0f;
           enemy->health -= damage;
           enemyEntity->state = EntityState::Hurt;
           enemyEntity->animTime = 0.0f;
           enemyEntity->currentFrame = 0;
-
-          if (enemy->health <= 0.0f) {
-            City *myCity = GetCity(c.cityID);
-            City *enemyCity = GetCity(enemy->cityID);
-            if (myCity && enemyCity && myCity->kingdomID != -1 &&
-                enemyCity->kingdomID != -1) {
-
-              // Register kill in Battlefield
-              for (auto &bfPair : const_cast<std::map<int, Battlefield> &>(
-                       GetAllBattlefields())) {
-                Battlefield &bf = bfPair.second;
-                if ((bf.kingdomA == myCity->kingdomID &&
-                     bf.kingdomB == enemyCity->kingdomID) ||
-                    (bf.kingdomB == myCity->kingdomID &&
-                     bf.kingdomA == enemyCity->kingdomID)) {
-
-                  if (bf.kingdomA == myCity->kingdomID)
-                    bf.killsA++;
-                  else
-                    bf.killsB++;
-                  break;
-                }
-              }
-            }
-          }
 
           TraceLog(
               LOG_INFO,

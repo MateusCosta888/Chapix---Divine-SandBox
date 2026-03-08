@@ -75,7 +75,6 @@ private:
   float cityPopupScroll = 0.0f;
   bool showFlagSelector = false;
   float flagSelectorScroll = 0.0f;
-  bool flagSelectorJustOpened = false;
 
   // Social / Kingdom List State
   bool showSocialCityList = false;
@@ -83,9 +82,11 @@ private:
   Vector2 socialPopupPos = {0, 0};
   bool isDraggingSocial = false;
 
-  // God Mode: Force War
-  bool isTargetingWar = false;
-  int warTargetCityA = -1;
+  // Force War State
+  bool forceWarMode = false;         // True when selecting kingdoms
+  int forceWarKingdomA = -1;         // First selected kingdom
+  int forceWarKingdomB = -1;         // Second selected kingdom
+  bool showForceWarConfirm = false;  // Show confirmation popup
 
   // Save Popup State
   bool showSavePopup = false;
@@ -159,7 +160,11 @@ private:
   bool isRenamingHuman = false;
   int humanWindowTab = 0; // 0 = Main, 1 = Abilities
   bool showProfessionSelector = false;
-  bool professionSelectorJustOpened = false;
+
+  // Human Spawn Menu State (popup on Human creature button)
+  bool showHumanSpawnMenu = false;
+  Vector2 humanSpawnMenuPos = {0, 0};
+  int humanSpawnSelection = -1; // -1=none, 0=random, 1=man, 2=woman
 
   // Drag State (Human)
   Vector2 humanPopupPos = {0, 0};
