@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 
 World::World(int width, int height, uint32_t seed)
     : width(width), height(height), seed_(seed), rng_(seed) {
@@ -20,17 +21,23 @@ void World::Reset(uint32_t seed) {
   rng_ = Random(seed);
 }
 
-void World::ResizeAndGenerate(int newWidth, int newHeight) {
+void World::ResizeAndGenerate(
+    int newWidth, int newHeight,
+    std::function<void(const char *)> loadingCallback) {
   width = newWidth;
   height = newHeight;
   tiles.clear();
   tiles.resize(width * height);
   // Clear entities on new generation
   entities.clear();
-  Generate();
+  Generate(loadingCallback);
 }
 
-void World::LoadTextures() { resourceManager.Load(); }
+void World::LoadTextures(std::function<void(const char *)> loadingCallback) {
+  if (loadingCallback)
+    loadingCallback("Loading world textures...");
+  resourceManager.Load();
+}
 void World::UnloadTextures() { resourceManager.Unload(); }
 
 void World::UpdateAnimation(float deltaTime) {
@@ -147,7 +154,9 @@ bool World::IsWalkable(int x, int y, bool ignoreBuildings) const {
       t.decoration == DecorationType::BigRock ||
       t.decoration == DecorationType::SmallRock ||
       t.decoration == DecorationType::MediumRock ||
-      t.decoration == DecorationType::Bush) {
+      t.decoration == DecorationType::Bush ||
+      t.decoration == DecorationType::Ruins ||
+      t.decoration == DecorationType::Crystal) {
     return false;
   }
 
@@ -172,7 +181,7 @@ float World::GetHeight(int x, int y) const {
   return tiles[y * width + x].height;
 }
 
-void World::Generate() {
+void World::Generate(std::function<void(const char *)> loadingCallback) {
   // Clear all simulation data (citizens, cities, kingdoms, buildings)
   // This prevents crashes when generating a new world after playing
   simulation.Reset();
@@ -183,9 +192,38 @@ void World::Generate() {
   Noise humidityNoise(seed_ + 2000); // Different offset
   Noise mountainNoise(seed_ + 3000); // New independent noise for mountains
 
+  // Pseudo-random centers based on world seed for mountain regions
+  float mCenters[3][2];
+  float mRadii[3];
+
+  std::mt19937 mRng(seed_ ^ 9999);
+  std::uniform_real_distribution<float> distX(0, (float)width);
+  std::uniform_real_distribution<float> distY(0, (float)height);
+
+  // 1 Major Region
+  mCenters[0][0] = distX(mRng);
+  mCenters[0][1] = distY(mRng);
+  mRadii[0] = std::min(width, height) * 0.35f; // Large radius (35% of map size)
+
+  // 2 Minor Regions
+  mCenters[1][0] = distX(mRng);
+  mCenters[1][1] = distY(mRng);
+  mRadii[1] = std::min(width, height) * 0.15f;
+
+  mCenters[2][0] = distX(mRng);
+  mCenters[2][1] = distY(mRng);
+  mRadii[2] = std::min(width, height) * 0.15f;
+
   int padding = 10; // Safe zone padding
 
+  if (loadingCallback)
+    loadingCallback("Generating terrain & biomes...");
+
   for (int y = 0; y < height; y++) {
+    if (y % 16 == 0 && loadingCallback) {
+      loadingCallback(TextFormat("Generating terrain & biomes... %d%%",
+                                 (y * 100) / height));
+    }
     for (int x = 0; x < width; x++) {
       Tile &tile = GetTile(x, y);
       tile.decoration = DecorationType::None; // Reset decorations
@@ -241,36 +279,6 @@ void World::Generate() {
       // 5. Get terrain type based on biome and height
       tile.type = GetTerrainForBiome(tile.biome, h);
 
-      // 6. Independent Mountain Generation (Constrained Regions)
-      // Pick 3 Mountain Centers randomly based on seed
-      // We do this procedurally per pixel, but that's expensive/tricky for
-      // "global" centers. Better to define them statically based on seed at the
-      // start of Generate? Since we are in the loop, we can just hash the seed
-      // to get 3 fixed points (relative to map size).
-
-      // Pseudo-random centers based on world seed
-      float mCenters[3][2];
-      float mRadii[3];
-
-      std::mt19937 mRng(seed_ ^ 9999);
-      std::uniform_real_distribution<float> distX(0, (float)width);
-      std::uniform_real_distribution<float> distY(0, (float)height);
-
-      // 1 Major Region
-      mCenters[0][0] = distX(mRng);
-      mCenters[0][1] = distY(mRng);
-      mRadii[0] =
-          std::min(width, height) * 0.35f; // Large radius (35% of map size)
-
-      // 2 Minor Regions
-      mCenters[1][0] = distX(mRng);
-      mCenters[1][1] = distY(mRng);
-      mRadii[1] = std::min(width, height) * 0.15f;
-
-      mCenters[2][0] = distX(mRng);
-      mCenters[2][1] = distY(mRng);
-      mRadii[2] = std::min(width, height) * 0.15f;
-
       // Check if current point (x, y) is inside any mountain region
       bool inMountainRegion = false;
       float distanceFade = 0.0f; // 0 edge, 1 center
@@ -318,6 +326,9 @@ void World::Generate() {
   // Remove small mountain clusters to enforce minimum size roughly 10x10
   // perception. We do this by checking neighbor count.
   // ==========================================================================
+
+  if (loadingCallback)
+    loadingCallback("Filtering mountains...");
   for (int minSizePass = 0; minSizePass < 3;
        minSizePass++) { // Multiple passes to erode small bits
     std::vector<TileType> newTypes(width * height);
@@ -376,6 +387,8 @@ void World::Generate() {
   // ==========================================================================
   // EDGE MASK CALCULATION
   // ==========================================================================
+  if (loadingCallback)
+    loadingCallback("Calculating edge masks...");
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
       Tile &tile = GetTile(x, y);
@@ -395,7 +408,13 @@ void World::Generate() {
   // ==========================================================================
   // PROCEDURAL DECORATION GENERATION (Baking visuals into logic)
   // ==========================================================================
+  if (loadingCallback)
+    loadingCallback("Placing decorations...");
   for (int y = 0; y < height; y++) {
+    if (y % 16 == 0 && loadingCallback) {
+      loadingCallback(
+          TextFormat("Placing decorations... %d%%", (y * 100) / height));
+    }
     for (int x = 0; x < width; x++) {
       Tile &tile = GetTile(x, y);
 
@@ -411,7 +430,7 @@ void World::Generate() {
       // 1. TREES
       bool hasTree = false;
       if (tile.type == TileType::Forest) {
-        if ((seed % 100) < 20) { // Reduced from 30% to 20%
+        if ((seed % 100) < 12) { // Reduced from 20% to 12%
           tile.decoration = DecorationType::Tree;
           // Variant logic: 0=Fruit, 1=Normal, 2=Moss.
           // We store specific type in variant? Or just generic Tree and
@@ -424,7 +443,7 @@ void World::Generate() {
           hasTree = true;
         }
       } else if (tile.type == TileType::Snow) {
-        if ((seed % 100) < 15) { // 15% Snow
+        if ((seed % 100) < 8) { // Reduced from 15% to 8%
           tile.decoration = DecorationType::PineTree;
           tile.decorationVariant = seed % 100;
           hasTree = true;
@@ -571,70 +590,53 @@ void World::Generate() {
   // ==========================================================================
   entities.clear(); // Clear any existing entities
 
-  int cowCount = 0, chickenCount = 0, sheepCount = 0;
-  int maxCows = 8, maxChickens = 12, maxSheep = 10;
+  int cowCount = 0, chickenCount = 0, sheepCount = 0, boarCount = 0,
+      slimeCount = 0;
+  int maxCows = 12, maxChickens = 15, maxSheep = 12, maxBoars = 8,
+      maxSlimes = 10;
 
-  for (int y = 20; y < height - 20; y += 3) { // Skip border areas, step 3
-    for (int x = 20; x < width - 20; x += 3) {
+  for (int y = 20; y < height - 20; y += 4) { // Increased step to spread more
+    for (int x = 20; x < width - 20; x += 4) {
       Tile &tile = GetTile(x, y);
 
-      // Only spawn on grass/forest
-      if (tile.type != TileType::Grass && tile.type != TileType::Forest)
+      // Land check
+      if (tile.type == TileType::DeepOcean || tile.type == TileType::Ocean ||
+          tile.type == TileType::ShallowOcean)
         continue;
 
       // Use tile variant for deterministic random
       unsigned int spawnRoll = (tile.variant ^ seed_ ^ 0xDEADBEEF) % 100;
 
-      // Higher spawn rates: 5% cow, 7% chicken, 6% sheep
-      if (spawnRoll < 5 && cowCount < maxCows) {
-        Entity cow;
-        cow.id = entities.size();
-        cow.type = EntityType::Cow;
-        cow.position = {(float)x + 0.5f, (float)y + 0.5f};
-        cow.state = EntityState::Idle;
-        cow.facingDirection = rng_.Int(-1, 2); // -1, 0, 1, 2
-        cow.speed = 0.5f;
-        cow.health = 100.0f;
-        cow.animTime = 0.0f;
-        cow.currentFrame = 0;
-        cow.hasTarget = false;
-        entities.push_back(cow);
+      if (spawnRoll < 4 && cowCount < maxCows && tile.type == TileType::Grass) {
+        AddEntity(EntityType::Cow, {(float)x + 0.5f, (float)y + 0.5f});
         cowCount++;
-      } else if (spawnRoll >= 5 && spawnRoll < 12 &&
-                 chickenCount < maxChickens) {
-        Entity chicken;
-        chicken.id = entities.size();
-        chicken.type = EntityType::Chicken;
-        chicken.position = {(float)x + 0.5f, (float)y + 0.5f};
-        chicken.state = EntityState::Idle;
-        chicken.facingDirection = rng_.Int(-1, 2);
-        chicken.speed = 0.8f;
-        chicken.health = 20.0f;
-        chicken.animTime = 0.0f;
-        chicken.currentFrame = 0;
-        chicken.hasTarget = false;
-        entities.push_back(chicken);
+      } else if (spawnRoll >= 4 && spawnRoll < 10 &&
+                 chickenCount < maxChickens &&
+                 (tile.type == TileType::Grass ||
+                  tile.type == TileType::Forest)) {
+        AddEntity(EntityType::Chicken, {(float)x + 0.5f, (float)y + 0.5f});
         chickenCount++;
-      } else if (spawnRoll >= 12 && spawnRoll < 20 && sheepCount < maxSheep) {
-        Entity sheep;
-        sheep.id = entities.size();
-        sheep.type = EntityType::Sheep;
-        sheep.position = {(float)x + 0.5f, (float)y + 0.5f};
-        sheep.state = EntityState::Idle;
-        sheep.facingDirection = rng_.Int(-1, 2);
-        sheep.speed = 0.6f;
-        sheep.health = 50.0f;
-        sheep.animTime = 0.0f;
-        sheep.currentFrame = 0;
-        sheep.hasTarget = false;
-        entities.push_back(sheep);
+      } else if (spawnRoll >= 10 && spawnRoll < 16 && sheepCount < maxSheep &&
+                 tile.type == TileType::Grass) {
+        AddEntity(EntityType::Sheep, {(float)x + 0.5f, (float)y + 0.5f});
         sheepCount++;
+      } else if (spawnRoll >= 16 && spawnRoll < 20 && boarCount < maxBoars &&
+                 tile.type == TileType::Forest) {
+        AddEntity(EntityType::Boar, {(float)x + 0.5f, (float)y + 0.5f});
+        boarCount++;
+      } else if (spawnRoll >= 20 && spawnRoll < 25 && slimeCount < maxSlimes &&
+                 (tile.type == TileType::Forest ||
+                  tile.type == TileType::Mountain)) {
+        AddEntity(EntityType::Slime, {(float)x + 0.5f, (float)y + 0.5f});
+        slimeCount++;
       }
     }
   }
 
-  TraceLog(LOG_INFO, "ANIMALS: Spawned %d cows, %d chickens, %d sheep",
-           cowCount, chickenCount, sheepCount);
+  TraceLog(
+      LOG_INFO,
+      "ANIMALS: Spawned %d cows, %d chickens, %d sheep, %d boars, %d slimes",
+      cowCount, chickenCount, sheepCount, boarCount, slimeCount);
 }
 
 Tile &World::GetTile(int x, int y) {
@@ -757,16 +759,15 @@ void World::SetTileType(int x, int y, TileType newType) {
     return;
 
   Tile &tile = GetTile(x, y);
-  TraceLog(LOG_INFO, "WORLD: SetTileType %d,%d to Type %d", x, y, (int)newType);
   tile.type = newType;
 
   // Sync liquidLevel with water tile types
   if (newType == TileType::DeepOcean) {
     tile.liquidLevel = 1.0f;
   } else if (newType == TileType::Ocean) {
-    tile.liquidLevel = 0.5f;
+    tile.liquidLevel = 0.8f;
   } else if (newType == TileType::ShallowOcean) {
-    tile.liquidLevel = 0.2f;
+    tile.liquidLevel = 0.5f;
   } else {
     // Non-water tile - clear liquid
     tile.liquidLevel = 0.0f;
@@ -779,28 +780,37 @@ void World::SetTileType(int x, int y, TileType newType) {
       (newType == TileType::DeepOcean || newType == TileType::Ocean ||
        newType == TileType::ShallowOcean);
   if (isWater) {
-    // 1. Remove decorations and resources
-    tile.decoration = DecorationType::None;
-    tile.resourceAmount = 0.0f;
-    tile.hasStump = false;
-    tile.regrowthTimer = 0.0f;
-    tile.originalTree = DecorationType::None;
+    ClearTileContents(x, y);
+  }
+}
 
-    // Clear farming data
-    tile.isPlanted = false;
-    tile.growthProgress = 0.0f;
-    tile.farmOwnerCityID = -1;
+void World::ClearTileContents(int x, int y) {
+  if (x < 0 || x >= width || y < 0 || y >= height)
+    return;
 
-    // 2. Remove buildings on this tile
-    simulation.DestroyBuildingsAtTile(x, y);
-    tile.isOccupied = false;
+  Tile &tile = GetTile(x, y);
 
-    // 3. Kill all entities on this tile (humans and animals)
-    for (auto &e : entities) {
-      if ((int)e.position.x == x && (int)e.position.y == y) {
-        e.health = 0;
-        e.state = EntityState::Die;
-      }
+  // 1. Remove decorations and resources
+  tile.decoration = DecorationType::None;
+  tile.resourceAmount = 0.0f;
+  tile.hasStump = false;
+  tile.regrowthTimer = 0.0f;
+  tile.originalTree = DecorationType::None;
+
+  // Clear farming data
+  tile.isPlanted = false;
+  tile.growthProgress = 0.0f;
+  tile.farmOwnerCityID = -1;
+
+  // 2. Remove buildings on this tile
+  simulation.DestroyBuildingsAtTile(x, y);
+  tile.isOccupied = false;
+
+  // 3. Kill all entities on this tile (humans and animals)
+  for (auto &e : entities) {
+    if ((int)e.position.x == x && (int)e.position.y == y) {
+      e.health = 0;
+      e.state = EntityState::Die;
     }
   }
 }
@@ -808,26 +818,20 @@ void World::SetTileType(int x, int y, TileType newType) {
 void World::SetTileDecoration(int x, int y, DecorationType type) {
   if (x < 0 || x >= width || y < 0 || y >= height)
     return;
-
-  // Prevent placing decorations on water, but allow removing them
-  if (IsSwimmable(x, y) && type != DecorationType::None) {
-    return;
-  }
-
   Tile &tile = GetTile(x, y);
   tile.decoration = type;
   tile.decorationVariant = rng_.Int(0, 3);
 }
 
-Texture2D World::GetTextureForUI(TileType type) {
+Texture2D World::GetTextureForUI(TileType type) const {
   return resourceManager.GetTextureForUI(type);
 }
 
-Texture2D World::GetTextureForUI(DecorationType type) {
+Texture2D World::GetTextureForUI(DecorationType type) const {
   return resourceManager.GetTextureForUI(type);
 }
 
-Texture2D World::GetTextureForUI(EntityType type) {
+Texture2D World::GetTextureForUI(EntityType type) const {
   if (type == EntityType::HumanUnarmed) {
     if (!resourceManager.texHumanUnarmed[0][0].empty())
       return resourceManager.texHumanUnarmed[0][0][0]; // Idle Down Frame 0
@@ -846,6 +850,11 @@ Texture2D World::GetTextureForUI(EntityType type) {
   if (type == EntityType::Boar) {
     if (!resourceManager.texBoarIdle.empty())
       return resourceManager.texBoarIdle[0];
+    return {0};
+  }
+  if (type == EntityType::Slime) {
+    if (resourceManager.texSlimeIdle.id > 0)
+      return resourceManager.texSlimeIdle;
     return {0};
   }
   if (type == EntityType::Cow) {
@@ -902,9 +911,11 @@ void World::UpdateNeighborsEdgeMask(int x, int y) {
   UpdateTileEdgeMask(x - 1, y);
 }
 
-void World::AddEntity(EntityType type, Vector2 pos) {
-  // 50/50 chance: player-placed unarmed humans may be women
-  if (type == EntityType::HumanUnarmed && (rand() % 2 == 0)) {
+void World::AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom) {
+  // 50/50 chance: player-placed unarmed humans may be women (only for Random)
+  // If type is already HumanWoman, skip randomization
+  if (!skipGenderRandom && type == EntityType::HumanUnarmed &&
+      (rand() % 2 == 0)) {
     type = EntityType::HumanWoman;
   }
 
@@ -920,7 +931,7 @@ void World::AddEntity(EntityType type, Vector2 pos) {
   }
 
   Entity e;
-  e.id = entities.size();
+  e.id = nextEntityID++;
   e.type = type;
   e.position = pos;
   e.targetPos = pos;
@@ -934,25 +945,32 @@ void World::AddEntity(EntityType type, Vector2 pos) {
 
   // Set speed based on creature type
   // Set speed and health based on creature type
+  // Set speed and health based on creature type
   if (type == EntityType::HumanUnarmed || type == EntityType::HumanWoman) {
     e.speed = 2.0f;
-    e.health = 15.0f;
+    e.health = 20.0f; // Fixed from 15 to 20 so they spawn full health
   } else if (type == EntityType::HumanArmed) {
-    e.speed = 2.0f;
-    e.health = 20.0f;
+    e.speed = 2.1f;   // Slightly faster than unarmed
+    e.health = 50.0f; // Buffed to survive Boar
   } else if (type == EntityType::Boar) {
-    e.speed = 2.5f; // Faster
-    e.health = 15.0f;
+    e.speed = 2.4f;
+    e.health = 40.0f; // As requested
+  } else if (type == EntityType::Slime) {
+    e.speed = 1.3f;
+    e.health = 25.0f; // Easy mob
   } else if (type == EntityType::Cow || type == EntityType::Bull) {
     e.speed = 0.5f;
     e.health = 10.0f;
   } else if (type == EntityType::Chicken || type == EntityType::Chicken2 ||
              type == EntityType::Turkey) {
     e.speed = 0.8f;
+    e.health = 5.0f;
   } else if (type == EntityType::Sheep || type == EntityType::Lamb) {
     e.speed = 0.6f;
+    e.health = 10.0f;
   } else if (type == EntityType::Pig) {
     e.speed = 0.55f;
+    e.health = 10.0f;
   } else {
     e.speed = 1.0f;
   }
@@ -1064,9 +1082,103 @@ void World::UpdateEntities(float deltaTime) {
       continue;
     }
 
+    // === ANIMAL COLD / HYPOTHERMIA SYSTEM ===
+    if (!e.IsIntelligent()) {
+      int atX = static_cast<int>(e.position.x);
+      int atY = static_cast<int>(e.position.y);
+      if (atX >= 0 && atX < width && atY >= 0 && atY < height) {
+        const Tile &tile = GetTileConst(atX, atY);
+        if (tile.biome == BiomeType::Snow) {
+          e.bodyTemperature -= deltaTime * 1.5f;
+        } else {
+          // Warm up
+          if (e.bodyTemperature < 37.0f) {
+            e.bodyTemperature += deltaTime * 1.0f;
+            if (e.bodyTemperature > 37.0f)
+              e.bodyTemperature = 37.0f;
+          }
+        }
+        // Cold damage
+        if (e.bodyTemperature < 28.0f) {
+          e.health -= deltaTime * 2.0f;
+        }
+        if (e.bodyTemperature < 0.0f)
+          e.bodyTemperature = 0.0f;
+      }
+    }
+
+    // === ANIMAL REPRODUCTION SYSTEM ===
+    if (!e.IsIntelligent() && e.type != EntityType::Boar &&
+        e.type != EntityType::Slime && e.health > 0) {
+      e.reproductionTimer += deltaTime;
+      if (e.reproductionTimer >= e.reproductionCooldown) {
+        e.reproductionTimer = 0.0f;
+
+        // Count current population of this species
+        int speciesCount = 0;
+        for (const auto &other : entities) {
+          if (other.type == e.type && other.health > 0)
+            speciesCount++;
+        }
+
+        // Cap at 30 per species
+        if (speciesCount < 30) {
+          // Find a mate of same species within radius 5
+          bool foundMate = false;
+          for (size_t j = 0; j < entities.size(); j++) {
+            if (j == i)
+              continue;
+            Entity &mate = entities[j];
+            if (mate.type == e.type && mate.health > 0 &&
+                mate.state != EntityState::Die) {
+              float d = Vector2Distance(e.position, mate.position);
+              if (d < 5.0f) {
+                foundMate = true;
+                mate.reproductionTimer = 0.0f; // Reset mate's timer too
+                break;
+              }
+            }
+          }
+
+          if (foundMate) {
+            // Find a walkable spot nearby to spawn offspring
+            for (int attempt = 0; attempt < 10; attempt++) {
+              int ox = static_cast<int>(e.position.x) + (rand() % 5) - 2;
+              int oy = static_cast<int>(e.position.y) + (rand() % 5) - 2;
+              if (ox >= 0 && ox < width && oy >= 0 && oy < height &&
+                  IsWalkable(ox, oy)) {
+                Entity baby;
+                baby.id = nextEntityID++;
+                baby.type = e.type;
+                baby.position = {(float)ox + 0.5f, (float)oy + 0.5f};
+                baby.targetPos = baby.position;
+                baby.state = EntityState::Idle;
+                baby.facingDirection = rand() % 4 - 1;
+                baby.speed = e.speed * 0.8f;   // Slightly slower baby
+                baby.health = e.health * 0.5f; // Born with half health
+                baby.animTime = 0.0f;
+                baby.currentFrame = 0;
+                baby.hasTarget = false;
+                baby.citizenID = -1;
+                baby.bodyTemperature = 37.0f;
+                baby.reproductionTimer = 0.0f;
+                baby.reproductionCooldown = e.reproductionCooldown;
+                entities.push_back(baby);
+                TraceLog(
+                    LOG_INFO,
+                    "REPRODUCE: Animal type %d spawned offspring at (%d,%d)",
+                    (int)e.type, ox, oy);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Basic AI
     // === BOAR AI ===
-    if (e.type == EntityType::Boar) {
+    if (e.type == EntityType::Boar || e.type == EntityType::Slime) {
       if (e.state == EntityState::Die) {
         e.animTime += deltaTime;
         if (e.animTime >= 0.15f) {
@@ -1095,23 +1207,23 @@ void World::UpdateEntities(float deltaTime) {
           e.animTime = 0.0f;
           e.currentFrame++;
           if (e.currentFrame == 3) { // Impact
-            for (auto &target : entities) {
-              if ((target.type == EntityType::HumanArmed ||
-                   target.type == EntityType::HumanUnarmed ||
-                   target.type == EntityType::HumanWoman) &&
-                  target.health > 0) {
-                if (Vector2Distance(e.position, target.position) < 1.5f) {
-                  float dmg = 5.0f;
-                  if (target.type == EntityType::HumanArmed &&
+            for (auto &pair : citizenEntityMap) {
+              Entity *target = pair.second;
+              if (target && target->health > 0) {
+                if (Vector2Distance(e.position, target->position) < 1.5f) {
+                  float dmg = (e.type == EntityType::Slime)
+                                  ? 6.0f
+                                  : 12.0f; // As requested: Boar 12 damage
+                  if (target->type == EntityType::HumanArmed &&
                       rng_.Int(0, 100) < 20) {
                     dmg *= 0.5f;
-                    target.state = EntityState::Block;
-                    target.currentFrame = 0;
+                    target->state = EntityState::Block;
+                    target->currentFrame = 0;
                     TraceLog(LOG_INFO, "COMBAT: Human BLOCKED Boar!");
                   }
-                  target.health -= dmg;
-                  if (target.health <= 0)
-                    target.state = EntityState::Die;
+                  target->health -= dmg;
+                  if (target->health <= 0)
+                    target->state = EntityState::Die;
                 }
               }
             }
@@ -1122,16 +1234,13 @@ void World::UpdateEntities(float deltaTime) {
         continue;
       }
 
-      // Hunt Humans
       bool targetFound = false;
       Vector2 targetPos = e.position;
-      for (const auto &target : entities) {
-        if ((target.type == EntityType::HumanArmed ||
-             target.type == EntityType::HumanUnarmed ||
-             target.type == EntityType::HumanWoman) &&
-            target.health > 0) {
-          if (Vector2Distance(e.position, target.position) < 6.0f) {
-            targetPos = target.position;
+      for (const auto &pair : citizenEntityMap) {
+        Entity *target = pair.second;
+        if (target && target->health > 0) {
+          if (Vector2Distance(e.position, target->position) < 6.0f) {
+            targetPos = target->position;
             targetFound = true;
             break;
           }
@@ -1146,8 +1255,18 @@ void World::UpdateEntities(float deltaTime) {
         } else {
           Vector2 dir =
               Vector2Normalize(Vector2Subtract(targetPos, e.position));
-          e.position = Vector2Add(
-              e.position, Vector2Scale(dir, e.speed * 1.5f * deltaTime));
+          Vector2 moveVec = Vector2Scale(dir, e.speed * 1.5f * deltaTime);
+          Vector2 nextPos = Vector2Add(e.position, moveVec);
+
+          if (IsWalkable((int)nextPos.x, (int)nextPos.y)) {
+            e.position = nextPos;
+          } else if (IsWalkable((int)nextPos.x, (int)e.position.y)) {
+            e.position.x = nextPos.x;
+          } else if (IsWalkable((int)e.position.x, (int)nextPos.y)) {
+            e.position.y = nextPos.y;
+          } else {
+            e.state = EntityState::Idle;
+          }
           // Facing
           if (fabs(dir.x) > fabs(dir.y))
             e.facingDirection = (dir.x > 0) ? 1 : -1;
@@ -1185,7 +1304,7 @@ void World::UpdateEntities(float deltaTime) {
         if (rng_.Int(0, 10) > 1) { // Move 80% of time
           Vector2 next = Vector2Add(
               e.position, Vector2Scale(dir, e.speed * 0.5f * deltaTime));
-          if (IsWalkable((int)next.x, (int)next.y, true))
+          if (IsWalkable((int)next.x, (int)next.y))
             e.position = next;
           else {
             // Hit wall, turn
@@ -1226,6 +1345,16 @@ void World::UpdateEntities(float deltaTime) {
         continue;
       }
 
+      // Hurt (Fix: Humans freezing after damage)
+      if (e.state == EntityState::Hurt) {
+        e.animTime += deltaTime;
+        if (e.animTime >= 0.25f) { // Hurt animation time
+          e.animTime = 0.0f;
+          e.state = EntityState::Idle;
+        }
+        continue;
+      }
+
       // Attack
       if (e.state == EntityState::Attack) {
         e.animTime += deltaTime;
@@ -1234,7 +1363,9 @@ void World::UpdateEntities(float deltaTime) {
           e.currentFrame++;
           if (e.currentFrame == 2) {
             for (auto &target : entities) {
-              if (target.type == EntityType::Boar && target.health > 0) {
+              if ((target.type == EntityType::Boar ||
+                   target.type == EntityType::Slime) &&
+                  target.health > 0) {
                 float dist = Vector2Distance(e.position, target.position);
                 if (dist < 1.5f) {
                   Vector2 dirTo = Vector2Normalize(
@@ -1251,7 +1382,7 @@ void World::UpdateEntities(float deltaTime) {
 
                   if (facing) {
                     float dmg =
-                        (e.type == EntityType::HumanArmed) ? 5.0f : 2.0f;
+                        (e.type == EntityType::HumanArmed) ? 10.0f : 4.0f;
                     target.health -= dmg;
                     target.state = EntityState::Hurt;
                     target.currentFrame = 0;
@@ -1285,12 +1416,14 @@ void World::UpdateEntities(float deltaTime) {
         continue;
       }
 
-      // Hunt Boars
+      // Hunt Boars and Slimes
       bool foundTarget = false;
       Vector2 targetPos = e.position;
       float minDist = 10.0f;
       for (const auto &target : entities) {
-        if (target.type == EntityType::Boar && target.health > 0) {
+        if ((target.type == EntityType::Boar ||
+             target.type == EntityType::Slime) &&
+            target.health > 0) {
           float d = Vector2Distance(e.position, target.position);
           if (d < minDist) {
             minDist = d;
@@ -1336,8 +1469,20 @@ void World::UpdateEntities(float deltaTime) {
           }
 
           dir = Vector2Normalize(dir);
-          // Stop if hit wall
-          e.state = EntityState::Idle;
+          Vector2 moveVec = Vector2Scale(dir, e.speed * deltaTime);
+          Vector2 nextPos = Vector2Add(e.position, moveVec);
+
+          if (IsWalkable((int)nextPos.x, (int)nextPos.y, false)) {
+            e.position = nextPos;
+          } else if (IsWalkable((int)nextPos.x, (int)e.position.y, false)) {
+            e.position.x = nextPos.x;
+          } else if (IsWalkable((int)e.position.x, (int)nextPos.y, false)) {
+            e.position.y = nextPos.y;
+          } else {
+            // Blocked: Try to wander away or just Idle
+            e.state = EntityState::Idle;
+            e.hasTarget = false;
+          }
         }
 
       } else {
@@ -1406,10 +1551,7 @@ void World::UpdateEntities(float deltaTime) {
             e.hasTarget = false;
             e.state = EntityState::Idle;
           } else {
-            // Keep running if marching/attacking, else just walk
-            if (e.state != EntityState::Run) {
-              e.state = EntityState::Walking;
-            }
+            e.state = EntityState::Walking;
 
             // Force cardinal direction (no diagonal) - REMOVED
             if (fabs(dir.x) > fabs(dir.y)) {
@@ -1421,50 +1563,29 @@ void World::UpdateEntities(float deltaTime) {
             }
 
             dir = Vector2Normalize(dir);
-            float actualSpeed =
-                (e.state == EntityState::Run) ? (e.speed * 2.0f) : e.speed;
-            Vector2 nextPos = Vector2Add(
-                e.position,
-                Vector2Scale(dir,
-                             actualSpeed *
-                                 deltaTime)); // Use e.speed instead of 1.0f
+            Vector2 moveVec = Vector2Scale(dir, e.speed * deltaTime);
+            Vector2 nextPos = Vector2Add(e.position, moveVec);
 
-            // Collision Check with Sliding
-            bool moved = false;
-            // 1. Try full diagonal move
-            if (IsWalkable((int)nextPos.x, (int)nextPos.y)) {
+            if (IsWalkable((int)nextPos.x, (int)nextPos.y, false)) {
               e.position = nextPos;
-              moved = true;
+            } else if (IsWalkable((int)nextPos.x, (int)e.position.y, false)) {
+              e.position.x = nextPos.x;
+            } else if (IsWalkable((int)e.position.x, (int)nextPos.y, false)) {
+              e.position.y = nextPos.y;
             } else {
-              // 2. Try sliding along X axis
-              if (IsWalkable((int)nextPos.x, (int)e.position.y)) {
-                e.position.x = nextPos.x;
-                moved = true;
-              }
-              // 3. Try sliding along Y axis
-              else if (IsWalkable((int)e.position.x, (int)nextPos.y)) {
-                e.position.y = nextPos.y;
-                moved = true;
-              }
-            }
-
-            // 4. Stuck (Hit a perfect corner or surrounded)
-            if (!moved) {
-              e.hasTarget = false;
+              e.hasTarget = false; // Stop moving if path completely blocked
               e.state = EntityState::Idle;
             }
           }
-        } else if (!foundTarget && (e.state == EntityState::Walking ||
-                                    e.state == EntityState::Run)) {
-          // Only reset to Idle if we were Walking or Running but lost target.
+        } else if (!foundTarget && e.state == EntityState::Walking) {
+          // Only reset to Idle if we were Walking.
           // If we were Attacking (Working), don't reset!
           e.state = EntityState::Idle;
         }
       }
 
       // Anim
-      if (e.state == EntityState::Walking || e.state == EntityState::Run) {
-        float animSpeed = (e.state == EntityState::Run) ? 0.05f : 0.1f;
+      if (e.state == EntityState::Walking) {
         e.animTime += deltaTime;
         if (e.animTime >= 0.1f) {
           e.animTime = 0.0f;
@@ -1515,7 +1636,8 @@ void World::UpdateEntities(float deltaTime) {
       Vector2 next =
           Vector2Add(e.position, Vector2Scale(dir, e.speed * deltaTime));
 
-      if (!e.IsIntelligent() && e.type != EntityType::Boar) {
+      if (!e.IsIntelligent() && e.type != EntityType::Boar &&
+          e.type != EntityType::Slime) {
         static int logTimer = 0;
         logTimer++;
         if (logTimer % 60 == 0) {
@@ -1528,7 +1650,7 @@ void World::UpdateEntities(float deltaTime) {
         }
       }
 
-      if (IsWalkable((int)next.x, (int)next.y, true)) {
+      if (IsWalkable((int)next.x, (int)next.y, false)) {
         e.position = next;
       } else {
         // Hit wall, bounce to a different direction
@@ -1554,7 +1676,7 @@ void World::UpdateEntities(float deltaTime) {
 // SPAWN EFFECT SYSTEM
 // ============================================================================
 
-void World::AddSpawnEffect(int tileX, int tileY, Color color) {
+void World::AddSpawnEffect(int tileX, int tileY, Color color, VfxType type) {
   // Rate limit to avoid too many effects
   if (spawnEffects.size() > 100)
     return;
@@ -1563,8 +1685,11 @@ void World::AddSpawnEffect(int tileX, int tileY, Color color) {
   fx.worldX = tileX * 10.0f + 5.0f;
   fx.worldY = tileY * 10.0f + 5.0f;
   fx.timer = 0.0f;
-  fx.duration = 0.6f;
+  fx.duration =
+      (type == VfxType::Default) ? 1.0f : 0.8f; // VFX sprites are faster
   fx.scale = 0.0f;
+  fx.type = type;
+  fx.currentFrame = 0;
 
   // Create 6-10 sparkle particles
   int numParticles = 6 + (rand() % 5);
@@ -1636,19 +1761,109 @@ void World::DrawSpawnEffects() const {
     }
 
     // Draw a scale-in ring at spawn point
-    if (fx.timer < 0.3f) {
+    if (fx.timer < fx.duration * 0.2f) {
       float ringAlpha = 1.0f - (fx.timer / 0.3f);
       float ringRadius = 3.0f + fx.timer * 25.0f;
       Color ringColor = {255, 255, 200, (unsigned char)(ringAlpha * 120.0f)};
       DrawCircleLines((int)fx.worldX, (int)fx.worldY, ringRadius, ringColor);
     }
+
+    // Draw VFX Sprites
+    if (fx.type == VfxType::Lightning &&
+        !resourceManager.texVfxLightning.empty()) {
+      int frame = fx.currentFrame;
+      if (frame >= 0 && frame < (int)resourceManager.texVfxLightning.size()) {
+        Texture2D tex = resourceManager.texVfxLightning[frame];
+        DrawTextureV(
+            tex, {fx.worldX - tex.width / 2.0f, fx.worldY - tex.height / 2.0f},
+            WHITE);
+      }
+    } else if (fx.type == VfxType::Fire &&
+               !resourceManager.texVfxFire.empty()) {
+      int frame = fx.currentFrame;
+      if (frame >= 0 && frame < (int)resourceManager.texVfxFire.size()) {
+        Texture2D tex = resourceManager.texVfxFire[frame];
+        DrawTextureV(
+            tex, {fx.worldX - tex.width / 2.0f, fx.worldY - tex.height / 2.0f},
+            WHITE);
+      }
+    }
+  }
+}
+
+// ============================================================================
+// GOD POWERS
+// ============================================================================
+void World::TriggerGodPower(int powerIndex, int tx, int ty) {
+  if (tx < 0 || ty < 0 || tx >= width || ty >= height)
+    return;
+
+  // Use GRID coordinates for distance checks to match e.position
+  Vector2 impactGrid = {(float)tx + 0.5f, (float)ty + 0.5f};
+
+  if (powerIndex == 0) { // Lightning
+    AddSpawnEffect(tx, ty, {200, 200, 255, 255}, VfxType::Lightning);
+
+    // Apply AOE Damage (Radius in TILES)
+    float radius = 4.5f;
+    for (auto &e : entities) {
+      if (e.health <= 0)
+        continue;
+      float d = Vector2Distance(e.position, impactGrid);
+      if (d < radius) {
+        e.TakeDamage(40.0f); // Strong hit, uses TakeDamage for state sync
+      }
+    }
+  } else if (powerIndex == 1) { // Fire
+    AddSpawnEffect(tx, ty, {255, 150, 50, 255}, VfxType::Fire);
+
+    // Impact area logic (3x3 grid for spreading)
+    for (int dy = -1; dy <= 1; dy++) {
+      for (int dx = -1; dx <= 1; dx++) {
+        int nx = tx + dx;
+        int ny = ty + dy;
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height)
+          continue;
+
+        Tile &t = GetTile(nx, ny);
+        if (t.decoration == DecorationType::Tree ||
+            t.decoration == DecorationType::PineTree ||
+            t.decoration == DecorationType::PalmTree) {
+          t.decoration = DecorationType::None;
+          AddSpawnEffect(nx, ny, {255, 100, 0, 255}, VfxType::Fire);
+        }
+      }
+    }
+
+    // Damage entities in radius
+    float radius = 3.5f;
+    for (auto &e : entities) {
+      if (e.health <= 0)
+        continue;
+      float d = Vector2Distance(e.position, impactGrid);
+      if (d < radius) {
+        e.TakeDamage(15.0f);
+        AddSpawnEffect((int)e.position.x, (int)e.position.y, {255, 120, 0, 255},
+                       VfxType::Fire);
+      }
+    }
+  } else if (powerIndex == 2) { // Ruins
+    SetTileDecoration(tx, ty, DecorationType::Ruins);
+    AddSpawnEffect(tx, ty, {150, 150, 150, 255});
+  } else if (powerIndex == 3) { // Crystals
+    SetTileDecoration(tx, ty, DecorationType::Crystal);
+    AddSpawnEffect(tx, ty, {100, 255, 200, 255});
   }
 }
 
 void to_json(nlohmann::json &j, const World &w) {
-  j = nlohmann::json{{"width", w.width},       {"height", w.height},
-                     {"seed", w.seed_},        {"tiles", w.tiles},
-                     {"entities", w.entities}, {"simulation", w.simulation}};
+  j = nlohmann::json{{"width", w.width},
+                     {"height", w.height},
+                     {"seed", w.seed_},
+                     {"tiles", w.tiles},
+                     {"nextEntityID", w.nextEntityID},
+                     {"entities", w.entities},
+                     {"simulation", w.simulation}};
 }
 
 void from_json(const nlohmann::json &j, World &w) {
@@ -1656,6 +1871,13 @@ void from_json(const nlohmann::json &j, World &w) {
   j.at("height").get_to(w.height);
   j.at("seed").get_to(w.seed_);
   j.at("tiles").get_to(w.tiles);
+
+  if (j.contains("nextEntityID")) {
+    j.at("nextEntityID").get_to(w.nextEntityID);
+  } else {
+    w.nextEntityID = w.entities.size(); // Backward compatibility
+  }
+
   j.at("entities").get_to(w.entities);
   j.at("simulation").get_to(w.simulation);
 }

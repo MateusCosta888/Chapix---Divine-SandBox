@@ -7,10 +7,13 @@
 #include "Tile.h"
 #include "raylib.h"
 #include <cstdint>
+#include <functional> // Added
 #include <unordered_map>
 #include <vector>
 
 // === SPAWN EFFECT SYSTEM ===
+enum class VfxType { Default, Lightning, Fire };
+
 struct SpawnParticle {
   Vector2 pos;      // World position (pixels)
   Vector2 velocity; // Movement direction
@@ -25,6 +28,8 @@ struct SpawnEffect {
   float timer;          // Time since spawn
   float duration;       // Total effect duration
   float scale;          // Current scale (0->1 for pop-in)
+  VfxType type = VfxType::Default;
+  int currentFrame = 0;
   std::vector<SpawnParticle> particles;
 };
 
@@ -34,14 +39,16 @@ public:
   World(int width, int height, uint32_t seed = 0);
   ~World(); // Destructor to unload textures
 
-  void Generate();
-  void ResizeAndGenerate(int newWidth, int newHeight);
+  void Generate(std::function<void(const char *)> loadingCallback = nullptr);
+  void ResizeAndGenerate(
+      int newWidth, int newHeight,
+      std::function<void(const char *)> loadingCallback = nullptr);
   void Reset(uint32_t seed);
   void Update();                 // For future simulation steps
   void UpdateEntities(float dt); // Added
 
   // Entities
-  void AddEntity(EntityType type, Vector2 pos);
+  void AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom = false);
   const std::vector<Entity> &GetEntities() const { return entities; }
   std::vector<Entity> &GetEntitiesMutable() {
     return entities;
@@ -52,7 +59,8 @@ public:
   const Entity *GetEntityByCitizenID(int citizenID) const;
   void RebuildEntityCache();
 
-  void LoadTextures();                   // Load tile textures
+  void LoadTextures(std::function<void(const char *)> loadingCallback =
+                        nullptr);        // Load tile textures
   void UnloadTextures();                 // Cleanup textures
   void UpdateAnimation(float deltaTime); // Update GIF animation
 
@@ -66,15 +74,20 @@ public:
   void SetTileBiome(int x, int y, BiomeType newBiome); // Interaction
   void SetTileType(int x, int y, TileType newType);
   void SetTileDecoration(int x, int y, DecorationType type);
+  void ClearTileContents(int x,
+                         int y); // Remove all entities/buildings/decorations
+
+  // God Powers
+  void TriggerGodPower(int powerIndex, int tx, int ty);
 
   // Updates edge mask for a specific tile/neighbors
   void UpdateTileEdgeMask(int x, int y);
   void UpdateNeighborsEdgeMask(int x, int y);
 
   // UI Helpers
-  Texture2D GetTextureForUI(TileType type);
-  Texture2D GetTextureForUI(DecorationType type);
-  Texture2D GetTextureForUI(EntityType type); // Added
+  Texture2D GetTextureForUI(TileType type) const;
+  Texture2D GetTextureForUI(DecorationType type) const;
+  Texture2D GetTextureForUI(EntityType type) const; // Added
 
   // Collision & Physics
   bool IsWalkable(int x, int y, bool ignoreBuildings = false) const;
@@ -92,7 +105,8 @@ public:
   const SimulationManager &GetSimulation() const { return simulation; }
 
   // === SPAWN EFFECTS ===
-  void AddSpawnEffect(int tileX, int tileY, Color color);
+  void AddSpawnEffect(int tileX, int tileY, Color color,
+                      VfxType type = VfxType::Default);
   void UpdateSpawnEffects(float dt);
   void DrawSpawnEffects() const;
   const std::vector<SpawnEffect> &GetSpawnEffects() const {
@@ -109,6 +123,7 @@ private:
   uint32_t seed_;
   Random rng_;
   std::vector<Tile> tiles;
+  int nextEntityID = 0;         // Globally unique ID for all new entities
   std::vector<Entity> entities; // Added entities vector
   std::unordered_map<int, Entity *>
       citizenEntityMap; // O(1) cache for citizen lookup

@@ -2,9 +2,12 @@
 #include <cstdlib>
 #include <ctime>
 
-void AudioManager::Load() {
+void AudioManager::Load(std::function<void(const char *)> loadingCallback) {
   if (isLoaded)
     return;
+
+  if (loadingCallback)
+    loadingCallback("Loading audio tracks...");
 
   // Load ambient tracks
   const char *ambientFiles[] = {
@@ -20,34 +23,43 @@ void AudioManager::Load() {
       "assets/SondTrack/Ambient/Pixel 12.mp3",
   };
 
+  int totalTracks = 11; // 10 ambient + 1 space
+  int currentTrack = 0;
+
   for (const char *file : ambientFiles) {
+    if (loadingCallback)
+      loadingCallback(
+          TextFormat("Loading audio: %s (%d%%)", file,
+                     (int)((float)currentTrack / totalTracks * 100)));
+
     Music m = LoadMusicStream(file);
     if (m.frameCount > 0) {
-      m.looping = false; // We handle looping manually to shuffle
+      m.looping = false;
       ambientTracks.push_back(m);
       TraceLog(LOG_INFO, "AUDIO: Loaded ambient track: %s", file);
     } else {
       TraceLog(LOG_WARNING, "AUDIO: Failed to load: %s", file);
     }
+    currentTrack++;
   }
 
   // Load space track
+  if (loadingCallback)
+    loadingCallback("Loading space track...");
+
   spaceTrack =
       LoadMusicStream("assets/SondTrack/Menuspace/02 Space Riddle.mp3");
   if (spaceTrack.frameCount > 0) {
-    spaceTrack.looping = true; // Space track loops
+    spaceTrack.looping = true;
     spaceTrackLoaded = true;
     TraceLog(LOG_INFO, "AUDIO: Loaded space track");
   } else {
     TraceLog(LOG_WARNING, "AUDIO: Failed to load space track");
   }
 
-  // Seed random for shuffle
   srand((unsigned int)time(nullptr));
-
   isLoaded = true;
 
-  // Start playing ambient by default
   SetMusicVolume(musicVolume);
   PlayRandomAmbient();
 }

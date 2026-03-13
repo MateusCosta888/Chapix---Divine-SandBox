@@ -1,4 +1,6 @@
 #include "ResourceManager.h"
+#include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <string>
 
@@ -330,6 +332,14 @@ void ResourceManager::Load() {
         "assets/top-down-crystals-pixel-art/PNGs/Assets/Red_crystal%d.png",
         i + 1));
     SetTextureFilter(texCrystalsRed[i], TEXTURE_FILTER_POINT);
+  }
+
+  // Ruins
+  for (int i = 0; i < 5; i++) {
+    texRuins[i] = LoadTexture(TextFormat(
+        "assets/top-down-ruins-pixel-art/PNGs/Assets/Brown_ruins%d.png",
+        i + 1));
+    SetTextureFilter(texRuins[i], TEXTURE_FILTER_POINT);
   }
 
   // Big Rocks
@@ -888,6 +898,58 @@ void ResourceManager::Load() {
   SetTextureFilter(texNotifMid, TEXTURE_FILTER_POINT);
   SetTextureFilter(texNotifRight, TEXTURE_FILTER_POINT);
 
+  // --- SLIME MOB ---
+  texSlimeIdle =
+      LoadTexture("assets/Mobs/Slime mob/PNG/Slime1/Idle/Slime1_Idle_full.png");
+  texSlimeWalk =
+      LoadTexture("assets/Mobs/Slime mob/PNG/Slime1/Walk/Slime1_Walk_full.png");
+  texSlimeRun =
+      LoadTexture("assets/Mobs/Slime mob/PNG/Slime1/Run/Slime1_Run_full.png");
+  texSlimeAttack = LoadTexture(
+      "assets/Mobs/Slime mob/PNG/Slime1/Attack/Slime1_Attack_full.png");
+  texSlimeHurt =
+      LoadTexture("assets/Mobs/Slime mob/PNG/Slime1/Hurt/Slime1_Hurt_full.png");
+  texSlimeDeath = LoadTexture(
+      "assets/Mobs/Slime mob/PNG/Slime1/Death/Slime1_Death_full.png");
+  SetTextureFilter(texSlimeIdle, TEXTURE_FILTER_POINT);
+  SetTextureFilter(texSlimeWalk, TEXTURE_FILTER_POINT);
+  SetTextureFilter(texSlimeRun, TEXTURE_FILTER_POINT);
+  SetTextureFilter(texSlimeAttack, TEXTURE_FILTER_POINT);
+  SetTextureFilter(texSlimeHurt, TEXTURE_FILTER_POINT);
+  SetTextureFilter(texSlimeDeath, TEXTURE_FILTER_POINT);
+
+  // --- VFX ASSETS ---
+  // Lightning (fx2_electric_burst_large_violet - 16 frames)
+  for (int i = 0; i < 16; i++) {
+    char filename[128];
+    snprintf(filename, sizeof(filename),
+             "assets/Effects/Pixel Effects some "
+             "spells/PNG/fx2_electric_burst_large_violet/frame%04d.png",
+             i);
+    Texture2D tex = LoadTexture(filename);
+    if (tex.id > 0) {
+      SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      texVfxLightning.push_back(tex);
+    }
+  }
+  TraceLog(LOG_INFO, "RESOURCE: Loaded %zu lightning frames.",
+           texVfxLightning.size());
+
+  // Fire (burning_loop_1 - 8 frames)
+  for (int i = 1; i <= 8; i++) {
+    char filename[128];
+    snprintf(filename, sizeof(filename),
+             "assets/Fire "
+             "Sprites/png/orange/loops/burning_loop_1/burning_loop_%d.png",
+             i);
+    Texture2D tex = LoadTexture(filename);
+    if (tex.id > 0) {
+      SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      texVfxFire.push_back(tex);
+    }
+  }
+  TraceLog(LOG_INFO, "RESOURCE: Loaded %zu fire frames.", texVfxFire.size());
+
   texturesLoaded = true;
 }
 
@@ -898,6 +960,22 @@ void ResourceManager::Unload() {
   UnloadTexture(texNotifLeft);
   UnloadTexture(texNotifMid);
   UnloadTexture(texNotifRight);
+
+  // Slime
+  UnloadTexture(texSlimeIdle);
+  UnloadTexture(texSlimeWalk);
+  UnloadTexture(texSlimeRun);
+  UnloadTexture(texSlimeAttack);
+  UnloadTexture(texSlimeHurt);
+  UnloadTexture(texSlimeDeath);
+
+  // VFX
+  for (auto &tex : texVfxLightning)
+    UnloadTexture(tex);
+  texVfxLightning.clear();
+  for (auto &tex : texVfxFire)
+    UnloadTexture(tex);
+  texVfxFire.clear();
 
   UnloadTexture(texUIWaterDeep);
   UnloadTexture(texUIWaterMedium);
@@ -994,6 +1072,9 @@ void ResourceManager::Unload() {
     UnloadTexture(texCrystalsRed[i]);
   }
 
+  for (int i = 0; i < 5; i++)
+    UnloadTexture(texRuins[i]);
+
   for (int i = 0; i < NUM_BIG_ROCK_TYPES; i++)
     UnloadTexture(texBigRocks[i]);
   for (int i = 0; i < NUM_SNOW_ROCK_SHADOWS; i++)
@@ -1020,7 +1101,7 @@ void ResourceManager::Unload() {
   texturesLoaded = false;
 }
 
-Texture2D ResourceManager::GetTextureForTile(TileType type) {
+Texture2D ResourceManager::GetTextureForTile(TileType type) const {
   // This is used for Autotiling transitions where we need a single
   // representative texture Simplifying to always return index 0 for now as
   // previously done in World.cpp
@@ -1048,7 +1129,7 @@ Texture2D ResourceManager::GetTextureForTile(TileType type) {
   }
 }
 
-Texture2D ResourceManager::GetTextureForUI(TileType type) {
+Texture2D ResourceManager::GetTextureForUI(TileType type) const {
   if (!texturesLoaded)
     return {0};
   switch (type) {
@@ -1075,7 +1156,7 @@ Texture2D ResourceManager::GetTextureForUI(TileType type) {
   }
 }
 
-Texture2D ResourceManager::GetTextureForUI(DecorationType type) {
+Texture2D ResourceManager::GetTextureForUI(DecorationType type) const {
   if (!texturesLoaded)
     return {0};
   // Return a representative texture for the button
@@ -1102,6 +1183,10 @@ Texture2D ResourceManager::GetTextureForUI(DecorationType type) {
     return texFlowers[0];
   case DecorationType::Mushroom:
     return texMushrooms[0];
+  case DecorationType::Crystal:
+    return texCrystalsBlue[0];
+  case DecorationType::Ruins:
+    return texRuins[0];
   default:
     return {0};
   }

@@ -242,6 +242,7 @@ void WorldRenderer::Draw(const Camera2D &camera,
           color = (Color){70, (unsigned char)(150 + variation * 30),
                           (unsigned char)(200 + variation * 20), 255};
           break;
+        case TileType::DesertSand:
         case TileType::Sand:
           color = (Color){(unsigned char)(210 + variation * 20),
                           (unsigned char)(180 + variation * 20),
@@ -296,56 +297,6 @@ void WorldRenderer::Draw(const Camera2D &camera,
         if (world.GetTile(x, y + 1).type != tile.type)
           DrawRectangle(x * tileSize, y * tileSize + tileSize - 1, tileSize, 1,
                         shadowColor);
-      }
-    }
-  }
-
-  // PASS 1.5: Draw City Territories Base (Under Entities)
-  const auto &citiesBase = world.GetSimulation().GetAllCities();
-  for (const auto &pair : citiesBase) {
-    const City &city = pair.second;
-    if (!city.isAlive)
-      continue;
-
-    Color territoryColor = city.color;
-    territoryColor.a = 60; // Very transparent
-    Color borderColor = city.color;
-    borderColor.a = 200; // Very visible border
-    float thick = 2.0f;
-    float ftp = (float)tileSize;
-
-    for (const Vector2 &tile : city.territory) {
-      int tx = static_cast<int>(tile.x);
-      int ty = static_cast<int>(tile.y);
-      // Draw transparent ground fill
-      DrawRectangle(tx * tileSize, ty * tileSize, tileSize, tileSize,
-                    territoryColor);
-
-      // Top Edge
-      if (ty == 0 || world.GetTileConst(tx, ty - 1).ownerCityID != city.id) {
-        DrawLineEx({(float)tx * ftp, (float)ty * ftp},
-                   {(float)(tx + 1) * ftp, (float)ty * ftp}, thick,
-                   borderColor);
-      }
-      // Bottom Edge
-      if (ty == world.GetHeight() - 1 ||
-          world.GetTileConst(tx, ty + 1).ownerCityID != city.id) {
-        DrawLineEx({(float)tx * ftp, (float)(ty + 1) * ftp},
-                   {(float)(tx + 1) * ftp, (float)(ty + 1) * ftp}, thick,
-                   borderColor);
-      }
-      // Left Edge
-      if (tx == 0 || world.GetTileConst(tx - 1, ty).ownerCityID != city.id) {
-        DrawLineEx({(float)tx * ftp, (float)ty * ftp},
-                   {(float)tx * ftp, (float)(ty + 1) * ftp}, thick,
-                   borderColor);
-      }
-      // Right Edge
-      if (tx == world.GetWidth() - 1 ||
-          world.GetTileConst(tx + 1, ty).ownerCityID != city.id) {
-        DrawLineEx({(float)(tx + 1) * ftp, (float)ty * ftp},
-                   {(float)(tx + 1) * ftp, (float)(ty + 1) * ftp}, thick,
-                   borderColor);
       }
     }
   }
@@ -490,6 +441,10 @@ void WorldRenderer::Draw(const Camera2D &camera,
         }
           scale = 1.0f;
           break;
+        case DecorationType::Ruins:
+          tex = &resourceManager.texRuins[v % 5];
+          scale = 3.0f;
+          break;
         case DecorationType::GrassTuft:
           tex = &resourceManager.texGraminhas;
           scale = 0.8f;
@@ -512,27 +467,33 @@ void WorldRenderer::Draw(const Camera2D &camera,
           float w = tileSize * scale;
           float h = w * ((float)tex->height / (float)tex->width);
 
-          // Absolute rigid centering for pixel-perfect grid look
-          float offX = 0.0f;
-          float offY = 0.0f;
+          // Randomized offset used in original renderer
+          float offX = ((v % 20) - 10) / 10.0f * (tileSize * 0.2f);
+          float offY = (((v / 20) % 20) - 10) / 10.0f * (tileSize * 0.2f);
+          if (tile.decoration == DecorationType::Tree ||
+              tile.decoration == DecorationType::PineTree ||
+              tile.decoration == DecorationType::PalmTree) {
+            offX = ((v % 20) - 10) / 10.0f * (tileSize * 0.3f);
+            offY = (((v / 20) % 20) - 10) / 10.0f * (tileSize * 0.3f);
+          }
 
           Rectangle src = {0, 0, (float)tex->width, (float)tex->height};
           Rectangle dest = {(float)(x * tileSize + tileSize / 2 + offX),
                             (float)(y * tileSize + tileSize / 2 + offY), w, h};
 
-          // Origin sets the "pivot" point.
-          // Centered by default for bushes, flowers, rocks, and small entities
-          Vector2 origin = {w / 2, h / 2};
-
-          if (tile.decoration == DecorationType::Tree ||
-              tile.decoration == DecorationType::PineTree ||
-              tile.decoration == DecorationType::PalmTree ||
-              tile.decoration == DecorationType::Cactus ||
-              (tile.decoration == DecorationType::DesertPlant &&
-               (tile.decorationVariant % 3) != 0)) { // Tall Plants
-            origin = {w / 2, h * 0.78f}; // Previously 0.85f, lowered to
-                                         // properly root in center
-          }
+          // Origin sets the "pivot" point. For sorting, we want Y to be the
+          // bottom. Trees: Pivot near bottom.
+          Vector2 origin = {w / 2, h * 0.85f};
+          if (tile.decoration == DecorationType::Rock ||
+              tile.decoration == DecorationType::BigRock)
+            origin = {w / 2, h / 2};
+          else if (tile.decoration == DecorationType::DesertPlant &&
+                   (tile.decorationVariant % 3) == 0) // Rock variant
+            origin = {w / 2, h / 2};
+          else if (tile.decoration == DecorationType::GrassTuft)
+            origin = {w / 2, h / 2};
+          else if (tile.decoration == DecorationType::Crystal)
+            origin = {w / 2, h / 2};
 
           Color tColor = WHITE;
           if (tile.decoration == DecorationType::Rock)
@@ -563,9 +524,6 @@ void WorldRenderer::Draw(const Camera2D &camera,
     const auto &cityMap = *cities;
     for (const auto &pair : cityMap) {
       const City &city = pair.second;
-      if (!city.isAlive)
-        continue;
-
       for (const Building &b : city.buildings) {
         if (!b.isComplete)
           continue;
@@ -765,6 +723,59 @@ void WorldRenderer::Draw(const Camera2D &camera,
         tex = getIdx(resourceManager.texBoarDeath, 6);
       else
         tex = getIdx(resourceManager.texBoarIdle, 4);
+    }
+    // === SLIME DRAWING (sprite sheet) ===
+    else if (e.type == EntityType::Slime) {
+      Texture2D sheet;
+      int framesPerRow = 6; // 6 columns in sprite sheet
+      int numRows = 4;      // 4 rows (directions or states)
+
+      if (e.state == EntityState::Idle)
+        sheet = resourceManager.texSlimeIdle;
+      else if (e.state == EntityState::Walking)
+        sheet = resourceManager.texSlimeWalk;
+      else if (e.state == EntityState::Run)
+        sheet = resourceManager.texSlimeRun;
+      else if (e.state == EntityState::Attack)
+        sheet = resourceManager.texSlimeAttack;
+      else if (e.state == EntityState::Hurt)
+        sheet = resourceManager.texSlimeHurt;
+      else if (e.state == EntityState::Die)
+        sheet = resourceManager.texSlimeDeath;
+      else
+        sheet = resourceManager.texSlimeIdle;
+
+      if (sheet.id > 0) {
+        int frameW = 64; // Known Slime frame size
+        int frameH = 64;
+        int framesPerRow = sheet.width / frameW;
+        int frame = e.currentFrame % framesPerRow;
+        // Row 0 for all directions (sprite sheet has 4 rows but we use first)
+        int row = 0; // Idle
+        if (e.state == EntityState::Walking)
+          row = 1;
+        else if (e.state == EntityState::Run || e.state == EntityState::Attack)
+          row = 2;
+        else if (e.state == EntityState::Hurt || e.state == EntityState::Die)
+          row = 3;
+
+        Rectangle src = {(float)(frame * frameW), (float)(row * frameH),
+                         (float)frameW, (float)frameH};
+        float scale = 0.4f;
+        float destW = frameW * scale;
+        float destH = frameH * scale;
+        Rectangle dest = {e.position.x * tileSize, e.position.y * tileSize,
+                          destW, destH};
+        Vector2 origin = {destW / 2, destH * 0.9f};
+
+        // Tint red when hurt
+        Color tint = (e.state == EntityState::Hurt)
+                         ? (Color){255, 100, 100, 255}
+                         : WHITE;
+        items.push_back(
+            {sheet, src, dest, origin, tint, dest.y + destH * 0.9f});
+        continue; // Skip the tex.id > 0 check below since we already pushed
+      }
     } else {
       // Animals (Cow, Chicken, Sheep, etc)
       int base = 0;
@@ -842,7 +853,98 @@ void WorldRenderer::Draw(const Camera2D &camera,
                    item.tint);
   }
 
-  // (Draw Visual Boundaries was removed per user request)
+  // === COMBAT VFX & HEALTH BARS (drawn above entities) ===
+  for (const Entity &e : entities) {
+    if (e.health <= 0)
+      continue;
+
+    float screenX = e.position.x * tileSize;
+    float screenY = e.position.y * tileSize;
+
+    // --- Combat VFX: Attack flash ---
+    if (e.state == EntityState::Attack) {
+      float effectX = screenX;
+      float effectY = screenY - 5.0f;
+      if (e.facingDirection == 1)
+        effectX += 5.0f;
+      else if (e.facingDirection == -1)
+        effectX -= 5.0f;
+      else if (e.facingDirection == 2)
+        effectY -= 5.0f;
+      else
+        effectY += 5.0f;
+      DrawCircle((int)effectX, (int)effectY, 3.0f, Fade(WHITE, 0.7f));
+      DrawCircle((int)effectX, (int)effectY, 1.5f, Fade(YELLOW, 0.5f));
+    }
+
+    // --- Combat VFX: Hurt red flash ---
+    if (e.state == EntityState::Hurt) {
+      DrawCircle((int)screenX, (int)screenY - 3, 4.0f, Fade(RED, 0.4f));
+    }
+
+    // --- Health Bar ---
+    // Determine max HP based on entity type
+    float maxHP = 20.0f; // Default (unarmed human)
+    if (e.type == EntityType::Boar)
+      maxHP = 40.0f;
+    else if (e.type == EntityType::HumanArmed)
+      maxHP = 50.0f;
+    else if (e.type == EntityType::HumanWoman)
+      maxHP = 20.0f;
+    else if (e.type == EntityType::Slime)
+      maxHP = 25.0f;
+    // Animals
+    else if (e.type == EntityType::Cow || e.type == EntityType::Bull)
+      maxHP = 10.0f;
+    else if (e.type == EntityType::Sheep || e.type == EntityType::Pig ||
+             e.type == EntityType::Lamb)
+      maxHP = 10.0f;
+    else if (e.type == EntityType::Chicken || e.type == EntityType::Chicken2 ||
+             e.type == EntityType::Turkey)
+      maxHP = 5.0f;
+
+    // Only show bar when damaged or in combat, AND selected.
+    // The user requested: "show health bar only when: - entity is damaged -
+    // entity is selected"
+    bool inCombat =
+        (e.state == EntityState::Attack || e.state == EntityState::Hurt);
+    bool isDamaged = (e.health < maxHP);
+    if (!isDamaged && !inCombat)
+      continue;
+
+    float ratio = e.health / maxHP;
+    if (ratio > 1.0f)
+      ratio = 1.0f;
+    if (ratio < 0.0f)
+      ratio = 0.0f;
+
+    float barW = 20.0f, barH = 3.0f;
+    float barX = screenX - barW / 2.0f;
+    float barY = screenY - 12.0f; // Above entity sprite
+
+    Color barColor = (ratio > 0.5f) ? GREEN : (ratio > 0.25f) ? YELLOW : RED;
+
+    // Background
+    DrawRectangle((int)barX - 1, (int)barY - 1, (int)barW + 2, (int)barH + 2,
+                  (Color){10, 10, 10, 180});
+    // Filled portion
+    DrawRectangle((int)barX, (int)barY, (int)(barW * ratio), (int)barH,
+                  barColor);
+  }
+
+  // Draw Visual Boundaries
+  int padding = 10;
+  float startX = padding * tileSize;
+  float startY = padding * tileSize;
+  float endX = (width - padding) * tileSize;
+  float endY = (height - padding) * tileSize;
+  Color boundaryColor = (Color){200, 200, 200, 150};
+  float dashLen = 20.0f;
+  float gapLen = 10.0f;
+
+  for (float py = startY; py < endY; py += dashLen + gapLen)
+    DrawRectangle((int)endX, (int)py, 4, (int)std::min(dashLen, endY - py),
+                  boundaryColor);
 
   // === CITY TERRITORY VISUALIZATION ===
   // Draw colored overlays for city territories
@@ -859,8 +961,18 @@ void WorldRenderer::Draw(const Camera2D &camera,
     if (!city.isAlive)
       continue;
 
-    // Territory has already been drawn in PASS 1.5, draw only markers and names
-    // here Draw city center marker (brighter)
+    // Draw territory tiles with semi-transparent city color
+    Color territoryColor = city.color;
+    territoryColor.a = 60; // Very transparent
+
+    for (const Vector2 &tile : city.territory) {
+      int tx = static_cast<int>(tile.x);
+      int ty = static_cast<int>(tile.y);
+      DrawRectangle(tx * tileSize, ty * tileSize, tileSize, tileSize,
+                    territoryColor);
+    }
+
+    // Draw city center marker (brighter)
     Color centerColor = city.color;
     centerColor.a = 200;
     int cx = static_cast<int>(city.center.x) * tileSize;
@@ -869,29 +981,6 @@ void WorldRenderer::Draw(const Camera2D &camera,
 
     // Draw city name above center
     DrawText(city.name.c_str(), cx, cy - 15, 10, WHITE);
-
-    // Check if at war and draw visual indicator
-    bool isAtWar = false;
-    if (city.kingdomID != -1) {
-      if (const Kingdom *k = sim.GetKingdom(city.kingdomID)) {
-        for (const auto &kv : k->diplomaticStatus) {
-          if (kv.second == DiplomaticStatus::Hostile) {
-            isAtWar = true;
-            break;
-          }
-        }
-      }
-    }
-
-    if (isAtWar) {
-      // Draw an angry red text to signify war
-      DrawText("EM GUERRA!", cx - 10, cy - 30, 10, RED);
-      // Add a pulsing red rectangle under the city
-      float pulseTime = GetTime() * 3.0f;
-      int alpha = 100 + (int)(sinf(pulseTime) * 50);
-      DrawRectangle(cx - 5, cy - 5, tileSize + 10, tileSize + 10,
-                    (Color){255, 0, 0, (unsigned char)alpha});
-    }
 
     // Check if mouse is hovering over city center (in WORLD coordinates)
     float distToMouse = std::hypot(worldMousePos.x - cx, worldMousePos.y - cy);
@@ -944,34 +1033,6 @@ void WorldRenderer::Draw(const Camera2D &camera,
                hoveredCity->resources.stone);
       DrawText(stoneText, tooltipX, tooltipY + 65, 12, DARKGRAY);
     }
-  }
-
-  // === BATTLEFIELD VISUALIZATION ===
-  for (const auto &bfPair : sim.GetAllBattlefields()) {
-    const Battlefield &bf = bfPair.second;
-    int cx = static_cast<int>(bf.centerPos.x * tileSize);
-    int cy = static_cast<int>(bf.centerPos.y * tileSize);
-
-    float pulseTime = GetTime() * 4.0f;
-    float radius = 40.0f + sinf(pulseTime) * 10.0f;
-
-    DrawCircleLines(cx, cy, radius, RED);
-    DrawCircleLines(cx, cy, radius - 5.0f, MAROON);
-
-    const char *warText = "ZONA DE GUERRA";
-    int textWidth = MeasureText(warText, 20);
-    DrawRectangle(cx - textWidth / 2 - 5, cy - 30, textWidth + 10, 24,
-                  Fade(BLACK, 0.7f));
-    DrawText(warText, cx - textWidth / 2, cy - 28, 20, RED);
-
-    // Draw Timer and Kills
-    char infoText[64];
-    snprintf(infoText, sizeof(infoText), "Tempo: %.0fs | Mortes: %d - %d",
-             bf.timer, bf.killsA, bf.killsB);
-    int infoWidth = MeasureText(infoText, 14);
-    DrawRectangle(cx - infoWidth / 2 - 5, cy + 15, infoWidth + 10, 20,
-                  Fade(BLACK, 0.7f));
-    DrawText(infoText, cx - infoWidth / 2, cy + 18, 14, WHITE);
   }
 
   // === CITIZEN SELECTION (Right-click) ===
@@ -1197,6 +1258,107 @@ void WorldRenderer::DrawEntities() {
 
         DrawTexturePro(tex, src, dest, origin, 0.0f, WHITE);
       }
+    } else if (e.type == EntityType::Boar) {
+      // Boar specific logic
+      const std::vector<Texture2D> *frames = nullptr;
+      int framesPerDir = 1;
+
+      if (e.state == EntityState::Idle) {
+        frames = &resourceManager.texBoarIdle;
+        framesPerDir = 4;
+      } else if (e.state == EntityState::Walking) {
+        frames = &resourceManager.texBoarWalk;
+        framesPerDir = 6;
+      } else if (e.state == EntityState::Attack) {
+        frames = &resourceManager.texBoarAttack;
+        framesPerDir = 5;
+      } else if (e.state == EntityState::Hurt) {
+        frames = &resourceManager.texBoarHurt;
+        framesPerDir = 4;
+      } else if (e.state == EntityState::Die) {
+        frames = &resourceManager.texBoarDeath;
+        framesPerDir = 6;
+      } else {
+        frames = &resourceManager.texBoarWalk; // Fallback
+        framesPerDir = 6;
+      }
+
+      if (frames && !frames->empty()) {
+        int dirIdx = 0; // Down, Right, Left, Up
+        if (e.facingDirection == 1)
+          dirIdx = 1;
+        else if (e.facingDirection == -1)
+          dirIdx = 2;
+        else if (e.facingDirection == 2)
+          dirIdx = 3;
+
+        int frame = e.currentFrame % framesPerDir;
+        int finalIdx = dirIdx * framesPerDir + frame;
+        if (finalIdx >= frames->size())
+          finalIdx = 0;
+
+        Texture2D tex = (*frames)[finalIdx];
+        if (tex.id > 0) {
+          float destW = tex.width * 0.5f;
+          float destH = tex.height * 0.5f;
+          float screenX = e.position.x * tileSize;
+          float screenY = e.position.y * tileSize;
+
+          Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+          Rectangle dest = {screenX, screenY, destW, destH};
+          Vector2 origin = {destW / 2.0f, destH * 0.8f};
+          DrawTexturePro(tex, src, dest, origin, 0.0f, WHITE);
+        }
+      }
+    } else if (e.type == EntityType::Slime) {
+      // Slime logic - using 64x64 slicing from sheet
+      Texture2D sheet;
+      int framesInSheet = 1;
+
+      if (e.state == EntityState::Idle) {
+        sheet = resourceManager.texSlimeIdle;
+        framesInSheet = 6;
+      } else if (e.state == EntityState::Walking) {
+        sheet = resourceManager.texSlimeWalk;
+        framesInSheet = 6;
+      } else if (e.state == EntityState::Attack) {
+        sheet = resourceManager.texSlimeAttack;
+        framesInSheet = 6;
+      } else if (e.state == EntityState::Hurt) {
+        sheet = resourceManager.texSlimeHurt;
+        framesInSheet = 6;
+      } else if (e.state == EntityState::Die) {
+        sheet = resourceManager.texSlimeDeath;
+        framesInSheet = 6;
+      } else {
+        sheet = resourceManager.texSlimeIdle;
+        framesInSheet = 6;
+      }
+
+      if (sheet.id > 0) {
+        // Slime sheets are usually 4 rows (Down, Right, Left, Up) and N columns
+        int dirIdx = 0; // Down
+        if (e.facingDirection == 1)
+          dirIdx = 1; // Right
+        else if (e.facingDirection == -1)
+          dirIdx = 2; // Left
+        else if (e.facingDirection == 2)
+          dirIdx = 3; // Up
+
+        int frame = e.currentFrame % framesInSheet;
+
+        Rectangle src = {(float)frame * 64.0f, (float)dirIdx * 64.0f, 64.0f,
+                         64.0f};
+        float destW =
+            16.0f; // Scale to world size (slightly larger than 1 tile)
+        float destH = 16.0f;
+        float screenX = e.position.x * tileSize;
+        float screenY = e.position.y * tileSize;
+
+        Rectangle dest = {screenX, screenY, destW, destH};
+        Vector2 origin = {destW / 2.0f, destH * 0.8f};
+        DrawTexturePro(sheet, src, dest, origin, 0.0f, WHITE);
+      }
     } else if (e.type == EntityType::Cow || e.type == EntityType::Chicken ||
                e.type == EntityType::Sheep || e.type == EntityType::Bull ||
                e.type == EntityType::Chicken2 || e.type == EntityType::Lamb ||
@@ -1279,140 +1441,6 @@ void WorldRenderer::DrawWaterEffects(int tileX, int tileY, TileType type,
 
   // 3. Foam on edges (where water meets land)
   DrawWaterFoam(tileX, tileY, screenX, screenY, tileSize, time);
-
-  // 4. Depth Gradients (Open sea transitions - deep water shadowed by shallow)
-  if (type == TileType::Ocean || type == TileType::DeepOcean) {
-    int width = world.GetWidth();
-    int height = world.GetHeight();
-    bool shallowerNorth = false, shallowerSouth = false, shallowerWest = false,
-         shallowerEast = false;
-    bool shallowerNW = false, shallowerNE = false, shallowerSW = false,
-         shallowerSE = false;
-
-    if (type == TileType::Ocean) {
-      if (tileY > 0)
-        shallowerNorth =
-            (world.GetTile(tileX, tileY - 1).type == TileType::ShallowOcean);
-      if (tileY < height - 1)
-        shallowerSouth =
-            (world.GetTile(tileX, tileY + 1).type == TileType::ShallowOcean);
-      if (tileX > 0)
-        shallowerWest =
-            (world.GetTile(tileX - 1, tileY).type == TileType::ShallowOcean);
-      if (tileX < width - 1)
-        shallowerEast =
-            (world.GetTile(tileX + 1, tileY).type == TileType::ShallowOcean);
-
-      if (tileY > 0 && tileX > 0)
-        shallowerNW = (world.GetTile(tileX - 1, tileY - 1).type ==
-                       TileType::ShallowOcean);
-      if (tileY > 0 && tileX < width - 1)
-        shallowerNE = (world.GetTile(tileX + 1, tileY - 1).type ==
-                       TileType::ShallowOcean);
-      if (tileY < height - 1 && tileX > 0)
-        shallowerSW = (world.GetTile(tileX - 1, tileY + 1).type ==
-                       TileType::ShallowOcean);
-      if (tileY < height - 1 && tileX < width - 1)
-        shallowerSE = (world.GetTile(tileX + 1, tileY + 1).type ==
-                       TileType::ShallowOcean);
-    } else if (type == TileType::DeepOcean) {
-      if (tileY > 0)
-        shallowerNorth =
-            (world.GetTile(tileX, tileY - 1).type == TileType::Ocean ||
-             world.GetTile(tileX, tileY - 1).type == TileType::ShallowOcean);
-      if (tileY < height - 1)
-        shallowerSouth =
-            (world.GetTile(tileX, tileY + 1).type == TileType::Ocean ||
-             world.GetTile(tileX, tileY + 1).type == TileType::ShallowOcean);
-      if (tileX > 0)
-        shallowerWest =
-            (world.GetTile(tileX - 1, tileY).type == TileType::Ocean ||
-             world.GetTile(tileX - 1, tileY).type == TileType::ShallowOcean);
-      if (tileX < width - 1)
-        shallowerEast =
-            (world.GetTile(tileX + 1, tileY).type == TileType::Ocean ||
-             world.GetTile(tileX + 1, tileY).type == TileType::ShallowOcean);
-
-      if (tileY > 0 && tileX > 0)
-        shallowerNW =
-            (world.GetTile(tileX - 1, tileY - 1).type == TileType::Ocean ||
-             world.GetTile(tileX - 1, tileY - 1).type ==
-                 TileType::ShallowOcean);
-      if (tileY > 0 && tileX < width - 1)
-        shallowerNE =
-            (world.GetTile(tileX + 1, tileY - 1).type == TileType::Ocean ||
-             world.GetTile(tileX + 1, tileY - 1).type ==
-                 TileType::ShallowOcean);
-      if (tileY < height - 1 && tileX > 0)
-        shallowerSW =
-            (world.GetTile(tileX - 1, tileY + 1).type == TileType::Ocean ||
-             world.GetTile(tileX - 1, tileY + 1).type ==
-                 TileType::ShallowOcean);
-      if (tileY < height - 1 && tileX < width - 1)
-        shallowerSE =
-            (world.GetTile(tileX + 1, tileY + 1).type == TileType::Ocean ||
-             world.GetTile(tileX + 1, tileY + 1).type ==
-                 TileType::ShallowOcean);
-    }
-
-    if (shallowerNorth || shallowerSouth || shallowerWest || shallowerEast ||
-        shallowerNW || shallowerNE || shallowerSW || shallowerSE) {
-
-      int gradientSize = tileSize / 2; // Gradient spans half a tile
-      Color shadowTint = {0, 20, 60,
-                          80}; // Rich deep blue shadow, softened opacity
-      Color shadowTransparent = {0, 20, 60, 0};
-
-      if (shallowerNorth)
-        DrawRectangleGradientV(screenX, screenY, tileSize, gradientSize,
-                               shadowTint, shadowTransparent);
-      if (shallowerSouth)
-        DrawRectangleGradientV(screenX, screenY + tileSize - gradientSize,
-                               tileSize, gradientSize, shadowTransparent,
-                               shadowTint);
-      if (shallowerWest)
-        DrawRectangleGradientH(screenX, screenY, gradientSize, tileSize,
-                               shadowTint, shadowTransparent);
-      if (shallowerEast)
-        DrawRectangleGradientH(screenX + tileSize - gradientSize, screenY,
-                               gradientSize, tileSize, shadowTransparent,
-                               shadowTint);
-
-      // Inner corner fixes using DrawRectangleGradientEx (TopLeft, BottomLeft,
-      // BottomRight, TopRight)
-      if (shallowerNW && !shallowerNorth && !shallowerWest) {
-        DrawRectangleGradientEx((Rectangle){(float)screenX, (float)screenY,
-                                            (float)gradientSize,
-                                            (float)gradientSize},
-                                shadowTint, shadowTransparent,
-                                shadowTransparent, shadowTransparent);
-      }
-      if (shallowerNE && !shallowerNorth && !shallowerEast) {
-        DrawRectangleGradientEx(
-            (Rectangle){(float)(screenX + tileSize - gradientSize),
-                        (float)screenY, (float)gradientSize,
-                        (float)gradientSize},
-            shadowTransparent, shadowTransparent, shadowTransparent,
-            shadowTint);
-      }
-      if (shallowerSW && !shallowerSouth && !shallowerWest) {
-        DrawRectangleGradientEx(
-            (Rectangle){(float)screenX,
-                        (float)(screenY + tileSize - gradientSize),
-                        (float)gradientSize, (float)gradientSize},
-            shadowTransparent, shadowTint, shadowTransparent,
-            shadowTransparent);
-      }
-      if (shallowerSE && !shallowerSouth && !shallowerEast) {
-        DrawRectangleGradientEx(
-            (Rectangle){(float)(screenX + tileSize - gradientSize),
-                        (float)(screenY + tileSize - gradientSize),
-                        (float)gradientSize, (float)gradientSize},
-            shadowTransparent, shadowTransparent, shadowTint,
-            shadowTransparent);
-      }
-    }
-  }
 }
 
 void WorldRenderer::DrawWaterWaves(int screenX, int screenY, int tileSize,

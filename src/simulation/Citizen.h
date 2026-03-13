@@ -57,6 +57,7 @@ struct Citizen {
   float maxHealth = 100.0f;
   float hunger = 0.0f;   // 0 = full, 100 = starving
   float energy = 100.0f; // Fatigue system
+  float bodyTemperature = 37.0f; // Normal=37, below 30=cold damage
 
   // === HOUSING & DAILY LIFE ===
   int homeID = -1;          // ID of the building this citizen lives in
@@ -112,7 +113,8 @@ struct Citizen {
     Wandering,    // Moving randomly (because no task found)
     GoingToWork,  // Moving to work target
     Working,      // Actively working (chopping, farming, etc.)
-    ReturningHome // Carrying resources back to city
+    ReturningHome, // Carrying resources back to city
+    Hunting       // Hunting animals for food
   };
 
   WorkState workState = WorkState::Idle;
@@ -155,10 +157,10 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(CitizenGenetics, baseStrength,
                                    maxAge)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Citizen::InventorySlot, type, amount)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(
-    Citizen, id, name, isFemale, age, health, maxHealth, hunger, energy, homeID,
-    isResting, isGoingHome, stats, genes, level, experience, maxExperience,
-    inventory, abilities, cityID, kingdomID, profession, currentJob,
-    skillFarming, skillWoodcutting, skillMining, skillBuilding, skillCombat,
-    workState, lastWorkState, isWorking, workTimer, stateTimer, targetTileX,
-    targetTileY, targetEntityID, carryingResource, maxCarryCapacity, motherID,
-    fatherID, spouseID, isAlive)
+    Citizen, id, name, isFemale, age, health, maxHealth, hunger, energy,
+    homeID, isResting, isGoingHome, stats, genes, level,
+    experience, maxExperience, inventory, abilities, cityID, kingdomID,
+    profession, currentJob, skillFarming, skillWoodcutting, skillMining,
+    skillBuilding, skillCombat, workState, lastWorkState, isWorking, workTimer,
+    stateTimer, targetTileX, targetTileY, targetEntityID, carryingResource,
+    maxCarryCapacity, motherID, fatherID, spouseID, isAlive)

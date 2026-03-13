@@ -4,7 +4,6 @@
 #include <cmath>
 #include <cstring>
 #include <string>
-#include <vector>
 
 void UIManager::DrawHumanPopup(const World &world) {
   auto &sim = const_cast<World &>(world).GetSimulation();
@@ -303,8 +302,30 @@ void UIManager::DrawHumanPopup(const World &world) {
     contentY += 20;
 
     // DEBUG INFO: Age & State
-    const char *ageText = TextFormat("Age: %.0f", c->age);
-    DrawTextEx(uiFont, ageText, {x + 35, contentY}, 18, 1, LIGHTGRAY);
+    int ageYears = (int)c->age;
+    int ageMonths = (int)((c->age - ageYears) * 12.0f);
+    if (ageMonths >= 12)
+      ageMonths = 11; // Clamp for float precision
+    if (ageMonths < 0)
+      ageMonths = 0;
+
+    // Life phase label
+    const char *phase = "Adult";
+    Color phaseColor = WHITE;
+    if (c->age < 12.0f) {
+      phase = "Child";
+      phaseColor = {130, 220, 255, 255};
+    } else if (c->age < 18.0f) {
+      phase = "Teen";
+      phaseColor = {255, 200, 100, 255};
+    } else if (c->age >= 60.0f) {
+      phase = "Elder";
+      phaseColor = {200, 180, 160, 255};
+    }
+
+    const char *ageText =
+        TextFormat("Age: %d years, %d months (%s)", ageYears, ageMonths, phase);
+    DrawTextEx(uiFont, ageText, {x + 35, contentY}, 18, 1, phaseColor);
 
     const char *stateText = "State: Idle";
     if (c->isResting)
@@ -313,7 +334,7 @@ void UIManager::DrawHumanPopup(const World &world) {
       stateText = "State: Going Home";
     else if (c->isWorking)
       stateText = "State: Working";
-    DrawTextEx(uiFont, stateText, {x + 200, contentY}, 18, 1, WHITE);
+    DrawTextEx(uiFont, stateText, {x + 35, contentY + 20}, 18, 1, WHITE);
 
     contentY += 40;
 
@@ -428,9 +449,8 @@ void UIManager::DrawHumanPopup(const World &world) {
     if (CheckCollisionPointRec(GetMousePosition(), profRect)) {
       DrawRectangleRec(profRect, {255, 255, 255, 50});
       DrawRectangleLinesEx(profRect, 1, YELLOW);
-      if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         showProfessionSelector = true;
-        professionSelectorJustOpened = true;
       }
     }
 
@@ -478,11 +498,8 @@ void UIManager::DrawHumanPopup(const World &world) {
 }
 
 void UIManager::DrawFlagSelector(const World &world) {
-  auto &sim = const_cast<World &>(world).GetSimulation();
   auto &rm = const_cast<World &>(world).GetResourceManager();
-
-  bool canClick = !flagSelectorJustOpened;
-  flagSelectorJustOpened = false;
+  auto &sim = const_cast<World &>(world).GetSimulation();
 
   // Dimensions
   float w = 600;
@@ -500,8 +517,8 @@ void UIManager::DrawFlagSelector(const World &world) {
   // Close Button
   Rectangle closeBtn = {x + w - 30, y + 10, 20, 20};
   DrawText("X", (int)closeBtn.x + 5, (int)closeBtn.y + 2, 20, RED);
-  if (canClick && CheckCollisionPointRec(GetMousePosition(), closeBtn) &&
-      IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+  if (CheckCollisionPointRec(GetMousePosition(), closeBtn) &&
+      IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     showFlagSelector = false;
   }
 
@@ -546,7 +563,7 @@ void UIManager::DrawFlagSelector(const World &world) {
       // Selection Logic
       if (CheckCollisionPointRec(GetMousePosition(), dest)) {
         DrawRectangleLinesEx(dest, 2, YELLOW);
-        if (canClick && IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
           City *city = sim.GetCity(popupCityID);
           if (city) {
             city->flagID = (int)i;
@@ -570,9 +587,6 @@ void UIManager::DrawProfessionSelector(const World &world) {
   auto &sim = const_cast<World &>(world).GetSimulation();
   Citizen *c = sim.GetCitizen(popupCitizenID);
 
-  bool canClick = !professionSelectorJustOpened;
-  professionSelectorJustOpened = false;
-
   if (!c || !c->isAlive) {
     showProfessionSelector = false;
     return;
@@ -594,8 +608,8 @@ void UIManager::DrawProfessionSelector(const World &world) {
   // Close Button
   Rectangle closeBtn = {x + w - 30, y + 10, 20, 20};
   DrawText("X", (int)closeBtn.x + 5, (int)closeBtn.y + 2, 20, RED);
-  if (canClick && CheckCollisionPointRec(GetMousePosition(), closeBtn) &&
-      IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+  if (CheckCollisionPointRec(GetMousePosition(), closeBtn) &&
+      IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     showProfessionSelector = false;
   }
 
@@ -627,7 +641,7 @@ void UIManager::DrawProfessionSelector(const World &world) {
     // Hover logic
     if (CheckCollisionPointRec(GetMousePosition(), btnRect)) {
       DrawRectangleLinesEx(btnRect, 2, YELLOW);
-      if (canClick && IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         c->profession = typeMap[i];
 
         // Reset current working state effectively

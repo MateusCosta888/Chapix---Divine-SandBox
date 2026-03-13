@@ -18,6 +18,9 @@ public:
   // Deletes a save file for a given slot
   static bool DeleteSave(int slotIndex);
 
+  // Async save (background thread) for autosave feature
+  static void SaveGameAsync(const std::string &filename, const World &world);
+
   // Save directory name
   static constexpr const char *SAVE_DIR = "saves";
 

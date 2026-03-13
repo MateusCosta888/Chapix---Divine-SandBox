@@ -2,11 +2,21 @@
 #include "../core/TimeManager.h"
 #include "../world/World.h"
 #include "raylib.h"
+#include <functional>
+#include <string>
 #include <vector>
 
 // Enums moved from main.cpp
 // Enums moved from main.cpp
-enum class UIState { Terrain, Nature, Rocks, Creatures, Social, Settings };
+enum class UIState {
+  Terrain,
+  Nature,
+  Rocks,
+  Creatures,
+  Social,
+  Powers,
+  Settings
+};
 
 enum class BrushSize {
   Single = 0, // Special case for exact 1x1 painting
@@ -32,13 +42,14 @@ public:
   UIManager();
   ~UIManager();
 
-  void Load();
+  void Load(std::function<void(const char *)> loadingCallback = nullptr);
   void Unload();
   void Update(World &world, Camera2D &camera);
   void Draw(const World &world);
 
   bool IsPointerOnUI() const;
   bool IsBrushPopupOpen() const { return showBrushPopup; }
+  bool IsAnyPopupOpen() const;
   UIState GetCurrentTab() const { return currentTab; }
   BrushSize GetBrushSize() const { return currentBrushSize; }
 
@@ -75,7 +86,6 @@ private:
   float cityPopupScroll = 0.0f;
   bool showFlagSelector = false;
   float flagSelectorScroll = 0.0f;
-  bool flagSelectorJustOpened = false;
 
   // Social / Kingdom List State
   bool showSocialCityList = false;
@@ -83,9 +93,11 @@ private:
   Vector2 socialPopupPos = {0, 0};
   bool isDraggingSocial = false;
 
-  // God Mode: Force War
-  bool isTargetingWar = false;
-  int warTargetCityA = -1;
+  // Force War State
+  bool forceWarMode = false;        // True when selecting kingdoms
+  int forceWarKingdomA = -1;        // First selected kingdom
+  int forceWarKingdomB = -1;        // Second selected kingdom
+  bool showForceWarConfirm = false; // Show confirmation popup
 
   // Save Popup State
   bool showSavePopup = false;
@@ -99,12 +111,18 @@ private:
   int selectedResolution = -1; // -1 = current/custom, 0-3 = preset index
   bool isBorderlessFullscreen = false; // Track borderless state manually
 
+  // Autosave Notification State
+  bool isAutosaving = false;
+  float autosaveUIRemaining = 0.0f;
+
   // PergaminhoBackgod (Save UI) 9-Slice Textures
   Texture2D texPergaminhoTL, texPergaminhoTC, texPergaminhoTR;
   Texture2D texPergaminhoML, texPergaminhoMC, texPergaminhoMR;
   Texture2D texPergaminhoBL, texPergaminhoBC, texPergaminhoBR;
 
 public:
+  void ShowAutosaveNotification();
+
   // Main Menu State
   GameState currentState = GameState::MAIN_MENU;
   bool isMainMenuNight = false;
@@ -159,7 +177,11 @@ private:
   bool isRenamingHuman = false;
   int humanWindowTab = 0; // 0 = Main, 1 = Abilities
   bool showProfessionSelector = false;
-  bool professionSelectorJustOpened = false;
+
+  // Human Spawn Menu State (popup on Human creature button)
+  bool showHumanSpawnMenu = false;
+  Vector2 humanSpawnMenuPos = {0, 0};
+  int humanSpawnSelection = -1; // -1=none, 0=random, 1=man, 2=woman
 
   // Drag State (Human)
   Vector2 humanPopupPos = {0, 0};
@@ -199,6 +221,10 @@ private:
   Texture2D texIconWaterOcean;
   Texture2D texIconWaterShallow;
   Texture2D texSaveIcon;
+
+  // Power Icons
+  Texture2D texIconLightning;
+  Texture2D texIconFire;
 
   UIState currentTab = UIState::Terrain;
   BrushSize currentBrushSize = BrushSize::S;

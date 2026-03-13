@@ -60,6 +60,12 @@ void UIManager::DrawToolbar(const World &world) {
 
   Vector2 mousePos = GetMousePosition();
 
+  if (showHumanSpawnMenu) {
+    // Move mouse offscreen for the underlying UI checks so it can't hover/click
+    // them
+    mousePos = {-1000.0f, -1000.0f};
+  }
+
   // Full Taskbar Area (Tabs + Toolbar) - Encapsulated
   Rectangle fullTaskbarRect = {
       0, (float)getScreenH() - TOOLBAR_HEIGHT - TAB_HEIGHT, (float)getScreenW(),
@@ -69,13 +75,13 @@ void UIManager::DrawToolbar(const World &world) {
   Rectangle tabArea = {0, fullTaskbarRect.y, (float)getScreenW(),
                        (float)TAB_HEIGHT};
 
-  const char *tabNames[] = {"Terrains",  "Nature", "Rocks",
-                            "Creatures", "Social", "..."};
-  for (int i = 0; i < 6; i++) {
+  const char *tabNames[] = {"Terrains", "Nature", "Rocks", "Creatures",
+                            "Social",   "Powers", "..."};
+  for (int i = 0; i < 7; i++) {
     float tabW = 170;
     Rectangle tabRect = {i * tabW + 5, tabArea.y + 5, tabW - 5,
                          tabArea.height - 5};
-    bool isHover = CheckCollisionPointRec(GetMousePosition(), tabRect);
+    bool isHover = CheckCollisionPointRec(mousePos, tabRect);
     bool isActive = ((int)currentTab == i);
 
     // Use texTabButton for Tabs
@@ -164,7 +170,7 @@ void UIManager::DrawToolbar(const World &world) {
       if (i == 0 && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         TraceLog(LOG_INFO,
                  "DEBUG: Button 0 Rect Y: %f, Mouse Y: %f, ScreenH: %d",
-                 btnRect.y, GetMousePosition().y, getScreenH());
+                 btnRect.y, mousePos.y, getScreenH());
       }
 
       // Check collision with the SCROLLED rect, but strictly within the
@@ -320,7 +326,7 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Rocks) {
-    numTools = 3; // 2 types + eraser
+    numTools = 5; // 4 types + eraser
     for (int i = 0; i < numTools; i++) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
                            btnSize};
@@ -332,8 +338,10 @@ void UIManager::DrawToolbar(const World &world) {
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
       }
 
-      if (i < 2) {
-        DecorationType decs[] = {DecorationType::Rock, DecorationType::BigRock};
+      if (i < 4) {
+        DecorationType decs[] = {DecorationType::Rock, DecorationType::BigRock,
+                                 DecorationType::Ruins,
+                                 DecorationType::Crystal};
         Texture2D tex = const_cast<World &>(world).GetTextureForUI(decs[i]);
         if (tex.id > 0) {
           float scale =
@@ -377,56 +385,49 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Social) {
-    numTools = 2; // "Cidades" and "Guerra!"
-    const char *toolNames[] = {"Cidades", "Guerra!"};
-
+    numTools = 2; // "Cidades" + "Force War"
+    const char *socialBtnNames[] = {"Cidades", "Guerra"};
     for (int i = 0; i < numTools; i++) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
                            btnSize};
       bool isHover = CheckCollisionPointRec(mousePos, btnRect);
 
-      // Highlight the button if it's the active targeting mode
-      bool isActive = false;
-      if (i == 1 && isTargetingWar)
-        isActive = true;
-
+      bool isActive = (i == 1 && forceWarMode);
       DrawTexturedButton(texButton, btnRect, isActive, isHover);
 
-      // Draw Tool Text
-      const char *btnName = toolNames[i];
-      Vector2 ts = MeasureTextEx(uiFont, btnName, 20, 1);
+      if (isActive)
+        DrawRectangleLinesEx(btnRect, 3, RED);
 
-      // If Guerra, make it Red
-      Color textColor = WHITE;
-      if (i == 1)
-        textColor = RED;
-
+      Vector2 ts = MeasureTextEx(uiFont, socialBtnNames[i], 18, 1);
+      Color textColor = (i == 1 && forceWarMode) ? RED : WHITE;
       DrawTextEx(
-          uiFont, btnName,
+          uiFont, socialBtnNames[i],
           {btnRect.x + (btnSize - ts.x) / 2, btnRect.y + (btnSize - ts.y) / 2},
-          20, 1, textColor);
+          18, 1, textColor);
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
           !showBrushPopup) {
         if (i == 0) {
-          showSocialCityList = !showSocialCityList; // Toggle city list
+          showSocialCityList = !showSocialCityList;
         } else if (i == 1) {
-          isTargetingWar = !isTargetingWar; // Toggle God Mode War
-          warTargetCityA = -1;              // Reset selection
-          if (isTargetingWar) {
-            AddNotification(
-                "Modo Guerra ativo! Clique em duas cidades inimigas.", -1);
+          // Toggle Force War mode
+          forceWarMode = !forceWarMode;
+          forceWarKingdomA = -1;
+          forceWarKingdomB = -1;
+          showForceWarConfirm = false;
+          if (forceWarMode) {
+            showSocialCityList = true; // Auto-open city list for selection
           }
         }
       }
     }
   } else if (currentTab == UIState::Creatures) {
-    numTools = 10;
-    EntityType creatureTypes[] = {EntityType::HumanUnarmed, EntityType::Boar,
-                                  EntityType::Cow,          EntityType::Chicken,
-                                  EntityType::Sheep,        EntityType::Bull,
-                                  EntityType::Chicken2,     EntityType::Lamb,
-                                  EntityType::Pig,          EntityType::Turkey};
+    numTools = 11;
+    EntityType creatureTypes[] = {
+        EntityType::HumanUnarmed, EntityType::Boar,  EntityType::Cow,
+        EntityType::Chicken,      EntityType::Sheep, EntityType::Bull,
+        EntityType::Chicken2,     EntityType::Lamb,  EntityType::Pig,
+        EntityType::Turkey,       EntityType::Slime};
 
     for (int i = 0; i < numTools; i++) {
       // Apply Scroll Offset to X position
@@ -467,9 +468,24 @@ void UIManager::DrawToolbar(const World &world) {
 
         Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
 
-        // Center in button
         float offsetX = (btnSize - scaledW) / 2.0f;
         float offsetY = (btnSize - scaledH) / 2.0f;
+
+        // If it's a Slime, take only the first 64x64 frame for the icon
+        if (creatureTypes[i] == EntityType::Slime) {
+          src.width = 64.0f;
+          src.height = 64.0f;
+
+          // Recompute scale for the extracted 64x64 frame
+          scale = availableSize / 64.0f;
+          if (scale > 1.0f)
+            scale = std::floor(scale * 2.0f) / 2.0f;
+          scaledW = 64.0f * scale;
+          scaledH = 64.0f * scale;
+
+          offsetX = (btnSize - scaledW) / 2.0f;
+          offsetY = (btnSize - scaledH) / 2.0f;
+        }
 
         Rectangle dest = {btnRect.x + offsetX, btnRect.y + offsetY, scaledW,
                           scaledH};
@@ -478,12 +494,120 @@ void UIManager::DrawToolbar(const World &world) {
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover &&
           !showBrushPopup) {
-        selectedToolIndex = i;
+        if (i == 0) {
+          // Human button: open spawn menu popup
+          showHumanSpawnMenu = !showHumanSpawnMenu;
+          humanSpawnMenuPos = {btnRect.x, btnRect.y - 110};
+          humanSpawnSelection = -1;
+          popupJustOpened = true; // Prevent immediate close
+        } else {
+          selectedToolIndex = i;
+          showHumanSpawnMenu = false;
+        }
       }
+    }
+  } else if (currentTab == UIState::Powers) {
+    numTools = 4; // Lightning, Fire, Ruins, Crystals
+    const char *powerNames[] = {"Lightning", "Fire", "Ruins", "Crystals"};
+    for (int i = 0; i < numTools; i++) {
+      Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
+                           btnSize};
+      bool isHover = CheckCollisionPointRec(mousePos, btnRect);
+
+      DrawTexturedButton(texButton, btnRect, selectedToolIndex == i, isHover);
+
+      if (selectedToolIndex == i)
+        DrawRectangleLinesEx(btnRect, 3, YELLOW);
+
+      Texture2D tex;
+      if (i == 0)
+        tex = texIconLightning;
+      else if (i == 1)
+        tex = texIconFire;
+      else if (i == 2)
+        tex = world.GetTextureForUI(DecorationType::Ruins);
+      else if (i == 3)
+        tex = world.GetTextureForUI(DecorationType::Crystal);
+
+      if (tex.id > 0) {
+        float scale =
+            std::min((btnSize - 10) / tex.width, (btnSize - 10) / tex.height);
+        if (scale > 1.0f)
+          scale = std::floor(scale);
+        Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+        Rectangle dest = {btnRect.x + 5, btnRect.y + 5, tex.width * scale,
+                          tex.height * scale};
+        DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
+      } else {
+        Vector2 ts = MeasureTextEx(uiFont, powerNames[i], 16, 1);
+        DrawTextEx(uiFont, powerNames[i],
+                   {btnRect.x + (btnSize - ts.x) / 2,
+                    btnRect.y + (btnSize - ts.y) / 2},
+                   16, 1, WHITE);
+      }
+
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover && !showBrushPopup)
+        selectedToolIndex = i;
     }
   }
 
   EndScissorMode(); // End Clipping
+
+  // === HUMAN SPAWN MENU POPUP (outside scissor so it renders above toolbar)
+  // ===
+  if (showHumanSpawnMenu) {
+    // 1. Draw a fullscreen invisible/darkened modal background to absorb clicks
+    Rectangle fullscreenRec = {0, 0, (float)GetScreenWidth(),
+                               (float)GetScreenHeight()};
+    DrawRectangleRec(fullscreenRec, ColorAlpha(BLACK, 0.2f));
+
+    float pmW = 160;
+    float pmH = 105;
+    float pmX = humanSpawnMenuPos.x;
+    float pmY = humanSpawnMenuPos.y;
+
+    // Background
+    DrawRectangle(pmX, pmY, pmW, pmH, ColorAlpha(BLACK, 0.85f));
+    DrawRectangleLinesEx({pmX, pmY, pmW, pmH}, 2, GOLD);
+
+    // Title
+    DrawTextEx(uiFont, "Spawn Human", {pmX + 10, pmY + 5}, 16, 1, GOLD);
+
+    // Buttons
+    const char *options[] = {"Random", "Man", "Woman"};
+    bool anyOptionClicked = false;
+    for (int opt = 0; opt < 3; opt++) {
+      Rectangle optRect = {pmX + 5, pmY + 25 + opt * 27, pmW - 10, 24};
+      Vector2 actualMousePos = GetMousePosition();
+      bool optHover = CheckCollisionPointRec(actualMousePos, optRect);
+
+      Color bgCol = optHover ? Color{80, 80, 120, 255} : Color{50, 50, 70, 255};
+      DrawRectangleRec(optRect, bgCol);
+      DrawRectangleLinesEx(optRect, 1, GRAY);
+
+      Color textCol = optHover ? YELLOW : WHITE;
+      Vector2 ts2 = MeasureTextEx(uiFont, options[opt], 14, 1);
+      DrawTextEx(uiFont, options[opt],
+                 {optRect.x + (optRect.width - ts2.x) / 2,
+                  optRect.y + (optRect.height - ts2.y) / 2},
+                 14, 1, textCol);
+
+      if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && optHover) {
+        humanSpawnSelection = opt;
+        selectedToolIndex = 0;
+        showHumanSpawnMenu = false;
+        anyOptionClicked = true;
+      }
+    }
+
+    // Close if clicked outside, but NOT on the frame it was just opened
+    // and NOT if we just clicked an option
+    if (!anyOptionClicked && !popupJustOpened &&
+        IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+        !CheckCollisionPointRec(GetMousePosition(), {pmX, pmY, pmW, pmH})) {
+      showHumanSpawnMenu = false;
+    }
+  }
 
   if (currentTab == UIState::Settings) {
     // === HOME / SETTINGS TAB ===
@@ -780,10 +904,21 @@ void UIManager::DrawSocialCityList(const World &world) {
                  {x + cw, y + ch, w - 2 * cw, h - 2 * ch}, {0, 0}, 0, WHITE);
 
   // Title
-  const char *titleText = "Todas as Cidades";
-  Vector2 titleSize = MeasureTextEx(uiFont, titleText, 30, 1);
-  DrawTextEx(uiFont, titleText, {x + (w - titleSize.x) / 2, y + 10}, 30, 1,
-             GOLD);
+  const char *titleText =
+      forceWarMode ? "Selecione Reinos para Guerra" : "Todas as Cidades";
+  Color titleColor = forceWarMode ? RED : GOLD;
+  Vector2 titleSize = MeasureTextEx(uiFont, titleText, 24, 1);
+  DrawTextEx(uiFont, titleText, {x + (w - titleSize.x) / 2, y + 10}, 24, 1,
+             titleColor);
+
+  // Force War status indicator
+  if (forceWarMode) {
+    const char *statusText =
+        (forceWarKingdomA == -1) ? "Clique no 1 reino" : "Clique no 2 reino";
+    Vector2 stSize = MeasureTextEx(uiFont, statusText, 16, 1);
+    DrawTextEx(uiFont, statusText, {x + (w - stSize.x) / 2, y + 35}, 16, 1,
+               YELLOW);
+  }
 
   // Close Button
   Rectangle closeBtn = {x + w - 30, y + 10, 20, 20};
@@ -836,9 +971,30 @@ void UIManager::DrawSocialCityList(const World &world) {
       if (isItemHover) {
         DrawRectangleRec(itemRect, Fade(WHITE, 0.2f));
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-          showCityPopup = true;
-          popupCityID = city.id;
-          isDraggingCity = false;
+          if (forceWarMode && city.kingdomID >= 0) {
+            // Force War: select kingdoms
+            if (forceWarKingdomA == -1) {
+              forceWarKingdomA = city.kingdomID;
+            } else if (city.kingdomID != forceWarKingdomA) {
+              forceWarKingdomB = city.kingdomID;
+              // Execute Force War!
+              Kingdom *kA = sim.GetKingdom(forceWarKingdomA);
+              Kingdom *kB = sim.GetKingdom(forceWarKingdomB);
+              if (kA && kB) {
+                kA->DeclareWar(forceWarKingdomB);
+                kB->DeclareWar(forceWarKingdomA);
+                TraceLog(LOG_INFO, "FORCE WAR: %s vs %s!", kA->name.c_str(),
+                         kB->name.c_str());
+              }
+              forceWarMode = false;
+              forceWarKingdomA = -1;
+              forceWarKingdomB = -1;
+            }
+          } else {
+            showCityPopup = true;
+            popupCityID = city.id;
+            isDraggingCity = false;
+          }
         }
       } else {
         DrawRectangleRec(itemRect, Fade(BLACK, 0.3f));

@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <vector>
 
+
 SimulationManager::SimulationManager() {}
 
 SimulationManager::~SimulationManager() {}
@@ -100,7 +101,6 @@ void SimulationManager::Update(World &world, float deltaTime) {
   UpdateCitizens(world, deltaTime);
   UpdateCities(world, deltaTime);
   UpdateKingdoms(world, deltaTime);
-  UpdateDiplomacy(world, deltaTime);
 }
 
 void SimulationManager::RebuildOccupationMap(World &world) {
@@ -220,29 +220,6 @@ const Kingdom *SimulationManager::GetKingdom(int id) const {
 }
 
 void SimulationManager::RemoveKingdom(int id) { kingdoms.erase(id); }
-
-// ============================================================================
-// BATTLEFIELD MANAGEMENT
-// ============================================================================
-int SimulationManager::AddBattlefield(const Battlefield &bf) {
-  Battlefield b = bf;
-  if (b.id < 0)
-    b.id = nextBattlefieldID++;
-  battlefields[b.id] = b;
-  return b.id;
-}
-
-Battlefield *SimulationManager::GetBattlefield(int id) {
-  auto it = battlefields.find(id);
-  return it != battlefields.end() ? &it->second : nullptr;
-}
-
-const Battlefield *SimulationManager::GetBattlefield(int id) const {
-  auto it = battlefields.find(id);
-  return it != battlefields.end() ? &it->second : nullptr;
-}
-
-void SimulationManager::RemoveBattlefield(int id) { battlefields.erase(id); }
 
 // ============================================================================
 // BUILDING MANAGEMENT

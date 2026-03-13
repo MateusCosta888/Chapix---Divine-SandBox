@@ -1,6 +1,8 @@
 #include "core/AudioManager.h"
 #include "core/CrashHandler.h"
+#include "core/SaveManager.h"
 #include "core/TimeManager.h"
+#include "graphics/CloudManager.h"
 #include "graphics/WorldRenderer.h"
 #include "raylib.h"
 #include "raymath.h"
@@ -43,6 +45,52 @@ int main(int argc, char *argv[]) {
   // Initialize audio
   InitAudioDevice();
 
+  // === LOADING SCREEN HELPER ===
+  std::vector<Texture2D> planetFrames;
+  for (int i = 1; i <= 77; i++) {
+    char path[256];
+    sprintf(path, "assets/UI/Planet/Animed Earth/Planet%03d.png", i);
+    planetFrames.push_back(LoadTexture(path));
+  }
+
+  int currentPlanetFrame = 0;
+  auto DrawLoadingScreen = [&](const char *statusText) {
+    BeginDrawing();
+    ClearBackground(GetColor(0x0d0d1aFF));
+    float cx = GetScreenWidth() / 2.0f;
+    float cy = GetScreenHeight() / 2.0f;
+
+    // Draw Animated Earth
+    if (!planetFrames.empty()) {
+      Texture2D &tex = planetFrames[currentPlanetFrame];
+      if (tex.id > 0) {
+        // Increase frame index for next draw call
+        currentPlanetFrame = (currentPlanetFrame + 1) % planetFrames.size();
+
+        float scale = 3.0f; // Scale up the planet
+        float w = tex.width * scale;
+        float h = tex.height * scale;
+        Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+        Rectangle dst = {cx - w / 2, cy - h / 2 - 30, w, h};
+        DrawTexturePro(tex, src, dst, {0, 0}, 0.0f, WHITE);
+      }
+    }
+
+    // "Loading..." text
+    const char *loadText = "Loading...";
+    int textW = MeasureText(loadText, 24);
+    DrawText(loadText, (int)(cx - textW / 2), (int)(cy + 60), 24, GOLD);
+
+    // Status text
+    int statusW = MeasureText(statusText, 16);
+    DrawText(statusText, (int)(cx - statusW / 2), (int)(cy + 90), 16, GRAY);
+
+    EndDrawing();
+  };
+
+  // Show initial loading screen
+  DrawLoadingScreen("Initializing...");
+
   {
     uint32_t seed = 0;
     if (argc > 1 && std::string(argv[1]) == "--seed") {
@@ -51,17 +99,32 @@ int main(int argc, char *argv[]) {
       seed = (uint32_t)GetTime();
     }
 
+    // Show initial loading screen (render a few frames to ensure it's visible)
+    for (int i = 0; i < 3; i++)
+      DrawLoadingScreen("Generating world...");
     World world(128, 128, seed);
-    world.Generate();
-    world.LoadTextures();
+    world.Generate(DrawLoadingScreen);
+
+    world.LoadTextures(DrawLoadingScreen);
 
     WorldRenderer worldRenderer(world);
-
     UIManager ui;
-    ui.Load();
+    ui.Load(DrawLoadingScreen);
 
-    // Load music
-    AudioManager::Get().Load();
+    for (int i = 0; i < 2; i++)
+      DrawLoadingScreen("Loading audio...");
+    // Load music with progress updates to keep planet animated
+    AudioManager::Get().Load(DrawLoadingScreen);
+    CloudManager cloudManager;
+    cloudManager.Load();
+
+    // Free loading screen textures
+    for (Texture2D &tex : planetFrames) {
+      if (tex.id > 0)
+        UnloadTexture(tex);
+    }
+    planetFrames.clear();
+
     HideCursor();
 
     Camera2D camera = {0};
@@ -111,8 +174,25 @@ int main(int argc, char *argv[]) {
                                  std::to_string(world.GetEntities().size()));
         ui.popupJustOpened = false;
 
+        // --- AUTOSAVE SYSTEM ---
+        static float autosaveTimer = 0.0f;
+        static const float AUTOSAVE_INTERVAL = 300.0f; // 5 minutes
+        static int autosaveIndex = 1;
+
+        autosaveTimer += GetFrameTime();
+        if (autosaveTimer >= AUTOSAVE_INTERVAL) {
+          autosaveTimer = 0.0f;
+          std::string filename =
+              "autosave_" + std::to_string(autosaveIndex) + ".json";
+          SaveManager::SaveGameAsync(filename, world);
+          ui.ShowAutosaveNotification();
+          autosaveIndex = (autosaveIndex == 1) ? 2 : 1;
+        }
+
         Vector2 mousePos = GetMousePosition();
         bool isPointerOnUI = ui.IsPointerOnUI();
+
+
 
         // Camera Controls
         if (!isPointerOnUI && !ui.showBrushPopup) {
@@ -181,6 +261,10 @@ int main(int argc, char *argv[]) {
 
         EndMode2D();
 
+        // Decorative clouds (screen space, above world, below UI)
+        cloudManager.Update(GetFrameTime());
+        cloudManager.Draw();
+
         // DEBUG: Show tile info under cursor
         {
           Vector2 worldPos = GetScreenToWorld2D(mousePos, camera);
@@ -201,6 +285,7 @@ int main(int argc, char *argv[]) {
       EndDrawing();
     }
 
+    cloudManager.Unload();
     AudioManager::Get().Unload();
     ui.Unload();
   }

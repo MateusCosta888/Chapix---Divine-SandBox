@@ -5,7 +5,6 @@
 #include "raylib.h"
 #include <cstdint>
 
-
 // Biome Types - Determines regional climate and allowed terrain
 enum class BiomeType {
   Ocean,    // Water areas (not land)
@@ -44,6 +43,7 @@ enum class DecorationType {
   SmallRock,  // Rock 2 (Mountain)
   MediumRock, // Rock 3 (Universal)
   Crystal,    // Mountain crystals
+  Ruins,      // Ancient ruins
   GrassTuft,  // "Graminhas"
   Cactus,     // Desert Cacti
   DesertPlant // New Desert decorations
