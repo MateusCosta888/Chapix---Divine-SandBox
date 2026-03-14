@@ -903,13 +903,10 @@ void WorldRenderer::Draw(const Camera2D &camera,
              e.type == EntityType::Turkey)
       maxHP = 5.0f;
 
-    // Only show bar when damaged or in combat, AND selected.
-    // The user requested: "show health bar only when: - entity is damaged -
-    // entity is selected"
-    bool inCombat =
-        (e.state == EntityState::Attack || e.state == EntityState::Hurt);
+    // Only show bar when damaged or selected (not always)
     bool isDamaged = (e.health < maxHP);
-    if (!isDamaged && !inCombat)
+    bool isSelected = (e.citizenID >= 0 && e.citizenID == selectedCitizenID);
+    if (!isDamaged && !isSelected)
       continue;
 
     float ratio = e.health / maxHP;

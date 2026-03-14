@@ -66,6 +66,10 @@ public:
 
   Tile &GetTile(int x, int y);
   const Tile &GetTileConst(int x, int y) const;
+
+  // Helper to resolve kingdom based on tile ownership (city owner -> kingdom)
+  int GetKingdomAtTile(int tx, int ty) const;
+
   int GetWidth() const { return width; }
   int GetHeight() const { return height; }
   uint32_t GetSeed() const { return seed_; }

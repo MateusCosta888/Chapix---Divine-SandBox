@@ -7,10 +7,12 @@
 #include <cmath>
 
 struct Cloud {
-  Vector2 position;
-  float speed;
-  float scale;
-  int textureIndex; // 0-5 for cloud1-6
+  Vector2 position;      // World coordinates (pixels)
+  float speed;           // Horizontal speed in pixels per second
+  float parallaxFactor;  // Parallax strength (0.0 = static, 1.0 = same as world)
+  float alpha;           // Transparency
+  float scale;           // Base scale (multiplied by zoom)
+  int textureIndex;      // 0-5 for cloud1-6
 };
 
 class CloudManager {
@@ -26,9 +28,10 @@ public:
     textures[4] = LoadTexture("assets/Clouds/cloud5.png");
     textures[5] = LoadTexture("assets/Clouds/cloud6.png");
 
-    // Spawn initial clouds spread across screen
+    // Spawn initial clouds spread across a default width
+    float initialWidth = (float)GetScreenWidth();
     for (int i = 0; i < 3; i++) {
-      SpawnCloud(true);
+      SpawnCloud(true, initialWidth);
     }
   }
 
@@ -38,41 +41,50 @@ public:
     }
   }
 
-  void Update(float dt) {
+  void Update(float worldWidth, float dt) {
     spawnTimer += dt;
 
-    // Move existing clouds
+    // Move existing clouds (world coordinates)
     for (auto &c : clouds) {
       c.position.x += c.speed * dt;
-    }
 
-    // Remove clouds that left the screen
-    float sw = (float)GetScreenWidth();
-    clouds.erase(
-        std::remove_if(clouds.begin(), clouds.end(),
-                        [sw](const Cloud &c) { return c.position.x > sw + 200; }),
-        clouds.end());
+      // Wrap around world boundaries
+      float margin = 200.0f;
+      if (c.position.x > worldWidth + margin) {
+        c.position.x = -margin;
+      }
+    }
 
     // Spawn new clouds periodically
     if (spawnTimer >= spawnInterval && (int)clouds.size() < MAX_CLOUDS) {
-      SpawnCloud(false);
+      SpawnCloud(true, worldWidth);
       spawnTimer = 0.0f;
       // Randomize next spawn interval (8-15 seconds)
       spawnInterval = 8.0f + (float)(rand() % 8);
     }
   }
 
-  void Draw() {
+  void Draw(const Camera2D &camera) {
     for (auto &c : clouds) {
       Texture2D &tex = textures[c.textureIndex];
-      if (tex.id <= 0) continue;
+      if (tex.id <= 0)
+        continue;
 
-      float w = tex.width * c.scale;
-      float h = tex.height * c.scale;
+      // Transform world position into screen space with parallax + zoom
+      float screenX = (c.position.x - camera.target.x) * c.parallaxFactor *
+                      camera.zoom + camera.offset.x;
+      float screenY = (c.position.y - camera.target.y) * c.parallaxFactor *
+                      camera.zoom + camera.offset.y;
+
+      float totalScale = c.scale * camera.zoom;
+      float w = tex.width * totalScale;
+      float h = tex.height * totalScale;
+
       Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
-      Rectangle dst = {c.position.x, c.position.y, w, h};
+      Rectangle dst = {screenX, screenY, w, h};
 
-      DrawTexturePro(tex, src, dst, {0, 0}, 0.0f, ColorAlpha(WHITE, 0.35f));
+      DrawTexturePro(tex, src, dst, {0, 0}, 0.0f,
+                     ColorAlpha(WHITE, c.alpha));
     }
   }
 
@@ -82,18 +94,20 @@ private:
   float spawnTimer = 0.0f;
   float spawnInterval = 5.0f;
 
-  void SpawnCloud(bool randomX) {
+  void SpawnCloud(bool randomX, float worldWidth) {
     Cloud c;
-    float sw = (float)GetScreenWidth();
     float sh = (float)GetScreenHeight();
 
     c.textureIndex = rand() % NUM_TEXTURES;
-    c.scale = 0.5f + (float)(rand() % 50) / 100.0f; // 0.5 - 1.0
-    c.speed = 10.0f + (float)(rand() % 20);           // 10 - 30 px/s
+    c.scale = 0.4f + (float)(rand() % 80) / 100.0f; // 0.4 - 1.2
+    c.speed = 8.0f + (float)(rand() % 24);          // 8 - 32 px/s
+    c.parallaxFactor = 0.3f + (float)(rand() % 60) / 100.0f; // 0.3 - 0.9
+    c.alpha = 0.3f + (float)(rand() % 50) / 100.0f; // 0.3 - 0.8
+
     c.position.y = (float)(rand() % (int)(sh * 0.35f)); // Top 35% of screen
 
     if (randomX) {
-      c.position.x = (float)(rand() % (int)sw); // Spread across screen
+      c.position.x = (float)(rand() % (int)worldWidth);
     } else {
       c.position.x = -200.0f; // Start off-screen left
     }

@@ -261,9 +261,9 @@ int main(int argc, char *argv[]) {
 
         EndMode2D();
 
-        // Decorative clouds (screen space, above world, below UI)
-        cloudManager.Update(GetFrameTime());
-        cloudManager.Draw();
+        // Decorative clouds (world-space, above world, below UI)
+        cloudManager.Update(world.GetWidth() * 10.0f, GetFrameTime());
+        cloudManager.Draw(camera);
 
         // DEBUG: Show tile info under cursor
         {

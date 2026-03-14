@@ -3,6 +3,8 @@
 #include "../world/World.h"
 #include "raylib.h"
 #include <functional>
+#include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -247,6 +249,7 @@ private:
   void DrawProfessionSelector(const World &world); // Profession Selector UI
   void DrawOptionsPopup();                         // Options/Settings Popup
   void DrawNotifications(const World &world);      // Draw Notifications UI
+  void UpdateWarNotifications(const World &world);  // Detect new wars and notify
   void HandleInput(World &world, Camera2D &camera);
 
   // Notification Methods
@@ -255,4 +258,7 @@ private:
   // General Application State Helpers
   int lastKnownCityID = -1; // To track newly founded cities
   std::vector<UINotification> activeNotifications;
+
+  // Track known war pairs to avoid duplicate notifications
+  std::map<int, std::set<int>> knownWarPairs;
 };

@@ -33,6 +33,13 @@ struct Entity {
   float speed;
   float health;
 
+  // AI / Combat Timers
+  bool justSpawned = true;     // Helps forcing initial enemy scan
+  float enemyScanTimer = 0.0f; // Seconds until next enemy search
+  float attackCooldown = 0.0f; // Seconds until next attack allowed
+  float attackSpeed = 1.0f;    // Seconds per attack
+  int targetID = -1;          // Entity ID of current target (if any)
+
   // Animation
   float animTime;
   int currentFrame;
@@ -81,6 +88,7 @@ struct Entity {
 };
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
-    Entity, id, type, position, state, facingDirection, speed, health, animTime,
-    currentFrame, hasTarget, targetPos, citizenID, bodyTemperature,
+    Entity, id, type, position, state, facingDirection, speed, health,
+    justSpawned, enemyScanTimer, attackCooldown, attackSpeed, targetID,
+    animTime, currentFrame, hasTarget, targetPos, citizenID, bodyTemperature,
     reproductionTimer, reproductionCooldown)

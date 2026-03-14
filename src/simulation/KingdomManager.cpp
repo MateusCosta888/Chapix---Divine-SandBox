@@ -48,6 +48,20 @@ void SimulationManager::UpdateKingdoms(World &world, float deltaTime) {
 
         // Check for war declaration
         if (!kingdom.IsAtWarWith(other.id)) {
+          // Natural war chance when relations are very hostile
+          if (relation < -50.0f) {
+            float chance = (-relation / 100.0f) * 0.05f;
+            float roll = (float)rand() / (float)RAND_MAX;
+            if (roll < chance) {
+              ForceDeclareWar(kingdom.id, other.id);
+              TraceLog(LOG_INFO,
+                       "WAR: Natural war erupted between %s and %s (rel: %.1f, chance %.3f)",
+                       kingdom.name.c_str(), other.name.c_str(), relation,
+                       chance);
+              continue;
+            }
+          }
+
           // Calculate average aggression from cities
           float avgAggression = 0.0f;
           for (int cityID : kingdom.cityIDs) {
@@ -103,6 +117,23 @@ void SimulationManager::UpdateKingdoms(World &world, float deltaTime) {
       }
     }
   }
+}
+
+void SimulationManager::ForceDeclareWar(int kingdomA, int kingdomB) {
+  if (kingdomA < 0 || kingdomB < 0 || kingdomA == kingdomB)
+    return;
+
+  Kingdom *a = GetKingdom(kingdomA);
+  Kingdom *b = GetKingdom(kingdomB);
+  if (!a || !b)
+    return;
+
+  a->SetRelation(kingdomB, -100.0f);
+  b->SetRelation(kingdomA, -100.0f);
+  a->DeclareWar(kingdomB);
+  b->DeclareWar(kingdomA);
+  TraceLog(LOG_INFO, "WAR: Forced declaration between %s and %s",
+           a->name.c_str(), b->name.c_str());
 }
 
 // ============================================================================

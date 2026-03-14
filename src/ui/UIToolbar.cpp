@@ -507,8 +507,8 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Powers) {
-    numTools = 4; // Lightning, Fire, Ruins, Crystals
-    const char *powerNames[] = {"Lightning", "Fire", "Ruins", "Crystals"};
+    numTools = 2; // Lightning, Fire
+    const char *powerNames[] = {"Lightning", "Fire"};
     for (int i = 0; i < numTools; i++) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
                            btnSize};
@@ -524,10 +524,6 @@ void UIManager::DrawToolbar(const World &world) {
         tex = texIconLightning;
       else if (i == 1)
         tex = texIconFire;
-      else if (i == 2)
-        tex = world.GetTextureForUI(DecorationType::Ruins);
-      else if (i == 3)
-        tex = world.GetTextureForUI(DecorationType::Crystal);
 
       if (tex.id > 0) {
         float scale =
@@ -978,14 +974,7 @@ void UIManager::DrawSocialCityList(const World &world) {
             } else if (city.kingdomID != forceWarKingdomA) {
               forceWarKingdomB = city.kingdomID;
               // Execute Force War!
-              Kingdom *kA = sim.GetKingdom(forceWarKingdomA);
-              Kingdom *kB = sim.GetKingdom(forceWarKingdomB);
-              if (kA && kB) {
-                kA->DeclareWar(forceWarKingdomB);
-                kB->DeclareWar(forceWarKingdomA);
-                TraceLog(LOG_INFO, "FORCE WAR: %s vs %s!", kA->name.c_str(),
-                         kB->name.c_str());
-              }
+              sim.ForceDeclareWar(forceWarKingdomA, forceWarKingdomB);
               forceWarMode = false;
               forceWarKingdomA = -1;
               forceWarKingdomB = -1;

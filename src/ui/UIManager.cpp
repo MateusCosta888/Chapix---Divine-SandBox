@@ -620,10 +620,6 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
           world.TriggerGodPower(0, tx, ty); // Lightning
         } else if (selectedToolIndex == 1) {
           world.TriggerGodPower(1, tx, ty); // Fire
-        } else if (selectedToolIndex == 2) {
-          world.SetTileDecoration(tx, ty, DecorationType::Ruins);
-        } else if (selectedToolIndex == 3) {
-          world.SetTileDecoration(tx, ty, DecorationType::Crystal);
         }
       }
     }
@@ -655,6 +651,9 @@ void UIManager::Draw(const World &world) {
   if (maxCityID > lastKnownCityID) {
     lastKnownCityID = maxCityID;
   }
+
+  // Update war notifications based on current diplomacy state
+  UpdateWarNotifications(world);
 
   Vector2 mousePos = GetMousePosition();
 
@@ -755,6 +754,74 @@ void UIManager::AddNotification(const std::string &text, int flagID) {
       activeNotifications.size() * 60.0f; // Stack slightly separated
 
   activeNotifications.push_back(notif);
+}
+
+void UIManager::UpdateWarNotifications(const World &world) {
+  const auto &kingdoms = world.GetSimulation().GetAllKingdoms();
+
+  // Build current active war pairs (canonical order: min,max)
+  std::map<int, std::set<int>> currentWarPairs;
+  for (const auto &pair : kingdoms) {
+    int a = pair.first;
+    const Kingdom &kingdom = pair.second;
+    for (int b : kingdom.activeWarKingdoms) {
+      if (b <= a)
+        continue;
+      currentWarPairs[a].insert(b);
+    }
+  }
+
+  // Remove stale pairs from knownWarPairs
+  for (auto it = knownWarPairs.begin(); it != knownWarPairs.end();) {
+    int a = it->first;
+    auto &setB = it->second;
+    for (auto bit = setB.begin(); bit != setB.end();) {
+      int b = *bit;
+      if (currentWarPairs[a].count(b) == 0) {
+        bit = setB.erase(bit);
+      } else {
+        ++bit;
+      }
+    }
+    if (setB.empty())
+      it = knownWarPairs.erase(it);
+    else
+      ++it;
+  }
+
+  // Add new war notifications
+  for (const auto &pair : currentWarPairs) {
+    int a = pair.first;
+    for (int b : pair.second) {
+      if (knownWarPairs[a].count(b) > 0)
+        continue;
+
+      // New war detected
+      const Kingdom *kA = nullptr;
+      const Kingdom *kB = nullptr;
+      auto itA = kingdoms.find(a);
+      auto itB = kingdoms.find(b);
+      if (itA != kingdoms.end())
+        kA = &itA->second;
+      if (itB != kingdoms.end())
+        kB = &itB->second;
+      if (!kA || !kB)
+        continue;
+
+      // Determine icon flag from capital if available
+      int flagID = 0;
+      if (kA->capitalCityID >= 0) {
+        const City *cap = world.GetSimulation().GetCity(kA->capitalCityID);
+        if (cap)
+          flagID = cap->flagID;
+      }
+
+      AddNotification(
+          TextFormat("Guerra: %s vs %s", kA->name.c_str(), kB->name.c_str()),
+          flagID);
+      knownWarPairs[a].insert(b);
+    }
+  }
 }
 
 void UIManager::DrawNotifications(const World &world) {

@@ -22,6 +22,10 @@ public:
   // === MAIN UPDATE LOOP ===
   void Update(World &world, float deltaTime);
 
+  // === WAR SYSTEM ===
+  // Forcefully declare war between two kingdoms (bi-directional)
+  void ForceDeclareWar(int kingdomA, int kingdomB);
+
   // === RESET (clear all data for new game) ===
   void Reset();
 

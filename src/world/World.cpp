@@ -911,6 +911,21 @@ void World::UpdateNeighborsEdgeMask(int x, int y) {
   UpdateTileEdgeMask(x - 1, y);
 }
 
+int World::GetKingdomAtTile(int tx, int ty) const {
+  if (tx < 0 || tx >= width || ty < 0 || ty >= height)
+    return -1;
+
+  const Tile &tile = GetTileConst(tx, ty);
+  if (tile.ownerCityID < 0)
+    return -1;
+
+  const City *city = simulation.GetCity(tile.ownerCityID);
+  if (!city)
+    return -1;
+
+  return city->kingdomID;
+}
+
 void World::AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom) {
   // 50/50 chance: player-placed unarmed humans may be women (only for Random)
   // If type is already HumanWoman, skip randomization
@@ -941,6 +956,11 @@ void World::AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom) {
   e.animTime = 0.0f;
   e.facingDirection = 0; // Down
   e.hasTarget = false;
+  e.targetID = -1;
+  e.justSpawned = true;
+  e.enemyScanTimer = 0.0f;
+  e.attackCooldown = 0.0f;
+  e.attackSpeed = 1.0f;
   e.citizenID = -1; // Initialize as non-citizen
 
   // Set speed based on creature type
@@ -949,30 +969,39 @@ void World::AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom) {
   if (type == EntityType::HumanUnarmed || type == EntityType::HumanWoman) {
     e.speed = 2.0f;
     e.health = 20.0f; // Fixed from 15 to 20 so they spawn full health
+    e.attackSpeed = 1.0f;
   } else if (type == EntityType::HumanArmed) {
     e.speed = 2.1f;   // Slightly faster than unarmed
     e.health = 50.0f; // Buffed to survive Boar
+    e.attackSpeed = 0.8f;
   } else if (type == EntityType::Boar) {
     e.speed = 2.4f;
     e.health = 40.0f; // As requested
+    e.attackSpeed = 1.2f;
   } else if (type == EntityType::Slime) {
     e.speed = 1.3f;
     e.health = 25.0f; // Easy mob
+    e.attackSpeed = 1.0f;
   } else if (type == EntityType::Cow || type == EntityType::Bull) {
     e.speed = 0.5f;
     e.health = 10.0f;
+    e.attackSpeed = 1.5f;
   } else if (type == EntityType::Chicken || type == EntityType::Chicken2 ||
              type == EntityType::Turkey) {
     e.speed = 0.8f;
     e.health = 5.0f;
+    e.attackSpeed = 1.5f;
   } else if (type == EntityType::Sheep || type == EntityType::Lamb) {
     e.speed = 0.6f;
     e.health = 10.0f;
+    e.attackSpeed = 1.5f;
   } else if (type == EntityType::Pig) {
     e.speed = 0.55f;
     e.health = 10.0f;
+    e.attackSpeed = 1.5f;
   } else {
     e.speed = 1.0f;
+    e.attackSpeed = 1.0f;
   }
 
   // For intelligent creatures (humans), create citizen data
@@ -1082,6 +1111,12 @@ void World::UpdateEntities(float deltaTime) {
       continue;
     }
 
+    // === Sim timers ===
+    e.enemyScanTimer -= deltaTime;
+    e.attackCooldown -= deltaTime;
+    if (e.attackCooldown < 0.0f)
+      e.attackCooldown = 0.0f;
+
     // === ANIMAL COLD / HYPOTHERMIA SYSTEM ===
     if (!e.IsIntelligent()) {
       int atX = static_cast<int>(e.position.x);
@@ -1104,6 +1139,61 @@ void World::UpdateEntities(float deltaTime) {
         }
         if (e.bodyTemperature < 0.0f)
           e.bodyTemperature = 0.0f;
+      }
+    }
+
+    // Force initial scan (on spawn) or periodic scan (every 0.5s)
+    if (e.justSpawned || e.enemyScanTimer <= 0.0f) {
+      e.enemyScanTimer = 0.5f;
+      e.justSpawned = false;
+
+      // Determine which enemies this entity should look for
+      int bestTargetID = -1;
+      float bestDist = 99999.0f;
+
+      if (e.type == EntityType::Boar || e.type == EntityType::Slime) {
+        // Boars/Slimes hunt humans
+        for (auto &pair : citizenEntityMap) {
+          Entity *candidate = pair.second;
+          if (!candidate || candidate->health <= 0)
+            continue;
+          float d = Vector2Distance(e.position, candidate->position);
+          if (d < bestDist) {
+            bestDist = d;
+            bestTargetID = candidate->id;
+          }
+        }
+        if (bestTargetID >= 0 && bestDist < 6.0f) {
+          e.hasTarget = true;
+          e.targetID = bestTargetID;
+        } else {
+          e.hasTarget = false;
+          e.targetID = -1;
+        }
+      } else if (e.IsIntelligent()) {
+        // Humans hunt boars and slimes
+        for (const auto &other : entities) {
+          if ((other.type == EntityType::Boar ||
+               other.type == EntityType::Slime) &&
+              other.health > 0) {
+            float d = Vector2Distance(e.position, other.position);
+            if (d < bestDist) {
+              bestDist = d;
+              bestTargetID = other.id;
+            }
+          }
+        }
+        if (bestTargetID >= 0 && bestDist < 10.0f) {
+          e.hasTarget = true;
+          e.targetID = bestTargetID;
+        } else {
+          e.hasTarget = false;
+          e.targetID = -1;
+        }
+      } else {
+        // Non-intelligent animals do not hunt
+        e.hasTarget = false;
+        e.targetID = -1;
       }
     }
 
@@ -1234,27 +1324,32 @@ void World::UpdateEntities(float deltaTime) {
         continue;
       }
 
-      bool targetFound = false;
-      Vector2 targetPos = e.position;
-      for (const auto &pair : citizenEntityMap) {
-        Entity *target = pair.second;
-        if (target && target->health > 0) {
-          if (Vector2Distance(e.position, target->position) < 6.0f) {
-            targetPos = target->position;
-            targetFound = true;
-            break;
-          }
+      // Resolve current target pointer (IDs are stable, pointers may rehash)
+      Entity *target = nullptr;
+      if (e.hasTarget && e.targetID >= 0) {
+        auto it = citizenEntityMap.find(e.targetID);
+        if (it != citizenEntityMap.end())
+          target = it->second;
+        if (!target || target->health <= 0) {
+          e.hasTarget = false;
+          e.targetID = -1;
+          target = nullptr;
         }
       }
 
-      if (targetFound) {
-        e.state = EntityState::Run;
-        if (Vector2Distance(e.position, targetPos) < 1.0f) {
+      if (target) {
+        float dist = Vector2Distance(e.position, target->position);
+
+        // Attack when in range and off cooldown
+        if (dist < 1.0f && e.attackCooldown <= 0.0f) {
           e.state = EntityState::Attack;
           e.currentFrame = 0;
-        } else {
+          e.attackCooldown = e.attackSpeed;
+        } else if (dist >= 1.0f) {
+          // Move towards target
+          e.state = EntityState::Run;
           Vector2 dir =
-              Vector2Normalize(Vector2Subtract(targetPos, e.position));
+              Vector2Normalize(Vector2Subtract(target->position, e.position));
           Vector2 moveVec = Vector2Scale(dir, e.speed * 1.5f * deltaTime);
           Vector2 nextPos = Vector2Add(e.position, moveVec);
 
@@ -1267,7 +1362,8 @@ void World::UpdateEntities(float deltaTime) {
           } else {
             e.state = EntityState::Idle;
           }
-          // Facing
+
+          // Facing based on direction
           if (fabs(dir.x) > fabs(dir.y))
             e.facingDirection = (dir.x > 0) ? 1 : -1;
           else
@@ -1417,49 +1513,35 @@ void World::UpdateEntities(float deltaTime) {
       }
 
       // Hunt Boars and Slimes
-      bool foundTarget = false;
-      Vector2 targetPos = e.position;
-      float minDist = 10.0f;
-      for (const auto &target : entities) {
-        if ((target.type == EntityType::Boar ||
-             target.type == EntityType::Slime) &&
-            target.health > 0) {
-          float d = Vector2Distance(e.position, target.position);
-          if (d < minDist) {
-            minDist = d;
-            targetPos = target.position;
-            foundTarget = true;
+      Entity *target = nullptr;
+      if (e.hasTarget && e.targetID >= 0) {
+        // Pointer might be invalid after vector reallocation, so lookup by ID
+        for (auto &p : citizenEntityMap) {
+          if (p.first == e.targetID) {
+            target = p.second;
+            break;
           }
+        }
+        if (!target || target->health <= 0) {
+          e.hasTarget = false;
+          e.targetID = -1;
+          target = nullptr;
         }
       }
 
-      if (foundTarget) {
-        if (minDist < 1.0f) {
+      if (target) {
+        float dist = Vector2Distance(e.position, target->position);
+
+        // Attack when in range and off cooldown
+        if (dist < 1.0f && e.attackCooldown <= 0.0f) {
           e.state = EntityState::Attack;
           e.currentFrame = 0;
           e.animTime = 0.0f;
-          e.hasTarget = false;
-
-          // Still allow facing update
-          Vector2 dir = Vector2Subtract(targetPos, e.position);
-          if (fabs(dir.x) > fabs(dir.y))
-            e.facingDirection = (dir.x > 0) ? 1 : -1;
-          else
-            e.facingDirection = (dir.y > 0) ? 0 : 2;
-
-        } else {
+          e.attackCooldown = e.attackSpeed;
+        } else if (dist >= 1.0f) {
           // Move logic
           e.state = EntityState::Walking;
-          Vector2 dir = Vector2Subtract(targetPos, e.position);
-
-          // Force cardinal direction (no diagonal) - REMOVED
-          // if (fabs(dir.x) > fabs(dir.y)) {
-          //   dir.y = 0;
-          //   e.facingDirection = (dir.x > 0) ? 1 : -1;
-          // } else {
-          //   dir.x = 0;
-          //   e.facingDirection = (dir.y > 0) ? 0 : 2;
-          // }
+          Vector2 dir = Vector2Subtract(target->position, e.position);
 
           // Use dominance only for facing direction
           if (fabs(dir.x) > fabs(dir.y)) {
@@ -1545,7 +1627,7 @@ void World::UpdateEntities(float deltaTime) {
           }
         }
 
-        if (e.hasTarget && !foundTarget) { // Wander target
+        if (e.hasTarget && e.targetID < 0) { // Wander target
           Vector2 dir = Vector2Subtract(e.targetPos, e.position);
           if (Vector2Length(dir) < 0.1f) {
             e.hasTarget = false;
@@ -1577,7 +1659,7 @@ void World::UpdateEntities(float deltaTime) {
               e.state = EntityState::Idle;
             }
           }
-        } else if (!foundTarget && e.state == EntityState::Walking) {
+        } else if (!e.hasTarget && e.state == EntityState::Walking) {
           // Only reset to Idle if we were Walking.
           // If we were Attacking (Working), don't reset!
           e.state = EntityState::Idle;
@@ -1636,19 +1718,6 @@ void World::UpdateEntities(float deltaTime) {
       Vector2 next =
           Vector2Add(e.position, Vector2Scale(dir, e.speed * deltaTime));
 
-      if (!e.IsIntelligent() && e.type != EntityType::Boar &&
-          e.type != EntityType::Slime) {
-        static int logTimer = 0;
-        logTimer++;
-        if (logTimer % 60 == 0) {
-          TraceLog(
-              LOG_INFO,
-              "ANIMAL DEBUG: speed: %f, dir: %f, %f. pos.x: %f, next.x: %f "
-              "walkable: %d",
-              e.speed, dir.x, dir.y, e.position.x, next.x,
-              IsWalkable((int)next.x, (int)next.y, true));
-        }
-      }
 
       if (IsWalkable((int)next.x, (int)next.y, false)) {
         e.position = next;
