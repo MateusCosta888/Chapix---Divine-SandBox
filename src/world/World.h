@@ -46,6 +46,7 @@ public:
   void Reset(uint32_t seed);
   void Update();                 // For future simulation steps
   void UpdateEntities(float dt); // Added
+  void UpdateWorldEvents(float dt);
 
   // Entities
   void AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom = false);

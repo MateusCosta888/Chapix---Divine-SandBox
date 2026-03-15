@@ -918,6 +918,18 @@ void ResourceManager::Load() {
   SetTextureFilter(texSlimeHurt, TEXTURE_FILTER_POINT);
   SetTextureFilter(texSlimeDeath, TEXTURE_FILTER_POINT);
 
+  // --- DRAGON BOSS ---
+  for (int i = 1; i <= 12; i++) {
+    char filename[128];
+    snprintf(filename, sizeof(filename), "assets/Mobs/Dragon/Fly Sprites/Dragon%03d.png", i);
+    Texture2D tex = LoadTexture(filename);
+    if (tex.id > 0) {
+      SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      texDragonFly.push_back(tex);
+    }
+  }
+
+
   // --- VFX ASSETS ---
   // Lightning (fx2_electric_burst_large_violet - 16 frames)
   for (int i = 0; i < 16; i++) {
@@ -968,6 +980,10 @@ void ResourceManager::Unload() {
   UnloadTexture(texSlimeAttack);
   UnloadTexture(texSlimeHurt);
   UnloadTexture(texSlimeDeath);
+
+  // Dragon
+  for (auto &tex : texDragonFly) UnloadTexture(tex);
+  texDragonFly.clear();
 
   // VFX
   for (auto &tex : texVfxLightning)

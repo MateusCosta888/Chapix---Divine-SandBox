@@ -223,6 +223,139 @@ int main(int argc, char *argv[]) {
           }
         }
 
+        // Right-click entity selection for Player Control Mode (on PRESS, not drag)
+        // This MUST use IsMouseButtonPressed (not Down) to avoid conflict with camera panning
+        static int selectedEntityID = -1;
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+          Vector2 worldMousePos = GetScreenToWorld2D(mousePos, camera);
+          float exMouseX = worldMousePos.x / 10.0f;  // exact position in world tiles
+          float exMouseY = worldMousePos.y / 10.0f;
+          
+          // Find closest intelligent entity within radius (increased tolerance to 2.5 tiles = 25 pixels)
+          float closestDist = 2.5f;
+          int closestID = -1;
+          for (const auto &e : world.GetEntities()) {
+            if (e.IsIntelligent() && e.citizenID >= 0) {
+              float dist = Vector2Distance(e.position, {exMouseX, exMouseY});
+              if (dist < closestDist) {
+                closestDist = dist;
+                closestID = e.citizenID;
+              }
+            }
+          }
+          
+          // Only set if we found someone
+          if (closestID != -1) {
+            selectedEntityID = closestID;
+            TraceLog(LOG_INFO, "RIGHT-CLICK SELECTED: Citizen ID %d at screen pos (%.0f, %.0f)", closestID, mousePos.x, mousePos.y);
+          } else {
+            // Deselect if clicking on empty space
+            selectedEntityID = -1;
+            TraceLog(LOG_INFO, "RIGHT-CLICK: No entity found at (%.0f, %.0f)", exMouseX, exMouseY);
+          }
+        }
+
+        // Player Control Mode
+        static int playerControlledEntityID = -1;
+        
+        // ESC key to release control
+        if (IsKeyPressed(KEY_ESCAPE) && playerControlledEntityID != -1) {
+          Entity *ent = world.GetEntityByCitizenID(playerControlledEntityID);
+          if (ent) ent->isPlayerControlled = false;
+          playerControlledEntityID = -1;
+          selectedEntityID = -1;
+        }
+        
+        // E key to toggle control
+        if (IsKeyPressed(KEY_E)) {
+          // Toggle control of the selected human (either from right-click or popup)
+          int targetID = (selectedEntityID != -1) ? selectedEntityID : ui.GetPopupCitizenID();
+          if (targetID != -1) {
+            const Entity *e = world.GetEntityByCitizenID(targetID);
+            if (e && e->IsIntelligent()) {
+              if (playerControlledEntityID == targetID) {
+                // Release control
+                Entity *ent = world.GetEntityByCitizenID(playerControlledEntityID);
+                if (ent) ent->isPlayerControlled = false;
+                playerControlledEntityID = -1;
+                TraceLog(LOG_INFO, "RELEASED control of citizen %d", targetID);
+              } else {
+                // Take control
+                if (playerControlledEntityID != -1) {
+                  Entity *old = world.GetEntityByCitizenID(playerControlledEntityID);
+                  if (old) old->isPlayerControlled = false;
+                }
+                playerControlledEntityID = targetID;
+                Entity *ent = world.GetEntityByCitizenID(playerControlledEntityID);
+                if (ent) ent->isPlayerControlled = true;
+                TraceLog(LOG_INFO, "CONTROLLING citizen %d", targetID);
+              }
+            }
+          }
+        }
+        
+        // Handle player input for controlled entity
+        if (playerControlledEntityID != -1) {
+          Entity *controlled = world.GetEntityByCitizenID(playerControlledEntityID);
+          if (controlled && controlled->isPlayerControlled) {
+            // Movement
+            Vector2 moveDir = {0, 0};
+            if (IsKeyDown(KEY_W)) moveDir.y -= 1;
+            if (IsKeyDown(KEY_S)) moveDir.y += 1;
+            if (IsKeyDown(KEY_A)) moveDir.x -= 1;
+            if (IsKeyDown(KEY_D)) moveDir.x += 1;
+            if (Vector2Length(moveDir) > 0) {
+              moveDir = Vector2Normalize(moveDir);
+              controlled->state = EntityState::Walking;
+              // Update Animation
+              controlled->animTime += GetFrameTime();
+              if (controlled->animTime > 0.15f) { // Frame speed
+                controlled->animTime = 0.0f;
+                controlled->currentFrame++;
+              }
+              Vector2 newPos = Vector2Add(controlled->position, Vector2Scale(moveDir, controlled->speed * GetFrameTime()));
+              if (world.IsWalkable((int)newPos.x, (int)newPos.y)) {
+                controlled->position = newPos;
+              }
+              // Facing
+              if (fabs(moveDir.x) > fabs(moveDir.y)) {
+                controlled->facingDirection = (moveDir.x > 0) ? 1 : -1;
+              } else {
+                controlled->facingDirection = (moveDir.y > 0) ? 0 : 2;
+              }
+            } else {
+              controlled->state = EntityState::Idle;
+              controlled->currentFrame = 0; // Reset frame when idle
+            }
+
+            // Attack
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && controlled->attackCooldown <= 0) {
+              controlled->state = EntityState::Attack;
+              controlled->currentFrame = 0;
+              controlled->attackCooldown = controlled->attackSpeed;
+              // Attack logic similar to AI
+              for (auto &other : world.GetEntitiesMutable()) {
+                if ((other.type == EntityType::Boar || other.type == EntityType::Slime || other.type == EntityType::Dragon) && other.health > 0) {
+                  float dist = Vector2Distance(controlled->position, other.position);
+                  if (dist < 1.5f) {
+                    float dmg = (controlled->type == EntityType::HumanArmed) ? 10.0f : 4.0f;
+                    if (controlled->isHero) dmg += 10.0f;
+                    other.health -= dmg;
+                    if (other.health <= 0) other.state = EntityState::Die;
+                  }
+                }
+              }
+            }
+
+            // Camera follow
+            Vector2 targetPos = {controlled->position.x * 10.0f + 5.0f, controlled->position.y * 10.0f + 5.0f};
+            camera.target = Vector2Add(camera.target, Vector2Scale(Vector2Subtract(targetPos, camera.target), 0.1f));
+          } else {
+            // Entity died or invalid
+            playerControlledEntityID = -1;
+          }
+        }
+
         // Camera Bounds Clamping (Prevent losing sandbox rendering limits)
         float mapPixelW = world.GetWidth() * 10.0f;
         float mapPixelH = world.GetHeight() * 10.0f;
@@ -242,6 +375,16 @@ int main(int argc, char *argv[]) {
         worldRenderer.Draw(camera, &world.GetSimulation().GetCities());
         world.DrawSpawnEffects(); // Spawn particles in world space
 
+        // Draw visual feedback for selected entity (in world space)
+        if (selectedEntityID != -1) {
+          const Entity *selectedEnt = world.GetEntityByCitizenID(selectedEntityID);
+          if (selectedEnt) {
+            Vector2 worldPos = Vector2Scale(selectedEnt->position, 10.0f);
+            // Draw selection circle around entity
+            DrawCircleLines((int)worldPos.x, (int)worldPos.y, 15, YELLOW);
+          }
+        }
+
         // Brush Preview
         if (!ui.IsPointerOnUI() && !ui.IsBrushPopupOpen()) {
           Vector2 worldPos = GetScreenToWorld2D(mousePos, camera);
@@ -260,6 +403,18 @@ int main(int argc, char *argv[]) {
         }
 
         EndMode2D();
+
+        // Draw UI feedback for selected entity (in screen space)
+        if (selectedEntityID != -1) {
+          const Entity *selectedEnt = world.GetEntityByCitizenID(selectedEntityID);
+          if (selectedEnt) {
+            Vector2 screenPos = GetWorldToScreen2D(Vector2Scale(selectedEnt->position, 10.0f), camera);
+            // Draw "Press E to Control" text
+            const char *controlText = playerControlledEntityID == selectedEntityID ? "Press E to Release" : "Press E to Control";
+            int textWidth = MeasureText(controlText, 16);
+            DrawText(controlText, (int)(screenPos.x - textWidth/2), (int)(screenPos.y - 35), 16, YELLOW);
+          }
+        }
 
         // Decorative clouds (world-space, above world, below UI)
         cloudManager.Update(world.GetWidth() * 10.0f, GetFrameTime());

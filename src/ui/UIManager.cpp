@@ -561,9 +561,9 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
           EntityType::HumanUnarmed, EntityType::Boar,  EntityType::Cow,
           EntityType::Chicken,      EntityType::Sheep, EntityType::Bull,
           EntityType::Chicken2,     EntityType::Lamb,  EntityType::Pig,
-          EntityType::Turkey,       EntityType::Slime};
+          EntityType::Turkey,       EntityType::Slime, EntityType::Dragon};
 
-      if (selectedToolIndex >= 0 && selectedToolIndex < 11 &&
+      if (selectedToolIndex >= 0 && selectedToolIndex < 12 &&
           IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !showHumanSpawnMenu) {
 
         // Determine the entity type to spawn

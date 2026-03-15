@@ -201,6 +201,10 @@ public:
   Texture2D texSlimeAttack;
   Texture2D texSlimeHurt;
   Texture2D texSlimeDeath;
+
+  // Dragon Boss
+  std::vector<Texture2D> texDragonFly;
+
   // VFX
   std::vector<Texture2D> texVfxLightning;
   std::vector<Texture2D> texVfxFire;

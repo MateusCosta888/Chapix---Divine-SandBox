@@ -98,6 +98,53 @@ void SimulationManager::Update(World &world, float deltaTime) {
     }
   }
 
+  // === CASTLE SOLDIER SPAWNING SYSTEM ===
+  {
+    static float castleSpawnTimer = 0.0f;
+    castleSpawnTimer += deltaTime;
+    float spawnInterval = 30.0f; // Spawn soldiers every 30 seconds
+    if (castleSpawnTimer >= spawnInterval) {
+      castleSpawnTimer = 0.0f;
+      // For each Castelo, spawn a soldier if not at max
+      for (const auto &buildingPair : buildings) {
+        const Building &b = buildingPair.second;
+        if (b.type == BuildingType::Castelo && b.isComplete) {
+          // Count soldiers in the kingdom
+          int kingdomID = -1;
+          for (const auto &cityPair : cities) {
+            const City &city = cityPair.second;
+            for (const auto &cb : city.buildings) {
+              if (cb.id == b.id) {
+                kingdomID = city.kingdomID;
+                break;
+              }
+            }
+            if (kingdomID >= 0) break;
+          }
+          if (kingdomID >= 0) {
+            // Count soldiers (humans with soldier job)
+            int soldierCount = 0;
+            for (const auto &citizenPair : citizens) {
+              const Citizen &c = citizenPair.second;
+              if (c.kingdomID == kingdomID && c.profession == Profession::Soldier) {
+                soldierCount++;
+              }
+            }
+            // Max 5 soldiers per castle
+            if (soldierCount < 5) {
+              // Spawn soldier near castle
+              Vector2 spawnPos = {static_cast<float>(b.tileX + 1), static_cast<float>(b.tileY + 1)};
+              world.AddEntity(EntityType::HumanArmed, spawnPos, true);
+              // Set as soldier
+              // But need to get the entity, perhaps after spawn
+              // For now, assume AI will assign job later
+            }
+          }
+        }
+      }
+    }
+  }
+
   UpdateCitizens(world, deltaTime);
   UpdateCities(world, deltaTime);
   UpdateKingdoms(world, deltaTime);

@@ -18,7 +18,8 @@ enum class EntityType {
   Lamb,
   Pig,
   Turkey,
-  Slime
+  Slime,
+  Dragon       // New Boss Enemy
 };
 
 enum class EntityState { Idle, Walking, Attack, Run, Hurt, Die, Swim, Block };
@@ -32,6 +33,7 @@ struct Entity {
   int facingDirection; // -1 Left, 1 Right, 0 Down, 2 Up
   float speed;
   float health;
+  float maxHP; // Maximum health
 
   // AI / Combat Timers
   bool justSpawned = true;     // Helps forcing initial enemy scan
@@ -59,6 +61,12 @@ struct Entity {
   // === ANIMAL REPRODUCTION ===
   float reproductionTimer = 0.0f;
   float reproductionCooldown = 60.0f; // Seconds between births
+
+  // === NEW FEATURES ===
+  bool isPlayerControlled = false; // Player control mode
+  bool isHero = false;             // Hero system
+  int level = 1;                   // Hero level
+  int kills = 0;                   // Kills count
 
   // Helper to check if this entity is an intelligent creature
   bool IsIntelligent() const {
@@ -88,7 +96,7 @@ struct Entity {
 };
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
-    Entity, id, type, position, state, facingDirection, speed, health,
+    Entity, id, type, position, state, facingDirection, speed, health, maxHP,
     justSpawned, enemyScanTimer, attackCooldown, attackSpeed, targetID,
     animTime, currentFrame, hasTarget, targetPos, citizenID, bodyTemperature,
-    reproductionTimer, reproductionCooldown)
+    reproductionTimer, reproductionCooldown, isPlayerControlled, isHero, level, kills)

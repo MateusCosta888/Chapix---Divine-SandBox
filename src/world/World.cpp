@@ -671,6 +671,34 @@ void World::Update() {
 
   // Run civilization simulation (citizens, cities, kingdoms)
   simulation.Update(*this, dt);
+
+  // World Events
+  UpdateWorldEvents(dt);
+}
+
+void World::UpdateWorldEvents(float deltaTime) {
+  static float eventTimer = 0.0f;
+  eventTimer += deltaTime;
+  float eventInterval = 120.0f; // Check for events every 2 minutes
+  if (eventTimer >= eventInterval) {
+    eventTimer = 0.0f;
+    // Random chance for Dragon Spawn
+    if (rand() % 10 == 0) { // 10% chance
+      // Find a random position, perhaps near a city
+      int attempts = 10;
+      for (int i = 0; i < attempts; i++) {
+        int x = rand() % width;
+        int y = rand() % height;
+        if (GetTile(x, y).type == TileType::Grass) {
+          Vector2 pos = {static_cast<float>(x), static_cast<float>(y)};
+          AddEntity(EntityType::Dragon, pos, true); // true = skip gender random
+          TraceLog(LOG_INFO, "WORLD EVENT: Dragon spawned at (%d, %d)", x, y);
+          break;
+        }
+      }
+    }
+    // Other events can be added here
+  }
 }
 
 void World::SimulateWater(float deltaTime) {
@@ -857,6 +885,11 @@ Texture2D World::GetTextureForUI(EntityType type) const {
       return resourceManager.texSlimeIdle;
     return {0};
   }
+  if (type == EntityType::Dragon) {
+    if (!resourceManager.texDragonFly.empty())
+      return resourceManager.texDragonFly[0];
+    return {0};
+  }
   if (type == EntityType::Cow) {
     return resourceManager.texCow[0];
   }
@@ -999,10 +1032,16 @@ void World::AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom) {
     e.speed = 0.55f;
     e.health = 10.0f;
     e.attackSpeed = 1.5f;
+  } else if (type == EntityType::Dragon) {
+    e.speed = 3.0f;
+    e.health = 300.0f; // High HP boss
+    e.attackSpeed = 2.0f; // Slower attacks
   } else {
     e.speed = 1.0f;
     e.attackSpeed = 1.0f;
   }
+
+  e.maxHP = e.health; // Set maxHP to initial health
 
   // For intelligent creatures (humans), create citizen data
   if (e.IsIntelligent()) {
@@ -1049,6 +1088,7 @@ void World::AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom) {
   }
 
   entities.push_back(e);
+  RebuildEntityCache();
   TraceLog(LOG_INFO, "WORLD: Added Entity Type %d at %.2f, %.2f", (int)type,
            pos.x, pos.y);
 }
@@ -1107,6 +1147,7 @@ void World::UpdateEntities(float deltaTime) {
           simulation.RemoveCitizen(e.citizenID);
         }
         entities.erase(entities.begin() + i--);
+        RebuildEntityCache();
       }
       continue;
     }
@@ -1418,10 +1459,155 @@ void World::UpdateEntities(float deltaTime) {
       continue;
     }
 
+    // === DRAGON AI ===
+    else if (e.type == EntityType::Dragon) {
+      if (e.state == EntityState::Die) {
+        e.animTime += deltaTime;
+        if (e.animTime >= 0.2f) {
+          e.animTime = 0.0f;
+          e.currentFrame++;
+        }
+        if (e.currentFrame >= 6)
+          entities.erase(entities.begin() + i--);
+        continue;
+      }
+      if (e.state == EntityState::Hurt) {
+        e.animTime += deltaTime;
+        if (e.animTime >= 0.15f) {
+          e.animTime = 0.0f;
+          e.currentFrame++;
+          if (e.currentFrame >= 4)
+            e.state = EntityState::Idle;
+        }
+        continue;
+      }
+
+      // Attack Logic
+      if (e.state == EntityState::Attack) {
+        e.animTime += deltaTime;
+        if (e.animTime >= 0.2f) {
+          e.animTime = 0.0f;
+          e.currentFrame++;
+          if (e.currentFrame == 3) { // Impact
+            // Attack humans and destroy buildings
+            for (auto &pair : citizenEntityMap) {
+              Entity *target = pair.second;
+              if (target && target->health > 0) {
+                if (Vector2Distance(e.position, target->position) < 2.0f) {
+                  float dmg = 40.0f; // Dragon damage
+                  target->health -= dmg;
+                  if (target->health <= 0)
+                    target->state = EntityState::Die;
+                }
+              }
+            }
+            // Destroy buildings
+            int tx = (int)e.position.x;
+            int ty = (int)e.position.y;
+            simulation.DestroyBuildingsAtTile(tx, ty);
+            // Also destroy adjacent tiles
+            for (int dx = -1; dx <= 1; dx++) {
+              for (int dy = -1; dy <= 1; dy++) {
+                if (dx == 0 && dy == 0) continue;
+                simulation.DestroyBuildingsAtTile(tx + dx, ty + dy);
+              }
+            }
+          }
+          if (e.currentFrame >= 5)
+            e.state = EntityState::Idle;
+        }
+        continue;
+      }
+
+      // Dragon behavior: patrol and attack humans
+      bool foundTarget = false;
+      Vector2 targetPos = e.position;
+      float minDist = 20.0f; // Larger range
+      for (const auto &pair : citizenEntityMap) {
+        Entity *target = pair.second;
+        if (target && target->health > 0) {
+          float d = Vector2Distance(e.position, target->position);
+          if (d < minDist) {
+            minDist = d;
+            targetPos = target->position;
+            foundTarget = true;
+          }
+        }
+      }
+
+      if (foundTarget) {
+        if (minDist < 2.0f) {
+          e.state = EntityState::Attack;
+          e.currentFrame = 0;
+          e.animTime = 0.0f;
+        } else {
+          e.state = EntityState::Run;
+          Vector2 dir = Vector2Subtract(targetPos, e.position);
+          if (fabs(dir.x) > fabs(dir.y))
+            e.facingDirection = (dir.x > 0) ? 1 : -1;
+          else
+            e.facingDirection = (dir.y > 0) ? 0 : 2;
+
+          dir = Vector2Normalize(dir);
+          Vector2 moveVec = Vector2Scale(dir, e.speed * deltaTime);
+          Vector2 nextPos = Vector2Add(e.position, moveVec);
+
+          if (IsWalkable((int)nextPos.x, (int)nextPos.y)) {
+            e.position = nextPos;
+          } else {
+            // Occasionally fly over obstacles
+            if (rng_.Int(0, 100) < 10) { // 10% chance to fly
+              e.position = nextPos; // Ignore walkable for flying
+            } else {
+              e.state = EntityState::Idle;
+            }
+          }
+        }
+      } else {
+        // Patrol: random movement
+        if (e.state != EntityState::Walking)
+          e.state = EntityState::Walking;
+
+        if (rng_.Int(0, 100) < 5) { // Change direction occasionally
+          e.facingDirection = rng_.Int(0, 4);
+        }
+
+        Vector2 dir = {0, 0};
+        if (e.facingDirection == 0) dir.y = 1;
+        else if (e.facingDirection == 1) dir.x = 1;
+        else if (e.facingDirection == 2) dir.y = -1;
+        else dir.x = -1;
+
+        Vector2 next = Vector2Add(e.position, Vector2Scale(dir, e.speed * 0.5f * deltaTime));
+        if (IsWalkable((int)next.x, (int)next.y)) {
+          e.position = next;
+        } else {
+          e.facingDirection = (e.facingDirection + 1) % 4;
+        }
+      }
+
+      // Anim
+      e.animTime += deltaTime;
+      if (e.animTime > 0.15f) {
+        e.animTime = 0.0f;
+        e.currentFrame++;
+      }
+      continue;
+    }
+
     // === HUMAN AI ===
     else if (e.type == EntityType::HumanUnarmed ||
              e.type == EntityType::HumanArmed ||
              e.type == EntityType::HumanWoman) {
+      // Skip AI if player controlled
+      if (e.isPlayerControlled) {
+        // Still update timers and universal handlers
+        e.enemyScanTimer -= deltaTime;
+        e.attackCooldown -= deltaTime;
+        if (e.attackCooldown < 0.0f) e.attackCooldown = 0.0f;
+        continue;
+      }
+
       // Death
       if (e.state == EntityState::Die) {
         e.animTime += deltaTime;
@@ -1460,7 +1646,8 @@ void World::UpdateEntities(float deltaTime) {
           if (e.currentFrame == 2) {
             for (auto &target : entities) {
               if ((target.type == EntityType::Boar ||
-                   target.type == EntityType::Slime) &&
+                   target.type == EntityType::Slime ||
+                   target.type == EntityType::Dragon) &&
                   target.health > 0) {
                 float dist = Vector2Distance(e.position, target.position);
                 if (dist < 1.5f) {
@@ -1479,12 +1666,34 @@ void World::UpdateEntities(float deltaTime) {
                   if (facing) {
                     float dmg =
                         (e.type == EntityType::HumanArmed) ? 10.0f : 4.0f;
+                    // Hero bonus damage
+                    if (e.isHero) dmg += 10.0f;
                     target.health -= dmg;
                     target.state = EntityState::Hurt;
                     target.currentFrame = 0;
-                    if (target.health <= 0)
+                    if (target.health <= 0) {
                       target.state = EntityState::Die;
-                    TraceLog(LOG_INFO, "COMBAT: Human Hit Boar!");
+                      // Hero system: increment kills
+                      if (e.IsIntelligent()) {
+                        e.kills++;
+                        // Check if becomes hero
+                        if (!e.isHero && e.kills >= 5) {
+                          e.isHero = true;
+                          e.level = 1;
+                          e.maxHP += 20; // Bonus HP
+                          e.health = e.maxHP; // Heal to full
+                          // Notification
+                          std::string name = "Unknown";
+                          if (e.citizenID >= 0) {
+                            Citizen *c = simulation.GetCitizen(e.citizenID);
+                            if (c) name = c->name;
+                          }
+                          // Add notification via UIManager, but since we don't have access, use TraceLog for now
+                          TraceLog(LOG_INFO, "HERO: %s has become a Hero!", name.c_str());
+                        }
+                      }
+                    }
+                    TraceLog(LOG_INFO, "COMBAT: Human Hit Enemy!");
                   }
                 }
               }
@@ -1512,7 +1721,7 @@ void World::UpdateEntities(float deltaTime) {
         continue;
       }
 
-      // Hunt Boars and Slimes
+      // Hunt Boars, Slimes and Dragons
       Entity *target = nullptr;
       if (e.hasTarget && e.targetID >= 0) {
         // Pointer might be invalid after vector reallocation, so lookup by ID
@@ -1837,24 +2046,42 @@ void World::DrawSpawnEffects() const {
       DrawCircleLines((int)fx.worldX, (int)fx.worldY, ringRadius, ringColor);
     }
 
-    // Draw VFX Sprites
-    if (fx.type == VfxType::Lightning &&
-        !resourceManager.texVfxLightning.empty()) {
-      int frame = fx.currentFrame;
-      if (frame >= 0 && frame < (int)resourceManager.texVfxLightning.size()) {
-        Texture2D tex = resourceManager.texVfxLightning[frame];
-        DrawTextureV(
-            tex, {fx.worldX - tex.width / 2.0f, fx.worldY - tex.height / 2.0f},
-            WHITE);
+    // Draw VFX
+    if (fx.type == VfxType::Lightning) {
+      // Procedural Lightning (Yellow line from sky)
+      float endY = fx.worldY;
+      float startY = fx.worldY - 300.0f; // High up
+      
+      // Draw a jagged line for lightning
+      Vector2 currentPos = {fx.worldX, startY};
+      for (int i = 0; i < 10; i++) {
+        Vector2 nextPos = {
+          fx.worldX + GetRandomValue(-15, 15),
+          startY + (i + 1) * 30.0f
+        };
+        // Ensure the last segment hits exactly the target
+        if (i == 9) nextPos = {fx.worldX, endY};
+        
+        DrawLineEx(currentPos, nextPos, 4.0f, YELLOW);
+        currentPos = nextPos;
       }
-    } else if (fx.type == VfxType::Fire &&
-               !resourceManager.texVfxFire.empty()) {
-      int frame = fx.currentFrame;
-      if (frame >= 0 && frame < (int)resourceManager.texVfxFire.size()) {
-        Texture2D tex = resourceManager.texVfxFire[frame];
-        DrawTextureV(
-            tex, {fx.worldX - tex.width / 2.0f, fx.worldY - tex.height / 2.0f},
-            WHITE);
+      
+      // Flash effect near impact
+      DrawCircleGradient((int)fx.worldX, (int)fx.worldY, 40.0f, {255, 255, 150, 150}, {255, 255, 150, 0});
+    } else if (fx.type == VfxType::Fire) {
+      // Procedural Fire (Orange/Red circles)
+      int numParticles = 8 + GetRandomValue(-2, 2);
+      for (int i = 0; i < numParticles; i++) {
+        Vector2 firePos = {
+          fx.worldX + GetRandomValue(-10, 10),
+          fx.worldY + GetRandomValue(-15, 5) // Base to slightly up
+        };
+        
+        Color fireColor = (GetRandomValue(0, 1) == 0) ? RED : ORANGE;
+        if (GetRandomValue(0, 5) == 0) fireColor = YELLOW; // Occasional yellow tip
+        
+        float radius = GetRandomValue(3, 7);
+        DrawCircleV(firePos, radius, fireColor);
       }
     }
   }

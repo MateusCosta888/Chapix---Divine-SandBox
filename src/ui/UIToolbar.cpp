@@ -123,7 +123,7 @@ void UIManager::DrawToolbar(const World &world) {
     if (currentTab == UIState::Terrain)
       itemCount = 9;
     else if (currentTab == UIState::Creatures)
-      itemCount = 11; // Updated Boar
+      itemCount = 12; // Updated: Added Dragon as 12th creature
 
     if (itemCount > 0) {
       float totalContentWidth =
@@ -422,12 +422,12 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Creatures) {
-    numTools = 11;
+    numTools = 12;
     EntityType creatureTypes[] = {
         EntityType::HumanUnarmed, EntityType::Boar,  EntityType::Cow,
         EntityType::Chicken,      EntityType::Sheep, EntityType::Bull,
         EntityType::Chicken2,     EntityType::Lamb,  EntityType::Pig,
-        EntityType::Turkey,       EntityType::Slime};
+        EntityType::Turkey,       EntityType::Slime, EntityType::Dragon};
 
     for (int i = 0; i < numTools; i++) {
       // Apply Scroll Offset to X position

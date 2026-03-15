@@ -776,6 +776,58 @@ void WorldRenderer::Draw(const Camera2D &camera,
             {sheet, src, dest, origin, tint, dest.y + destH * 0.9f});
         continue; // Skip the tex.id > 0 check below since we already pushed
       }
+    }
+    // === DRAGON DRAWING ===
+    else if (e.type == EntityType::Dragon) {
+      if (!resourceManager.texDragonFly.empty()) {
+        int frames = resourceManager.texDragonFly.size();
+        int frame = e.currentFrame % frames;
+        tex = resourceManager.texDragonFly[frame];
+
+        float scale = 0.5f; // Decreased scale based on user feedback
+        float destW = tex.width * scale;
+        float destH = tex.height * scale;
+
+        Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+        
+        // Flip if facing left
+        if (e.facingDirection == 2 || e.facingDirection == -1) {
+            src.width = -src.width;
+        }
+
+        // Add a smooth vertical floating motion using a sine wave
+        float floatOffset = sin(GetTime() * 2.0f) * 15.0f; // Scale amplitude for tilesize
+
+        Rectangle dest = {e.position.x * tileSize, (e.position.y * tileSize) + floatOffset,
+                          destW, destH};
+        Vector2 origin = {destW / 2, destH * 0.9f};
+
+        Color tint = (e.state == EntityState::Hurt)
+                         ? (Color){255, 150, 150, 255}
+                         : WHITE;
+        items.push_back({tex, src, dest, origin, tint, dest.y + destH * 0.9f});
+
+        // Add procedural fire attack particles
+        if (e.state == EntityState::Attack) {
+          // Adjust position to spawn from mouth area
+          Vector2 mouthOffset = {destW * 0.4f, -destH * 0.2f};
+          if (e.facingDirection == 2 || e.facingDirection == -1) mouthOffset.x = -mouthOffset.x;
+          
+          Vector2 spawnPos = {dest.x + origin.x + mouthOffset.x, dest.y + origin.y + mouthOffset.y};
+          
+          // Draw a burst of 10 circles
+          for (int i = 0; i < 10; i++) {
+              Vector2 firePos = {
+                  spawnPos.x + GetRandomValue(-20, 20),
+                  spawnPos.y + GetRandomValue(-20, 20)
+              };
+              Color fireColor = (GetRandomValue(0, 1) == 0) ? RED : ORANGE;
+              if (GetRandomValue(0, 5) == 0) fireColor = YELLOW;
+              DrawCircleV(firePos, GetRandomValue(3, 8), fireColor);
+          }
+        }
+        continue;
+      }
     } else {
       // Animals (Cow, Chicken, Sheep, etc)
       int base = 0;
@@ -1308,54 +1360,8 @@ void WorldRenderer::DrawEntities() {
         }
       }
     } else if (e.type == EntityType::Slime) {
-      // Slime logic - using 64x64 slicing from sheet
-      Texture2D sheet;
-      int framesInSheet = 1;
-
-      if (e.state == EntityState::Idle) {
-        sheet = resourceManager.texSlimeIdle;
-        framesInSheet = 6;
-      } else if (e.state == EntityState::Walking) {
-        sheet = resourceManager.texSlimeWalk;
-        framesInSheet = 6;
-      } else if (e.state == EntityState::Attack) {
-        sheet = resourceManager.texSlimeAttack;
-        framesInSheet = 6;
-      } else if (e.state == EntityState::Hurt) {
-        sheet = resourceManager.texSlimeHurt;
-        framesInSheet = 6;
-      } else if (e.state == EntityState::Die) {
-        sheet = resourceManager.texSlimeDeath;
-        framesInSheet = 6;
-      } else {
-        sheet = resourceManager.texSlimeIdle;
-        framesInSheet = 6;
-      }
-
-      if (sheet.id > 0) {
-        // Slime sheets are usually 4 rows (Down, Right, Left, Up) and N columns
-        int dirIdx = 0; // Down
-        if (e.facingDirection == 1)
-          dirIdx = 1; // Right
-        else if (e.facingDirection == -1)
-          dirIdx = 2; // Left
-        else if (e.facingDirection == 2)
-          dirIdx = 3; // Up
-
-        int frame = e.currentFrame % framesInSheet;
-
-        Rectangle src = {(float)frame * 64.0f, (float)dirIdx * 64.0f, 64.0f,
-                         64.0f};
-        float destW =
-            16.0f; // Scale to world size (slightly larger than 1 tile)
-        float destH = 16.0f;
-        float screenX = e.position.x * tileSize;
-        float screenY = e.position.y * tileSize;
-
-        Rectangle dest = {screenX, screenY, destW, destH};
-        Vector2 origin = {destW / 2.0f, destH * 0.8f};
-        DrawTexturePro(sheet, src, dest, origin, 0.0f, WHITE);
-      }
+      // Slime logic - procedural rendering since sprite is missing
+      DrawCircle(e.position.x * tileSize, e.position.y * tileSize, 5.0f * (tileSize/10.0f), GREEN);
     } else if (e.type == EntityType::Cow || e.type == EntityType::Chicken ||
                e.type == EntityType::Sheep || e.type == EntityType::Bull ||
                e.type == EntityType::Chicken2 || e.type == EntityType::Lamb ||

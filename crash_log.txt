@@ -1,2 +1,448 @@
 === SESSAO INICIADA: 2026-03-11 21:20:43 ===
 === SESSAO INICIADA: 2026-03-12 20:11:57 ===
+=== SESSAO INICIADA: 2026-03-14 20:12:54 ===
+=== SESSAO INICIADA: 2026-03-14 20:16:44 ===
+=== SESSAO INICIADA: 2026-03-14 20:59:56 ===
+=== SESSAO INICIADA: 2026-03-14 21:01:44 ===
+=== SESSAO INICIADA: 2026-03-14 21:03:07 ===
+=== SESSAO INICIADA: 2026-03-14 21:10:32 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-03-14 21:13:08
+Sinal: SIGSEGV (Segmentation Fault - Acesso a memoria invalida) (codigo: 11)
+
+=== CONTEXTO DO JOGO ===
+Estado: Playing
+Cidades: 1
+Entidades: 52
+Populacao: 4
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 31936 MB
+RAM Usada: 14190 MB
+RAM Disponivel: 17745 MB
+Uso de Memoria: 44%
+
+=== STACK TRACE ===
+Stack Trace (19 frames):
+  [0] 0x7ff79bd6650a
+  [1] 0x7ff79bd66af7
+  [2] 0x7ff79be97f62
+  [3] 0x7ffa12fabdaf
+  [4] 0x7ffa141261cf
+  [5] 0x7ffa13fd23a7
+  [6] 0x7ffa14125b0e
+  [7] 0x7ffa14038cad
+  [8] 0x7ffa12f9d60c
+  [9] 0x7ff79be0d5c6
+  [10] 0x7ff79be206aa
+  [11] 0x7ff79be206f4
+  [12] 0x7ff79bd889f5
+  [13] 0x7ff79bd86c70
+  [14] 0x7ff79bd634ca
+  [15] 0x7ff79bd612c4
+  [16] 0x7ff79bd61313
+  [17] 0x7ffa120de8d7
+  [18] 0x7ffa1404c48c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-03-14 21:13:17 ===
+=== SESSAO INICIADA: 2026-03-14 21:14:55 ===
+=== SESSAO INICIADA: 2026-03-14 21:19:37 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-03-14 21:19:48
+Sinal: SIGFPE (Floating Point Exception - Divisao por zero) (codigo: 8)
+
+=== CONTEXTO DO JOGO ===
+Estado: Playing
+Cidades: 0
+Entidades: 48
+Populacao: 0
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 31936 MB
+RAM Usada: 14832 MB
+RAM Disponivel: 17104 MB
+Uso de Memoria: 46%
+
+=== STACK TRACE ===
+Stack Trace (13 frames):
+  [0] 0x7ff61323670a
+  [1] 0x7ff613236cf7
+  [2] 0x7ff613368172
+  [3] 0x7ffa12fabdaf
+  [4] 0x7ffa141261cf
+  [5] 0x7ffa13fd23a7
+  [6] 0x7ffa14125b0e
+  [7] 0x7ff6132505c0
+  [8] 0x7ff61323322d
+  [9] 0x7ff6132312c4
+  [10] 0x7ff613231313
+  [11] 0x7ffa120de8d7
+  [12] 0x7ffa1404c48c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-03-14 21:20:16 ===
+=== SESSAO INICIADA: 2026-03-14 21:21:48 ===
+=== SESSAO INICIADA: 2026-03-14 21:25:43 ===
+=== SESSAO INICIADA: 2026-03-14 21:29:31 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-03-14 21:29:49
+Sinal: SIGFPE (Floating Point Exception - Divisao por zero) (codigo: 8)
+
+=== CONTEXTO DO JOGO ===
+Estado: Playing
+Cidades: 0
+Entidades: 52
+Populacao: 0
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 31936 MB
+RAM Usada: 14058 MB
+RAM Disponivel: 17878 MB
+Uso de Memoria: 44%
+
+=== STACK TRACE ===
+Stack Trace (13 frames):
+  [0] 0x7ff650d8675a
+  [1] 0x7ff650d86d47
+  [2] 0x7ff650eb81c2
+  [3] 0x7ffa12fabdaf
+  [4] 0x7ffa141261cf
+  [5] 0x7ffa13fd23a7
+  [6] 0x7ffa14125b0e
+  [7] 0x7ff650da0610
+  [8] 0x7ff650d8309d
+  [9] 0x7ff650d812c4
+  [10] 0x7ff650d81313
+  [11] 0x7ffa120de8d7
+  [12] 0x7ffa1404c48c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-03-14 21:30:18 ===
+=== SESSAO INICIADA: 2026-03-14 21:43:50 ===
+=== SESSAO INICIADA: 2026-03-14 21:45:59 ===
+=== SESSAO INICIADA: 2026-03-14 21:51:23 ===
+=== SESSAO INICIADA: 2026-03-14 21:52:53 ===
+=== SESSAO INICIADA: 2026-03-14 21:54:31 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-03-14 21:57:26
+Sinal: SIGSEGV (Segmentation Fault - Acesso a memoria invalida) (codigo: 11)
+
+=== CONTEXTO DO JOGO ===
+Estado: Playing
+Cidades: 3
+Entidades: 114
+Populacao: 65
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 31936 MB
+RAM Usada: 15591 MB
+RAM Disponivel: 16344 MB
+Uso de Memoria: 48%
+
+=== STACK TRACE ===
+Stack Trace (19 frames):
+  [0] 0x7ff774305c9a
+  [1] 0x7ff774306287
+  [2] 0x7ff774436542
+  [3] 0x7ffa12fabdaf
+  [4] 0x7ffa141261cf
+  [5] 0x7ffa13fd23a7
+  [6] 0x7ffa14125b0e
+  [7] 0x7ffa14038cad
+  [8] 0x7ffa12f9d60c
+  [9] 0x7ff7743abb66
+  [10] 0x7ff7743bec4a
+  [11] 0x7ff7743bec94
+  [12] 0x7ff77432617b
+  [13] 0x7ff774324388
+  [14] 0x7ff774302c62
+  [15] 0x7ff7743012c4
+  [16] 0x7ff77430132e
+  [17] 0x7ffa120de8d7
+  [18] 0x7ffa1404c48c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-03-15 16:45:50 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-03-15 16:46:38
+Sinal: SIGSEGV (Segmentation Fault - Acesso a memoria invalida) (codigo: 11)
+
+=== CONTEXTO DO JOGO ===
+Estado: Playing
+Cidades: 1
+Entidades: 63
+Populacao: 6
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 31936 MB
+RAM Usada: 12911 MB
+RAM Disponivel: 19025 MB
+Uso de Memoria: 40%
+
+=== STACK TRACE ===
+Stack Trace (19 frames):
+  [0] 0x7ff7a0675c9a
+  [1] 0x7ff7a0676287
+  [2] 0x7ff7a07a6542
+  [3] 0x7ffa12fabdaf
+  [4] 0x7ffa141261cf
+  [5] 0x7ffa13fd23a7
+  [6] 0x7ffa14125b0e
+  [7] 0x7ffa14038cad
+  [8] 0x7ffa12f9d60c
+  [9] 0x7ff7a071bb66
+  [10] 0x7ff7a072ec4a
+  [11] 0x7ff7a072ec94
+  [12] 0x7ff7a069617b
+  [13] 0x7ff7a0694388
+  [14] 0x7ff7a0672c62
+  [15] 0x7ff7a06712c4
+  [16] 0x7ff7a067132e
+  [17] 0x7ffa120de8d7
+  [18] 0x7ffa1404c48c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-03-15 16:57:44 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-03-15 16:57:56
+Sinal: SIGFPE (Floating Point Exception - Divisao por zero) (codigo: 8)
+
+=== CONTEXTO DO JOGO ===
+Estado: Playing
+Cidades: 0
+Entidades: 53
+Populacao: 0
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 31936 MB
+RAM Usada: 13080 MB
+RAM Disponivel: 18855 MB
+Uso de Memoria: 40%
+
+=== STACK TRACE ===
+Stack Trace (13 frames):
+  [0] 0x7ff7cd15685a
+  [1] 0x7ff7cd156e47
+  [2] 0x7ff7cd288332
+  [3] 0x7ffa12fabdaf
+  [4] 0x7ffa141261cf
+  [5] 0x7ffa13fd23a7
+  [6] 0x7ffa14125b0e
+  [7] 0x7ff7cd170770
+  [8] 0x7ff7cd153195
+  [9] 0x7ff7cd1512c4
+  [10] 0x7ff7cd151313
+  [11] 0x7ffa120de8d7
+  [12] 0x7ffa1404c48c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-03-15 17:18:55 ===
+=== SESSAO INICIADA: 2026-03-15 17:38:48 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-03-15 17:50:22
+Sinal: SIGSEGV (Segmentation Fault - Acesso a memoria invalida) (codigo: 11)
+
+=== CONTEXTO DO JOGO ===
+Estado: Playing
+Cidades: 1
+Entidades: 120
+Populacao: 15
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 31936 MB
+RAM Usada: 13465 MB
+RAM Disponivel: 18471 MB
+Uso de Memoria: 42%
+
+=== STACK TRACE ===
+Stack Trace (19 frames):
+  [0] 0x7ff7851268ca
+  [1] 0x7ff785126eb7
+  [2] 0x7ff785257ca2
+  [3] 0x7ffa12fabdaf
+  [4] 0x7ffa141261cf
+  [5] 0x7ffa13fd23a7
+  [6] 0x7ffa14125b0e
+  [7] 0x7ffa14038cad
+  [8] 0x7ffa12f9d60c
+  [9] 0x7ff7851cd306
+  [10] 0x7ff7851e03ea
+  [11] 0x7ff7851e0434
+  [12] 0x7ff785148715
+  [13] 0x7ff785146990
+  [14] 0x7ff785123882
+  [15] 0x7ff7851212c4
+  [16] 0x7ff785121313
+  [17] 0x7ffa120de8d7
+  [18] 0x7ffa1404c48c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-03-15 17:50:25 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-03-15 17:52:27
+Sinal: SIGSEGV (Segmentation Fault - Acesso a memoria invalida) (codigo: 11)
+
+=== CONTEXTO DO JOGO ===
+Estado: Playing
+Cidades: 1
+Entidades: 66
+Populacao: 11
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 31936 MB
+RAM Usada: 13649 MB
+RAM Disponivel: 18287 MB
+Uso de Memoria: 42%
+
+=== STACK TRACE ===
+Stack Trace (19 frames):
+  [0] 0x7ff7851268ca
+  [1] 0x7ff785126eb7
+  [2] 0x7ff785257ca2
+  [3] 0x7ffa12fabdaf
+  [4] 0x7ffa141261cf
+  [5] 0x7ffa13fd23a7
+  [6] 0x7ffa14125b0e
+  [7] 0x7ffa14038cad
+  [8] 0x7ffa12f9d60c
+  [9] 0x7ff7851cd306
+  [10] 0x7ff7851e03ea
+  [11] 0x7ff7851e0434
+  [12] 0x7ff785148715
+  [13] 0x7ff785146990
+  [14] 0x7ff785123882
+  [15] 0x7ff7851212c4
+  [16] 0x7ff785121313
+  [17] 0x7ffa120de8d7
+  [18] 0x7ffa1404c48c
+
+Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+

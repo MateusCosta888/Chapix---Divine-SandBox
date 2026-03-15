@@ -46,7 +46,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       for (auto &ae : allEntities) {
         if (ae.health <= 0 || ae.state == EntityState::Die)
           continue;
-        if (ae.type == EntityType::Boar || ae.type == EntityType::Slime) {
+        if (ae.type == EntityType::Boar || ae.type == EntityType::Slime || ae.type == EntityType::Dragon) {
           float d = std::hypot(myEntity->position.x - ae.position.x,
                                myEntity->position.y - ae.position.y);
           if (d < fleeRadius && d < minThreatDist) {
