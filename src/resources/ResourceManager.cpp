@@ -923,17 +923,103 @@ void ResourceManager::Load() {
     char filename[128];
     snprintf(filename, sizeof(filename), "assets/Mobs/Dragon/Fly Sprites/Dragon%03d.png", i);
     Texture2D tex = LoadTexture(filename);
-    if (tex.id > 0) {
+    if (tex.id == 0) { // Check for failure
+      TraceLog(LOG_ERROR, "Failed to load texture: %s", filename);
+    } else { // Success
       SetTextureFilter(tex, TEXTURE_FILTER_POINT);
       texDragonFly.push_back(tex);
     }
   }
 
+  // --- FIRE EFFECT (ORANGE) ---
+  char filename[128]; // Declare filename once for the fire effects
+  for (int i = 1; i <= 4; i++) {
+    snprintf(filename, sizeof(filename), "assets/Fire Sprites/png/orange/start/burning_start_1/burning_start_%d.png", i);
+    Texture2D tex = LoadTexture(filename);
+    if (tex.id == 0) TraceLog(LOG_ERROR, "Failed to load fire start texture: %s", filename);
+    else {
+      SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      texFireStart.push_back(tex);
+    }
+  }
+  for (int i = 1; i <= 8; i++) {
+    snprintf(filename, sizeof(filename), "assets/Fire Sprites/png/orange/loops/burning_loop_1/burning_loop_%d.png", i);
+    Texture2D tex = LoadTexture(filename);
+    if (tex.id == 0) TraceLog(LOG_ERROR, "Failed to load fire loop texture: %s", filename);
+    else {
+      SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      texFireLoop.push_back(tex);
+    }
+  }
+  for (int i = 1; i <= 5; i++) {
+    snprintf(filename, sizeof(filename), "assets/Fire Sprites/png/orange/end/burning_end_1/burning_end_%d.png", i);
+    Texture2D tex = LoadTexture(filename);
+    if (tex.id == 0) TraceLog(LOG_ERROR, "Failed to load fire end texture: %s", filename);
+    else {
+      SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      texFireEnd.push_back(tex);
+    }
+  }
+
+  // --- THUNDER STRIKE ---
+  for (int i = 1; i <= 12; i++) {
+    snprintf(filename, sizeof(filename), "assets/Spells/Thunder Effect 02/Thunder Strike/Thunder%d.png", i);
+    Texture2D tex = LoadTexture(filename);
+    if (tex.id == 0) TraceLog(LOG_ERROR, "Failed to load thunder texture: %s", filename);
+    else {
+      SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      texThunderStrike.push_back(tex);
+    }
+  }
+
+  // --- TORNADO ---
+  for (int i = 1; i <= 9; i++) {
+    snprintf(filename, sizeof(filename), "assets/Spells/Tornado/%03d.png", i);
+    Texture2D tex = LoadTexture(filename);
+    if (tex.id == 0) TraceLog(LOG_ERROR, "Failed to load tornado texture: %s", filename);
+    else {
+      SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      texTornado.push_back(tex);
+    }
+  }
+
+  // --- FIRE BOMB ---
+  for (int i = 1; i <= 14; i++) {
+    snprintf(filename, sizeof(filename), "assets/Spells/FireBomb/Fire-bomb%d.png", i);
+    Texture2D tex = LoadTexture(filename);
+    if (tex.id == 0) TraceLog(LOG_ERROR, "Failed to load firebomb texture: %s", filename);
+    else {
+      SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      texFireBomb.push_back(tex);
+    }
+  }
+
+  // --- DARK BOLT ---
+  for (int i = 1; i <= 11; i++) {
+    snprintf(filename, sizeof(filename), "assets/Spells/DarkBolt/Dark-Bolt%d.png", i);
+    Texture2D tex = LoadTexture(filename);
+    if (tex.id == 0) TraceLog(LOG_ERROR, "Failed to load darkbolt texture: %s", filename);
+    else {
+      SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      texDarkBolt.push_back(tex);
+    }
+  }
+
+  // --- THUNDER EFFECT 2 ---
+  for (int i = 1; i <= 10; i++) {
+    snprintf(filename, sizeof(filename), "assets/Spells/Thunder Effect/Lightning%d.png", i);
+    Texture2D tex = LoadTexture(filename);
+    if (tex.id == 0) TraceLog(LOG_ERROR, "Failed to load thunder2 texture: %s", filename);
+    else {
+      SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+      texThunder2.push_back(tex);
+    }
+  }
 
   // --- VFX ASSETS ---
   // Lightning (fx2_electric_burst_large_violet - 16 frames)
   for (int i = 0; i < 16; i++) {
-    char filename[128];
+    // char filename[128]; // Already declared above for fire effects, reuse it
     snprintf(filename, sizeof(filename),
              "assets/Effects/Pixel Effects some "
              "spells/PNG/fx2_electric_burst_large_violet/frame%04d.png",
@@ -984,6 +1070,28 @@ void ResourceManager::Unload() {
   // Dragon
   for (auto &tex : texDragonFly) UnloadTexture(tex);
   texDragonFly.clear();
+
+  // Fire Effect
+  for (auto &tex : texFireStart) UnloadTexture(tex);
+  texFireStart.clear();
+  for (auto &tex : texFireLoop) UnloadTexture(tex);
+  texFireLoop.clear();
+  for (auto &tex : texFireEnd) UnloadTexture(tex);
+  texFireEnd.clear();
+
+  // Thunder Strike
+  for (auto &tex : texThunderStrike) UnloadTexture(tex);
+  texThunderStrike.clear();
+
+  // New Spells
+  for (auto &tex : texTornado) UnloadTexture(tex);
+  texTornado.clear();
+  for (auto &tex : texFireBomb) UnloadTexture(tex);
+  texFireBomb.clear();
+  for (auto &tex : texDarkBolt) UnloadTexture(tex);
+  texDarkBolt.clear();
+  for (auto &tex : texThunder2) UnloadTexture(tex);
+  texThunder2.clear();
 
   // VFX
   for (auto &tex : texVfxLightning)

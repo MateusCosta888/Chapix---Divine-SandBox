@@ -7,18 +7,18 @@
 #include <cmath>
 
 struct Cloud {
-  Vector2 position;      // World coordinates (pixels)
-  float speed;           // Horizontal speed in pixels per second
-  float parallaxFactor;  // Parallax strength (0.0 = static, 1.0 = same as world)
-  float alpha;           // Transparency
-  float scale;           // Base scale (multiplied by zoom)
-  int textureIndex;      // 0-5 for cloud1-6
+  float worldX;         // World-space X position (pixels)
+  float worldY;         // World-space Y position (pixels)
+  float speed;          // Horizontal speed in world pixels per second
+  float alpha;          // Transparency (0.0 - 1.0)
+  float scale;          // Scale factor
+  int textureIndex;     // 0-5 for cloud1-6
 };
 
 class CloudManager {
 public:
-  static const int MAX_CLOUDS = 6;
   static const int NUM_TEXTURES = 6;
+  static const int MAX_CLOUDS = 8; // Limitado para evitar poluição no mapa
 
   void Load() {
     textures[0] = LoadTexture("assets/Clouds/cloud1.png");
@@ -27,12 +27,6 @@ public:
     textures[3] = LoadTexture("assets/Clouds/cloud4.png");
     textures[4] = LoadTexture("assets/Clouds/cloud5.png");
     textures[5] = LoadTexture("assets/Clouds/cloud6.png");
-
-    // Spawn initial clouds spread across a default width
-    float initialWidth = (float)GetScreenWidth();
-    for (int i = 0; i < 3; i++) {
-      SpawnCloud(true, initialWidth);
-    }
   }
 
   void Unload() {
@@ -41,47 +35,80 @@ public:
     }
   }
 
-  void Update(float worldWidth, float dt) {
-    spawnTimer += dt;
+  void Init(float mapWidth, float mapHeight) {
+    worldWidth = mapWidth;
+    worldHeight = mapHeight;
+    clouds.clear();
+    
+    // Começa com céu limpo e espera apenas 5 segundos para a PRIMEIRA vez 
+    // (pra você conseguir testar rápido agora). Depois será 2 a 4 minutos.
+    isCloudy = false;
+    weatherTimer = 5.0f; 
+  }
 
-    // Move existing clouds (world coordinates)
-    for (auto &c : clouds) {
-      c.position.x += c.speed * dt;
+  void Update(float dt, const Camera2D& camera) {
+    weatherTimer -= dt;
 
-      // Wrap around world boundaries
-      float margin = 200.0f;
-      if (c.position.x > worldWidth + margin) {
-        c.position.x = -margin;
+    if (weatherTimer <= 0.0f) {
+      if (isCloudy) {
+        // Acaba a passagem de nuvens, tempo limpo de 2 a 4 minutos (120 - 240 segundos)
+        isCloudy = false;
+        weatherTimer = 120.0f + (float)(rand() % 120); 
+      } else {
+        // Começa a transição de nuvens durante 30 a 60 segundos
+        isCloudy = true;
+        weatherTimer = 30.0f + (float)(rand() % 30);
+        spawnTimer = 0.0f;
       }
     }
 
-    // Spawn new clouds periodically
-    if (spawnTimer >= spawnInterval && (int)clouds.size() < MAX_CLOUDS) {
-      SpawnCloud(true, worldWidth);
-      spawnTimer = 0.0f;
-      // Randomize next spawn interval (8-15 seconds)
-      spawnInterval = 8.0f + (float)(rand() % 8);
+    // Move existing clouds left to right
+    for (auto &c : clouds) {
+      c.worldX += c.speed * dt;
+    }
+
+    float screenWWorld = GetScreenWidth() / camera.zoom;
+    float screenHWorld = GetScreenHeight() / camera.zoom;
+    
+    // Limites de remoção BEM distantes da borda da câmera
+    // Assim o jogador não vê a nuvem sumindo do nada
+    float rightBound = camera.target.x + (screenWWorld * 0.5f) + 2000.0f;
+    float leftBound = camera.target.x - (screenWWorld * 0.5f) - 1500.0f;
+
+    // Remove clouds that went past the right camera bound
+    clouds.erase(
+      std::remove_if(clouds.begin(), clouds.end(),
+        [rightBound](const Cloud &c) {
+          return c.worldX > rightBound;
+        }),
+      clouds.end()
+    );
+
+    // Spawn new clouds only during the cloudy phase
+    if (isCloudy) {
+      spawnTimer += dt;
+      if (spawnTimer >= spawnInterval) {
+        int batch = 1 + rand() % 2; // Spawn 1-2 clouds at a time
+        for (int i = 0; i < batch && (int)clouds.size() < MAX_CLOUDS; i++) {
+          SpawnCloudNearCamera(leftBound, camera.target.y, screenHWorld);
+        }
+        spawnTimer = 0.0f;
+        // Tempo curto entre aparições durante a fase de nuvens
+        spawnInterval = 3.0f + (float)(rand() % 5);
+      }
     }
   }
 
-  void Draw(const Camera2D &camera) {
-    for (auto &c : clouds) {
+  void Draw() {
+    for (const auto &c : clouds) {
       Texture2D &tex = textures[c.textureIndex];
-      if (tex.id <= 0)
-        continue;
+      if (tex.id <= 0) continue;
 
-      // Transform world position into screen space with parallax + zoom
-      float screenX = (c.position.x - camera.target.x) * c.parallaxFactor *
-                      camera.zoom + camera.offset.x;
-      float screenY = (c.position.y - camera.target.y) * c.parallaxFactor *
-                      camera.zoom + camera.offset.y;
-
-      float totalScale = c.scale * camera.zoom;
-      float w = tex.width * totalScale;
-      float h = tex.height * totalScale;
+      float w = tex.width * c.scale;
+      float h = tex.height * c.scale;
 
       Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
-      Rectangle dst = {screenX, screenY, w, h};
+      Rectangle dst = {c.worldX - w / 2.0f, c.worldY - h / 2.0f, w, h};
 
       DrawTexturePro(tex, src, dst, {0, 0}, 0.0f,
                      ColorAlpha(WHITE, c.alpha));
@@ -92,25 +119,26 @@ private:
   Texture2D textures[NUM_TEXTURES] = {};
   std::vector<Cloud> clouds;
   float spawnTimer = 0.0f;
-  float spawnInterval = 5.0f;
+  float spawnInterval = 3.0f;
+  float worldWidth = 3000.0f;
+  float worldHeight = 3000.0f;
+  
+  bool isCloudy = false;
+  float weatherTimer = 0.0f;
 
-  void SpawnCloud(bool randomX, float worldWidth) {
+  void SpawnCloudNearCamera(float leftBound, float targetY, float screenHWorld) {
     Cloud c;
-    float sh = (float)GetScreenHeight();
-
     c.textureIndex = rand() % NUM_TEXTURES;
-    c.scale = 0.4f + (float)(rand() % 80) / 100.0f; // 0.4 - 1.2
-    c.speed = 8.0f + (float)(rand() % 24);          // 8 - 32 px/s
-    c.parallaxFactor = 0.3f + (float)(rand() % 60) / 100.0f; // 0.3 - 0.9
-    c.alpha = 0.3f + (float)(rand() % 50) / 100.0f; // 0.3 - 0.8
+    c.scale = 2.0f + (float)(rand() % 30) / 10.0f; // 2.0 - 5.0 (tamanho reduzido a pedido do user)
+    c.speed = 10.0f + (float)(rand() % 30);         // 10 - 40 px/s
+    c.alpha = 0.5f + (float)(rand() % 30) / 100.0f; // 0.5 - 0.8 
 
-    c.position.y = (float)(rand() % (int)(sh * 0.35f)); // Top 35% of screen
+    // Aparece BEM distante à esquerda da câmera, invisível ao jogador
+    c.worldX = leftBound - (float)(rand() % 500);
 
-    if (randomX) {
-      c.position.x = (float)(rand() % (int)worldWidth);
-    } else {
-      c.position.x = -200.0f; // Start off-screen left
-    }
+    // Y espalhado perto do que o jogador está olhando, pra garantir que passe por ele
+    float rangeY = screenHWorld + 1000.0f; 
+    c.worldY = targetY - (rangeY * 0.5f) + (float)(rand() % (int)rangeY);
 
     clouds.push_back(c);
   }

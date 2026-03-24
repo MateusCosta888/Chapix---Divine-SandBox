@@ -48,4 +48,4 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
-echo [CMAKE] Sucesso! Execute bin\game.exe para jogar.
+echo [CMAKE] Sucesso! Execute bin\ChapiX.exe para jogar.

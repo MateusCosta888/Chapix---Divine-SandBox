@@ -442,8 +442,7 @@ void WorldRenderer::Draw(const Camera2D &camera,
           scale = 1.0f;
           break;
         case DecorationType::Ruins:
-          tex = &resourceManager.texRuins[v % 5];
-          scale = 3.0f;
+          // Disabled: Ruins removed from forests per user request
           break;
         case DecorationType::GrassTuft:
           tex = &resourceManager.texGraminhas;
@@ -524,6 +523,7 @@ void WorldRenderer::Draw(const Camera2D &camera,
     const auto &cityMap = *cities;
     for (const auto &pair : cityMap) {
       const City &city = pair.second;
+      if (!city.isAlive) continue; // Skip dead cities - no ghost buildings
       for (const Building &b : city.buildings) {
         if (!b.isComplete)
           continue;
@@ -780,20 +780,37 @@ void WorldRenderer::Draw(const Camera2D &camera,
     // === DRAGON DRAWING ===
     else if (e.type == EntityType::Dragon) {
       if (!resourceManager.texDragonFly.empty()) {
-        int frames = resourceManager.texDragonFly.size();
-        int frame = e.currentFrame % frames;
-        tex = resourceManager.texDragonFly[frame];
+        int framesPerDir = 3; 
+        int frameOffset = 0; // Base index
+        
+        // Possitions.txt:
+        // 001-003 back (Up)     -> Indices 0, 1, 2
+        // 004-006 right         -> Indices 3, 4, 5
+        // 007-009 front (Down)  -> Indices 6, 7, 8
+        // 010-012 left          -> Indices 9, 10, 11
+
+        if (e.facingDirection == 0)      // Down (Front)
+          frameOffset = 6;
+        else if (e.facingDirection == 1) // Right
+          frameOffset = 3;
+        else if (e.facingDirection == 2) // Up (Back)
+          frameOffset = 0;
+        else if (e.facingDirection == -1) // Left
+          frameOffset = 9;
+
+        int frame = e.currentFrame % framesPerDir;
+        int finalIdx = frameOffset + frame;
+        
+        // Prevent out of bounds
+        if (finalIdx >= resourceManager.texDragonFly.size()) finalIdx = 0;
+        
+        tex = resourceManager.texDragonFly[finalIdx];
 
         float scale = 0.5f; // Decreased scale based on user feedback
         float destW = tex.width * scale;
         float destH = tex.height * scale;
 
         Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
-        
-        // Flip if facing left
-        if (e.facingDirection == 2 || e.facingDirection == -1) {
-            src.width = -src.width;
-        }
 
         // Add a smooth vertical floating motion using a sine wave
         float floatOffset = sin(GetTime() * 2.0f) * 15.0f; // Scale amplitude for tilesize
@@ -807,23 +824,45 @@ void WorldRenderer::Draw(const Camera2D &camera,
                          : WHITE;
         items.push_back({tex, src, dest, origin, tint, dest.y + destH * 0.9f});
 
-        // Add procedural fire attack particles
+        // Animated Fire Attack
         if (e.state == EntityState::Attack) {
           // Adjust position to spawn from mouth area
-          Vector2 mouthOffset = {destW * 0.4f, -destH * 0.2f};
+          Vector2 mouthOffset = {destW * 0.7f, -destH * 0.1f};
           if (e.facingDirection == 2 || e.facingDirection == -1) mouthOffset.x = -mouthOffset.x;
           
           Vector2 spawnPos = {dest.x + origin.x + mouthOffset.x, dest.y + origin.y + mouthOffset.y};
           
-          // Draw a burst of 10 circles
-          for (int i = 0; i < 10; i++) {
-              Vector2 firePos = {
-                  spawnPos.x + GetRandomValue(-20, 20),
-                  spawnPos.y + GetRandomValue(-20, 20)
-              };
-              Color fireColor = (GetRandomValue(0, 1) == 0) ? RED : ORANGE;
-              if (GetRandomValue(0, 5) == 0) fireColor = YELLOW;
-              DrawCircleV(firePos, GetRandomValue(3, 8), fireColor);
+          Texture2D fireTex;
+          bool hasFire = false;
+          
+          int fireFrameOffset = e.currentFrame * 2; // Speed up fire animation slightly 
+          int totalStart = resourceManager.texFireStart.size();
+          int totalLoop = resourceManager.texFireLoop.size();
+
+          if (totalStart > 0 && totalLoop > 0) {
+              if (fireFrameOffset < totalStart) {
+                  fireTex = resourceManager.texFireStart[fireFrameOffset];
+                  hasFire = true;
+              } else {
+                  int loopFrame = (fireFrameOffset - totalStart) % totalLoop;
+                  fireTex = resourceManager.texFireLoop[loopFrame];
+                  hasFire = true;
+              }
+          }
+
+          if (hasFire) {
+              float fireScale = 1.2f;
+              Rectangle fireSrc = {0, 0, (float)fireTex.width, (float)fireTex.height};
+              
+              // Direct Fire Based on Facing Direction (Flame pointing outward)
+              if (e.facingDirection == 2 || e.facingDirection == -1) {
+                  fireSrc.width = -fireSrc.width; // Flip fire visually
+              }
+
+              Rectangle fireDest = {spawnPos.x, spawnPos.y, fireTex.width * fireScale, fireTex.height * fireScale};
+              Vector2 fireOrig = {(fireTex.width * fireScale) / 2.0f, (fireTex.height * fireScale) / 2.0f};
+
+              items.push_back({fireTex, fireSrc, fireDest, fireOrig, WHITE, dest.y + destH * 0.99f});
           }
         }
         continue;

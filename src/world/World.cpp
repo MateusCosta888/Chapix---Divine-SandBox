@@ -1,5 +1,6 @@
 #include "World.h"
 #include "../core/TimeManager.h"
+#include "../resources/ResourceManager.h"
 #include "../utils/Noise.h"
 #include "raylib.h"
 #include "raymath.h"
@@ -1964,7 +1965,13 @@ void World::AddSpawnEffect(int tileX, int tileY, Color color, VfxType type) {
   fx.worldY = tileY * 10.0f + 5.0f;
   fx.timer = 0.0f;
   fx.duration =
-      (type == VfxType::Default) ? 1.0f : 0.8f; // VFX sprites are faster
+      (type == VfxType::Default) ? 1.0f :
+      (type == VfxType::Fire) ? 2.5f :
+      (type == VfxType::Lightning) ? 1.5f :
+      (type == VfxType::Tornado) ? 2.0f :
+      (type == VfxType::FireBomb) ? 1.8f :
+      (type == VfxType::DarkBolt) ? 1.5f :
+      (type == VfxType::Thunder2) ? 1.5f : 0.8f;
   fx.scale = 0.0f;
   fx.type = type;
   fx.currentFrame = 0;
@@ -2026,7 +2033,7 @@ void World::UpdateSpawnEffects(float dt) {
   }
 }
 
-void World::DrawSpawnEffects() const {
+void World::DrawSpawnEffects(const ResourceManager &resourceManager) const {
   for (const auto &fx : spawnEffects) {
     // Draw particles
     for (const auto &p : fx.particles) {
@@ -2046,42 +2053,127 @@ void World::DrawSpawnEffects() const {
       DrawCircleLines((int)fx.worldX, (int)fx.worldY, ringRadius, ringColor);
     }
 
-    // Draw VFX
+    // Type-specific VFX
     if (fx.type == VfxType::Lightning) {
-      // Procedural Lightning (Yellow line from sky)
-      float endY = fx.worldY;
-      float startY = fx.worldY - 300.0f; // High up
-      
-      // Draw a jagged line for lightning
-      Vector2 currentPos = {fx.worldX, startY};
-      for (int i = 0; i < 10; i++) {
-        Vector2 nextPos = {
-          fx.worldX + GetRandomValue(-15, 15),
-          startY + (i + 1) * 30.0f
+      // Animated Thunder Strike using sprite textures (12 frames)
+      int totalThunder = (int)resourceManager.texThunderStrike.size();
+      if (totalThunder > 0) {
+        float progress = fx.timer / fx.duration; // 0.0 to 1.0
+        int frameIdx = (int)(progress * totalThunder);
+        if (frameIdx >= totalThunder) frameIdx = totalThunder - 1;
+
+        Texture2D thunderTex = resourceManager.texThunderStrike[frameIdx];
+        float thunderScale = 1.0f;
+        Rectangle thunderSrc = {0, 0, (float)thunderTex.width, (float)thunderTex.height};
+        Rectangle thunderDest = {
+          fx.worldX - (thunderTex.width * thunderScale / 2.0f),
+          fx.worldY - (thunderTex.height * thunderScale * 0.95f),
+          thunderTex.width * thunderScale,
+          thunderTex.height * thunderScale
         };
-        // Ensure the last segment hits exactly the target
-        if (i == 9) nextPos = {fx.worldX, endY};
-        
-        DrawLineEx(currentPos, nextPos, 4.0f, YELLOW);
-        currentPos = nextPos;
+        Color tint = WHITE;
+        // Fade out in the last 15%
+        if (progress > 0.85f) {
+          tint.a = (unsigned char)(255 * (1.0f - (progress - 0.85f) / 0.15f));
+        }
+        DrawTexturePro(thunderTex, thunderSrc, thunderDest, {0, 0}, 0.0f, tint);
+
+        // Subtle flash at impact point during early frames
+        if (progress < 0.4f) {
+          float flashAlpha = (1.0f - progress / 0.4f) * 150.0f;
+          DrawCircleGradient((int)fx.worldX, (int)fx.worldY, 30.0f,
+                             {255, 255, 200, (unsigned char)flashAlpha},
+                             {255, 255, 200, 0});
+        }
       }
-      
-      // Flash effect near impact
-      DrawCircleGradient((int)fx.worldX, (int)fx.worldY, 40.0f, {255, 255, 150, 150}, {255, 255, 150, 0});
     } else if (fx.type == VfxType::Fire) {
-      // Procedural Fire (Orange/Red circles)
-      int numParticles = 8 + GetRandomValue(-2, 2);
-      for (int i = 0; i < numParticles; i++) {
-        Vector2 firePos = {
-          fx.worldX + GetRandomValue(-10, 10),
-          fx.worldY + GetRandomValue(-15, 5) // Base to slightly up
+      // Animated Fire using sprite textures
+      int totalStart = (int)resourceManager.texFireStart.size();
+      int totalLoop = (int)resourceManager.texFireLoop.size();
+      int totalEnd = (int)resourceManager.texFireEnd.size();
+      int totalFrames = totalStart + totalLoop + totalEnd;
+
+      if (totalStart > 0 && totalLoop > 0) {
+        float progress = fx.timer / fx.duration; // 0.0 to 1.0
+        Texture2D fireTex;
+        bool hasFire = false;
+
+        if (progress < 0.2f && totalStart > 0) {
+          // Start phase (first 20% of duration)
+          int idx = (int)(progress / 0.2f * totalStart) % totalStart;
+          fireTex = resourceManager.texFireStart[idx];
+          hasFire = true;
+        } else if (progress < 0.75f && totalLoop > 0) {
+          // Loop phase (20% to 75% of duration)
+          float loopProgress = (progress - 0.2f) / 0.55f;
+          int cycles = (int)(loopProgress * totalLoop * 3) % totalLoop; // 3 full loops
+          fireTex = resourceManager.texFireLoop[cycles];
+          hasFire = true;
+        } else if (totalEnd > 0) {
+          // End phase (last 25%)
+          float endProgress = (progress - 0.75f) / 0.25f;
+          int idx = (int)(endProgress * totalEnd);
+          if (idx >= totalEnd) idx = totalEnd - 1;
+          fireTex = resourceManager.texFireEnd[idx];
+          hasFire = true;
+        }
+
+        if (hasFire) {
+          float fireScale = 2.0f;
+          Rectangle fireSrc = {0, 0, (float)fireTex.width, (float)fireTex.height};
+          Rectangle fireDest = {fx.worldX - (fireTex.width * fireScale / 2.0f),
+                                fx.worldY - (fireTex.height * fireScale * 0.8f),
+                                fireTex.width * fireScale,
+                                fireTex.height * fireScale};
+          Color tint = WHITE;
+          tint.a = (progress > 0.85f) ? (unsigned char)(255 * (1.0f - (progress - 0.85f) / 0.15f)) : 255;
+          DrawTexturePro(fireTex, fireSrc, fireDest, {0, 0}, 0.0f, tint);
+        }
+      }
+    } else if (fx.type == VfxType::Tornado || fx.type == VfxType::FireBomb ||
+               fx.type == VfxType::DarkBolt || fx.type == VfxType::Thunder2) {
+      // Generic sprite animation for new spell types
+      const std::vector<Texture2D> *texVec = nullptr;
+      float spellScale = 1.0f;
+      float anchorY = 0.9f; // How far down the sprite the hit point is (0.9 = bottom 10%)
+
+      if (fx.type == VfxType::Tornado) {
+        texVec = &resourceManager.texTornado;
+        spellScale = 1.5f;
+        anchorY = 0.95f;
+      } else if (fx.type == VfxType::FireBomb) {
+        texVec = &resourceManager.texFireBomb;
+        spellScale = 1.5f;
+        anchorY = 0.7f;
+      } else if (fx.type == VfxType::DarkBolt) {
+        texVec = &resourceManager.texDarkBolt;
+        spellScale = 1.0f;
+        anchorY = 0.95f;
+      } else if (fx.type == VfxType::Thunder2) {
+        texVec = &resourceManager.texThunder2;
+        spellScale = 1.0f;
+        anchorY = 0.95f;
+      }
+
+      if (texVec && !texVec->empty()) {
+        int totalFrames = (int)texVec->size();
+        float progress = fx.timer / fx.duration;
+        int frameIdx = (int)(progress * totalFrames);
+        if (frameIdx >= totalFrames) frameIdx = totalFrames - 1;
+
+        Texture2D spellTex = (*texVec)[frameIdx];
+        Rectangle spellSrc = {0, 0, (float)spellTex.width, (float)spellTex.height};
+        Rectangle spellDest = {
+          fx.worldX - (spellTex.width * spellScale / 2.0f),
+          fx.worldY - (spellTex.height * spellScale * anchorY),
+          spellTex.width * spellScale,
+          spellTex.height * spellScale
         };
-        
-        Color fireColor = (GetRandomValue(0, 1) == 0) ? RED : ORANGE;
-        if (GetRandomValue(0, 5) == 0) fireColor = YELLOW; // Occasional yellow tip
-        
-        float radius = GetRandomValue(3, 7);
-        DrawCircleV(firePos, radius, fireColor);
+        Color tint = WHITE;
+        if (progress > 0.85f) {
+          tint.a = (unsigned char)(255 * (1.0f - (progress - 0.85f) / 0.15f));
+        }
+        DrawTexturePro(spellTex, spellSrc, spellDest, {0, 0}, 0.0f, tint);
       }
     }
   }
@@ -2143,12 +2235,75 @@ void World::TriggerGodPower(int powerIndex, int tx, int ty) {
                        VfxType::Fire);
       }
     }
-  } else if (powerIndex == 2) { // Ruins
-    SetTileDecoration(tx, ty, DecorationType::Ruins);
-    AddSpawnEffect(tx, ty, {150, 150, 150, 255});
-  } else if (powerIndex == 3) { // Crystals
-    SetTileDecoration(tx, ty, DecorationType::Crystal);
-    AddSpawnEffect(tx, ty, {100, 255, 200, 255});
+  } else if (powerIndex == 2) { // Tornado
+    AddSpawnEffect(tx, ty, {180, 220, 255, 255}, VfxType::Tornado);
+    // Tornado: knock entities and destroy decorations in radius
+    float radius = 5.0f;
+    for (int dy = -2; dy <= 2; dy++) {
+      for (int dx = -2; dx <= 2; dx++) {
+        int nx = tx + dx;
+        int ny = ty + dy;
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+        Tile &t = GetTile(nx, ny);
+        if (t.decoration != DecorationType::None) {
+          t.decoration = DecorationType::None;
+        }
+      }
+    }
+    for (auto &e : entities) {
+      if (e.health <= 0) continue;
+      float d = Vector2Distance(e.position, impactGrid);
+      if (d < radius) {
+        e.TakeDamage(20.0f);
+      }
+    }
+  } else if (powerIndex == 3) { // Fire Bomb
+    AddSpawnEffect(tx, ty, {255, 120, 30, 255}, VfxType::FireBomb);
+    // Fire Bomb: big explosion, destroy trees, damage entities
+    for (int dy = -2; dy <= 2; dy++) {
+      for (int dx = -2; dx <= 2; dx++) {
+        int nx = tx + dx;
+        int ny = ty + dy;
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+        Tile &t = GetTile(nx, ny);
+        if (t.decoration == DecorationType::Tree ||
+            t.decoration == DecorationType::PineTree ||
+            t.decoration == DecorationType::PalmTree ||
+            t.decoration == DecorationType::Bush) {
+          t.decoration = DecorationType::None;
+          AddSpawnEffect(nx, ny, {255, 80, 0, 255}, VfxType::Fire);
+        }
+      }
+    }
+    float radius = 5.0f;
+    for (auto &e : entities) {
+      if (e.health <= 0) continue;
+      float d = Vector2Distance(e.position, impactGrid);
+      if (d < radius) {
+        e.TakeDamage(30.0f);
+        AddSpawnEffect((int)e.position.x, (int)e.position.y, {255, 80, 0, 255}, VfxType::Fire);
+      }
+    }
+  } else if (powerIndex == 4) { // Dark Bolt
+    AddSpawnEffect(tx, ty, {120, 50, 180, 255}, VfxType::DarkBolt);
+    float radius = 4.0f;
+    for (auto &e : entities) {
+      if (e.health <= 0) continue;
+      float d = Vector2Distance(e.position, impactGrid);
+      if (d < radius) {
+        e.TakeDamage(50.0f); // Very strong single target
+      }
+    }
+  } else if (powerIndex == 5) { // Thunder 2
+    AddSpawnEffect(tx, ty, {200, 200, 255, 255}, VfxType::Thunder2);
+    float radius = 4.5f;
+    for (auto &e : entities) {
+      if (e.health <= 0) continue;
+      float d = Vector2Distance(e.position, impactGrid);
+      if (d < radius) {
+        e.TakeDamage(35.0f);
+      }
+    }
   }
 }
 

@@ -205,6 +205,20 @@ public:
   // Dragon Boss
   std::vector<Texture2D> texDragonFly;
 
+  // Fire Effect (Orange)
+  std::vector<Texture2D> texFireStart;
+  std::vector<Texture2D> texFireLoop;
+  std::vector<Texture2D> texFireEnd;
+
+  // Thunder Strike Effect
+  std::vector<Texture2D> texThunderStrike;
+
+  // New Spell Effects
+  std::vector<Texture2D> texTornado;
+  std::vector<Texture2D> texFireBomb;
+  std::vector<Texture2D> texDarkBolt;
+  std::vector<Texture2D> texThunder2;
+
   // VFX
   std::vector<Texture2D> texVfxLightning;
   std::vector<Texture2D> texVfxFire;

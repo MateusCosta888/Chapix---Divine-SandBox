@@ -75,7 +75,7 @@ static std::string CaptureStackTrace() {
     oss << "  [" << i << "] 0x" << std::hex << (uintptr_t)stack[i] << std::dec
         << "\n";
   }
-  oss << "\nDica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver "
+  oss << "\nDica: Use 'addr2line -e bin/ChapiX.exe 0xENDERECO' para resolver "
          "nomes de funcoes.\n";
 #else
   oss << "Stack trace nao disponivel nesta plataforma.\n";

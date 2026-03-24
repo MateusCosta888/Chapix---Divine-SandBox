@@ -507,8 +507,7 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Powers) {
-    numTools = 2; // Lightning, Fire
-    const char *powerNames[] = {"Lightning", "Fire"};
+    numTools = 6; // Lightning, Fire, Tornado, FireBomb, DarkBolt, Thunder2
     for (int i = 0; i < numTools; i++) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
                            btnSize};
@@ -519,27 +518,26 @@ void UIManager::DrawToolbar(const World &world) {
       if (selectedToolIndex == i)
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
 
-      Texture2D tex;
-      if (i == 0)
-        tex = texIconLightning;
-      else if (i == 1)
-        tex = texIconFire;
+      Texture2D tex = {0};
+      if (i == 0) tex = texIconLightning;
+      else if (i == 1) tex = texIconFire;
+      else if (i == 2) tex = texIconTornado;
+      else if (i == 3) tex = texIconFireBomb;
+      else if (i == 4) tex = texIconDarkBolt;
+      else if (i == 5) tex = texIconThunder2;
 
       if (tex.id > 0) {
-        float scale =
-            std::min((btnSize - 10) / tex.width, (btnSize - 10) / tex.height);
-        if (scale > 1.0f)
-          scale = std::floor(scale);
+        float availableSize = btnSize - 10;
+        float scale = availableSize / (float)std::max(tex.width, tex.height);
+        if (scale > 1.0f) scale = std::floor(scale);
+        float scaledW = tex.width * scale;
+        float scaledH = tex.height * scale;
+        float offsetX = (btnSize - scaledW) / 2.0f;
+        float offsetY = (btnSize - scaledH) / 2.0f;
         Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
-        Rectangle dest = {btnRect.x + 5, btnRect.y + 5, tex.width * scale,
-                          tex.height * scale};
+        Rectangle dest = {btnRect.x + offsetX, btnRect.y + offsetY, scaledW,
+                          scaledH};
         DrawTexturePro(tex, src, dest, {0, 0}, 0.0f, WHITE);
-      } else {
-        Vector2 ts = MeasureTextEx(uiFont, powerNames[i], 16, 1);
-        DrawTextEx(uiFont, powerNames[i],
-                   {btnRect.x + (btnSize - ts.x) / 2,
-                    btnRect.y + (btnSize - ts.y) / 2},
-                   16, 1, WHITE);
       }
 
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isHover && !showBrushPopup)

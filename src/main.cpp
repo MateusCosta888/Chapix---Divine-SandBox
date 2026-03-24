@@ -161,6 +161,7 @@ int main(int argc, char *argv[]) {
           // Reset camera for new world
           camera.target = {world.GetWidth() * 5.0f, world.GetHeight() * 5.0f};
           camera.zoom = 2.0f;
+          cloudManager.Init(world.GetWidth() * 10.0f, world.GetHeight() * 10.0f);
         }
       } else {
         // === PLAYING ===
@@ -194,6 +195,11 @@ int main(int argc, char *argv[]) {
 
 
 
+        // Player Control state (declared early because camera needs it)
+        static int playerControlledEntityID = -1;
+        static float controlIndicatorTimer = 0.0f;
+        controlIndicatorTimer += GetFrameTime();
+
         // Camera Controls
         if (!isPointerOnUI && !ui.showBrushPopup) {
           float wheel = GetMouseWheelMove();
@@ -205,7 +211,8 @@ int main(int argc, char *argv[]) {
                 Vector2Add(camera.target,
                            Vector2Subtract(mouseWorldBefore, mouseWorldAfter));
           }
-          if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+          // Only allow right-click camera pan when NOT controlling a human
+          if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT) && playerControlledEntityID == -1) {
             Vector2 delta = Vector2Scale(GetMouseDelta(), -1.0f / camera.zoom);
             camera.target = Vector2Add(camera.target, delta);
           }
@@ -256,7 +263,6 @@ int main(int argc, char *argv[]) {
         }
 
         // Player Control Mode
-        static int playerControlledEntityID = -1;
         
         // ESC key to release control
         if (IsKeyPressed(KEY_ESCAPE) && playerControlledEntityID != -1) {
@@ -328,28 +334,50 @@ int main(int argc, char *argv[]) {
               controlled->currentFrame = 0; // Reset frame when idle
             }
 
-            // Attack
+              // Attack - now includes enemy humans from other cities
             if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && controlled->attackCooldown <= 0) {
               controlled->state = EntityState::Attack;
               controlled->currentFrame = 0;
               controlled->attackCooldown = controlled->attackSpeed;
-              // Attack logic similar to AI
+
+              // Get controlled citizen's city
+              int controlledCityID = -1;
+              if (controlled->citizenID >= 0) {
+                const auto *citizen = world.GetSimulation().GetCitizen(controlled->citizenID);
+                if (citizen) controlledCityID = citizen->cityID;
+              }
+
               for (auto &other : world.GetEntitiesMutable()) {
-                if ((other.type == EntityType::Boar || other.type == EntityType::Slime || other.type == EntityType::Dragon) && other.health > 0) {
-                  float dist = Vector2Distance(controlled->position, other.position);
-                  if (dist < 1.5f) {
-                    float dmg = (controlled->type == EntityType::HumanArmed) ? 10.0f : 4.0f;
-                    if (controlled->isHero) dmg += 10.0f;
-                    other.health -= dmg;
-                    if (other.health <= 0) other.state = EntityState::Die;
+                if (&other == controlled || other.health <= 0) continue;
+                float dist = Vector2Distance(controlled->position, other.position);
+                if (dist >= 1.5f) continue;
+
+                bool isEnemy = false;
+                // Mobs are always enemies
+                if (other.type == EntityType::Boar || other.type == EntityType::Slime || other.type == EntityType::Dragon) {
+                  isEnemy = true;
+                }
+                // Humans from other cities are enemies
+                if (!isEnemy && other.IsIntelligent() && other.citizenID >= 0) {
+                  const auto *otherCitizen = world.GetSimulation().GetCitizen(other.citizenID);
+                  if (otherCitizen && otherCitizen->cityID != controlledCityID) {
+                    isEnemy = true;
                   }
+                }
+
+                if (isEnemy) {
+                  float dmg = (controlled->type == EntityType::HumanArmed) ? 10.0f : 4.0f;
+                  if (controlled->isHero) dmg += 10.0f;
+                  other.health -= dmg;
+                  if (other.health <= 0) other.state = EntityState::Die;
+                  break; // Hit only one target per attack
                 }
               }
             }
 
-            // Camera follow
+            // Camera follow - strong lerp, auto-center on controlled human
             Vector2 targetPos = {controlled->position.x * 10.0f + 5.0f, controlled->position.y * 10.0f + 5.0f};
-            camera.target = Vector2Add(camera.target, Vector2Scale(Vector2Subtract(targetPos, camera.target), 0.1f));
+            camera.target = Vector2Add(camera.target, Vector2Scale(Vector2Subtract(targetPos, camera.target), 0.3f));
           } else {
             // Entity died or invalid
             playerControlledEntityID = -1;
@@ -373,7 +401,7 @@ int main(int argc, char *argv[]) {
 
         BeginMode2D(camera);
         worldRenderer.Draw(camera, &world.GetSimulation().GetCities());
-        world.DrawSpawnEffects(); // Spawn particles in world space
+        world.DrawSpawnEffects(world.GetResourceManager()); // Spawn particles in world space
 
         // Draw visual feedback for selected entity (in world space)
         if (selectedEntityID != -1) {
@@ -382,6 +410,30 @@ int main(int argc, char *argv[]) {
             Vector2 worldPos = Vector2Scale(selectedEnt->position, 10.0f);
             // Draw selection circle around entity
             DrawCircleLines((int)worldPos.x, (int)worldPos.y, 15, YELLOW);
+          }
+        }
+
+        // Draw controlled entity visual indicator (pulsating green circle + arrow)
+        if (playerControlledEntityID != -1) {
+          const Entity *ctrlEnt = world.GetEntityByCitizenID(playerControlledEntityID);
+          if (ctrlEnt) {
+            Vector2 worldPos = {ctrlEnt->position.x * 10.0f, ctrlEnt->position.y * 10.0f};
+            float pulse = 1.0f + 0.3f * sinf(controlIndicatorTimer * 4.0f);
+            float radius = 12.0f * pulse;
+
+            // Pulsating circle
+            Color indicatorColor = {50, 255, 100, 200};
+            DrawCircleLines((int)worldPos.x, (int)worldPos.y, radius, indicatorColor);
+            DrawCircleLines((int)worldPos.x, (int)worldPos.y, radius + 1, indicatorColor);
+
+            // Arrow pointing down at the entity
+            float arrowY = worldPos.y - 20.0f - 3.0f * sinf(controlIndicatorTimer * 3.0f);
+            DrawTriangle(
+              {worldPos.x, arrowY + 8},       // bottom (pointing down)
+              {worldPos.x + 5, arrowY},        // top-right
+              {worldPos.x - 5, arrowY},        // top-left
+              indicatorColor
+            );
           }
         }
 
@@ -402,6 +454,10 @@ int main(int argc, char *argv[]) {
               1 / camera.zoom, WHITE);
         }
 
+        // World-space clouds (rendered inside BeginMode2D)
+        cloudManager.Update(GetFrameTime(), camera);
+        cloudManager.Draw();
+
         EndMode2D();
 
         // Draw UI feedback for selected entity (in screen space)
@@ -417,8 +473,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Decorative clouds (world-space, above world, below UI)
-        cloudManager.Update(world.GetWidth() * 10.0f, GetFrameTime());
-        cloudManager.Draw(camera);
+
 
         // DEBUG: Show tile info under cursor
         {

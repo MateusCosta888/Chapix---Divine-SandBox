@@ -106,7 +106,7 @@ target_link_options(${PROJECT_NAME} PRIVATE -static)
 # Put the final executable in bin/ (same as build.bat)
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin
-    OUTPUT_NAME "game"
+    OUTPUT_NAME "ChapiX"
 )
 
 # For multi-config generators (not typical for MinGW, but just in case)

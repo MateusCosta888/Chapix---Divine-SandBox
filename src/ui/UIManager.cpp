@@ -135,6 +135,12 @@ void UIManager::Load(std::function<void(const char *)> loadingCallback) {
   texIconFire = LoadTexture(
       "assets/Fire Sprites/png/orange/loops/burning_loop_1/burning_loop_1.png");
 
+  // New Spell Icons
+  texIconTornado = LoadTexture("assets/Spells/Tornado/005.png");
+  texIconFireBomb = LoadTexture("assets/Spells/FireBomb/Fire-bomb12.png");
+  texIconDarkBolt = LoadTexture("assets/Spells/DarkBolt/Dark-Bolt7.png");
+  texIconThunder2 = LoadTexture("assets/Spells/Thunder Effect/Lightning6.png");
+
   // Load Pergaminho (Save popup) 9-Slice Textures
   texPergaminhoTL = LoadTexture(
       "assets/UI/Pup-Up Backgroud/PergaminhoBackgod/Superior Esquerda.png");
@@ -616,10 +622,8 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
     } else if (currentTab == UIState::Powers) {
       if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !isPointerOnUI &&
           !showBrushPopup) {
-        if (selectedToolIndex == 0) {
-          world.TriggerGodPower(0, tx, ty); // Lightning
-        } else if (selectedToolIndex == 1) {
-          world.TriggerGodPower(1, tx, ty); // Fire
+        if (selectedToolIndex >= 0 && selectedToolIndex <= 5) {
+          world.TriggerGodPower(selectedToolIndex, tx, ty);
         }
       }
     }

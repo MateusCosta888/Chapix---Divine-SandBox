@@ -318,6 +318,40 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
       city.isAlive = false;
       TraceLog(LOG_INFO, "SIMULATION: City %d has fallen! (No citizens remain)",
                city.id);
+
+      // === CLEANUP: Remove ghost buildings and free tiles ===
+      // 1. Clear isOccupied for all building tiles
+      for (const auto &b : city.buildings) {
+        BuildingSize size = GetBuildingSize(b.type);
+        for (int dy = 0; dy < size.height; dy++) {
+          for (int dx = 0; dx < size.width; dx++) {
+            int tx = b.tileX + dx;
+            int ty = b.tileY + dy;
+            if (tx >= 0 && tx < world.GetWidth() && ty >= 0 && ty < world.GetHeight()) {
+              world.GetTile(tx, ty).isOccupied = false;
+            }
+          }
+        }
+      }
+      city.buildings.clear();
+
+      // 2. Release territory ownership and clear farms
+      for (const Vector2 &tile : city.territory) {
+        int tx = static_cast<int>(tile.x);
+        int ty = static_cast<int>(tile.y);
+        if (tx >= 0 && tx < world.GetWidth() && ty >= 0 && ty < world.GetHeight()) {
+          Tile &t = world.GetTile(tx, ty);
+          if (t.ownerCityID == city.id) {
+            t.ownerCityID = -1;
+          }
+          if (t.farmOwnerCityID == city.id) {
+            t.isPlanted = false;
+            t.growthProgress = 0.0f;
+            t.farmOwnerCityID = -1;
+          }
+        }
+      }
+      city.territory.clear();
     }
 
     // === GOVERNMENT SYSTEM: JOB ASSIGNMENT ===

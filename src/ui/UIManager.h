@@ -227,6 +227,10 @@ private:
   // Power Icons
   Texture2D texIconLightning;
   Texture2D texIconFire;
+  Texture2D texIconTornado;
+  Texture2D texIconFireBomb;
+  Texture2D texIconDarkBolt;
+  Texture2D texIconThunder2;
 
   UIState currentTab = UIState::Terrain;
   BrushSize currentBrushSize = BrushSize::S;

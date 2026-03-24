@@ -152,12 +152,48 @@ void SimulationManager::Update(World &world, float deltaTime) {
 
 void SimulationManager::RebuildOccupationMap(World &world) {
   int count = 0;
-  for (const auto &cityPair : cities) {
-    const City &city = cityPair.second;
+
+  // === FIRST: Clean up dead cities (retroactive fix for old saves) ===
+  for (auto &cityPair : cities) {
+    City &city = cityPair.second;
+    if (!city.isAlive) {
+      // Clear isOccupied for building tiles of dead cities
+      for (const auto &b : city.buildings) {
+        BuildingSize size = GetBuildingSize(b.type);
+        for (int dy = 0; dy < size.height; dy++) {
+          for (int dx = 0; dx < size.width; dx++) {
+            int tx = b.tileX + dx;
+            int ty = b.tileY + dy;
+            if (tx >= 0 && tx < world.GetWidth() && ty >= 0 && ty < world.GetHeight()) {
+              world.GetTile(tx, ty).isOccupied = false;
+            }
+          }
+        }
+      }
+      city.buildings.clear();
+
+      // Release territory
+      for (const Vector2 &tile : city.territory) {
+        int tx = static_cast<int>(tile.x);
+        int ty = static_cast<int>(tile.y);
+        if (tx >= 0 && tx < world.GetWidth() && ty >= 0 && ty < world.GetHeight()) {
+          Tile &t = world.GetTile(tx, ty);
+          if (t.ownerCityID == city.id) t.ownerCityID = -1;
+          if (t.farmOwnerCityID == city.id) {
+            t.isPlanted = false;
+            t.growthProgress = 0.0f;
+            t.farmOwnerCityID = -1;
+          }
+        }
+      }
+      city.territory.clear();
+      TraceLog(LOG_INFO, "SIMULATION: Cleaned up dead city %d (retroactive fix)", city.id);
+      continue;
+    }
+
+    // === THEN: Mark tiles for alive cities ===
     for (const auto &building : city.buildings) {
       if (building.isComplete || building.constructionProgress >= 0.0f) {
-        // Mark tile as occupied
-        // Check bounds just in case
         BuildingSize size = GetBuildingSize(building.type);
         for (int dy = 0; dy < size.height; dy++) {
           for (int dx = 0; dx < size.width; dx++) {

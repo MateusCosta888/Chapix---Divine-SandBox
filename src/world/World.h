@@ -12,7 +12,7 @@
 #include <vector>
 
 // === SPAWN EFFECT SYSTEM ===
-enum class VfxType { Default, Lightning, Fire };
+enum class VfxType { Default, Lightning, Fire, Tornado, FireBomb, DarkBolt, Thunder2 };
 
 struct SpawnParticle {
   Vector2 pos;      // World position (pixels)
@@ -113,7 +113,7 @@ public:
   void AddSpawnEffect(int tileX, int tileY, Color color,
                       VfxType type = VfxType::Default);
   void UpdateSpawnEffects(float dt);
-  void DrawSpawnEffects() const;
+  void DrawSpawnEffects(const class ResourceManager &resourceManager) const;
   const std::vector<SpawnEffect> &GetSpawnEffects() const {
     return spawnEffects;
   }
