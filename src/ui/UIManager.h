@@ -223,6 +223,10 @@ private:
   Texture2D texIconWaterOcean;
   Texture2D texIconWaterShallow;
   Texture2D texSaveIcon;
+  Texture2D texIconBrushSize;
+  Texture2D texIconTimeControl;
+  Texture2D texIconMenu;
+  Texture2D texIconOptions;
 
   // Power Icons
   Texture2D texIconLightning;

@@ -899,24 +899,32 @@ void ResourceManager::Load() {
   SetTextureFilter(texNotifRight, TEXTURE_FILTER_POINT);
 
   // --- SLIME MOB ---
-  texSlimeIdle =
-      LoadTexture("assets/Mobs/Slime mob/PNG/Slime1/Idle/Slime1_Idle_full.png");
-  texSlimeWalk =
-      LoadTexture("assets/Mobs/Slime mob/PNG/Slime1/Walk/Slime1_Walk_full.png");
-  texSlimeRun =
-      LoadTexture("assets/Mobs/Slime mob/PNG/Slime1/Run/Slime1_Run_full.png");
-  texSlimeAttack = LoadTexture(
-      "assets/Mobs/Slime mob/PNG/Slime1/Attack/Slime1_Attack_full.png");
-  texSlimeHurt =
-      LoadTexture("assets/Mobs/Slime mob/PNG/Slime1/Hurt/Slime1_Hurt_full.png");
-  texSlimeDeath = LoadTexture(
-      "assets/Mobs/Slime mob/PNG/Slime1/Death/Slime1_Death_full.png");
-  SetTextureFilter(texSlimeIdle, TEXTURE_FILTER_POINT);
-  SetTextureFilter(texSlimeWalk, TEXTURE_FILTER_POINT);
-  SetTextureFilter(texSlimeRun, TEXTURE_FILTER_POINT);
-  SetTextureFilter(texSlimeAttack, TEXTURE_FILTER_POINT);
-  SetTextureFilter(texSlimeHurt, TEXTURE_FILTER_POINT);
-  SetTextureFilter(texSlimeDeath, TEXTURE_FILTER_POINT);
+  auto loadSlimeAnim = [](const std::string& prefix, int framesPerDir, std::vector<std::vector<Texture2D>>& anim) {
+      anim.resize(4);
+      for (int dir = 0; dir < 4; ++dir) {
+          int startFrame = 0;
+          if (dir == 0) startFrame = 1;                     // Down
+          else if (dir == 1) startFrame = 1 + 3 * framesPerDir; // Right
+          else if (dir == 2) startFrame = 1 + 1 * framesPerDir; // Up
+          else if (dir == 3) startFrame = 1 + 2 * framesPerDir; // Left
+          
+          for (int f = 0; f < framesPerDir; ++f) {
+              int frameNumber = startFrame + f;
+              std::string path = prefix + std::to_string(frameNumber) + ".png";
+              Texture2D tex = LoadTexture(path.c_str());
+              if (tex.id > 0) {
+                  SetTextureFilter(tex, TEXTURE_FILTER_POINT);
+                  anim[dir].push_back(tex);
+              }
+          }
+      }
+  };
+
+  loadSlimeAnim("assets/Mobs/Slime mob/PNG/Slime1/Idle/SlimeIDLE-", 6, slimeIdle);
+  loadSlimeAnim("assets/Mobs/Slime mob/PNG/Slime1/Walk/SlimeWalk-", 8, slimeWalk);
+  loadSlimeAnim("assets/Mobs/Slime mob/PNG/Slime1/Attack/SlimeAttack-", 10, slimeAttack);
+  loadSlimeAnim("assets/Mobs/Slime mob/PNG/Slime1/Hurt/SlimeHurt-", 5, slimeHurt);
+  loadSlimeAnim("assets/Mobs/Slime mob/PNG/Slime1/Death/SlimeDeath-", 10, slimeDeath);
 
   // --- DRAGON BOSS ---
   for (int i = 1; i <= 12; i++) {
@@ -1060,12 +1068,16 @@ void ResourceManager::Unload() {
   UnloadTexture(texNotifRight);
 
   // Slime
-  UnloadTexture(texSlimeIdle);
-  UnloadTexture(texSlimeWalk);
-  UnloadTexture(texSlimeRun);
-  UnloadTexture(texSlimeAttack);
-  UnloadTexture(texSlimeHurt);
-  UnloadTexture(texSlimeDeath);
+  for (auto& dir : slimeIdle) for (auto& tex : dir) UnloadTexture(tex);
+  slimeIdle.clear();
+  for (auto& dir : slimeWalk) for (auto& tex : dir) UnloadTexture(tex);
+  slimeWalk.clear();
+  for (auto& dir : slimeAttack) for (auto& tex : dir) UnloadTexture(tex);
+  slimeAttack.clear();
+  for (auto& dir : slimeHurt) for (auto& tex : dir) UnloadTexture(tex);
+  slimeHurt.clear();
+  for (auto& dir : slimeDeath) for (auto& tex : dir) UnloadTexture(tex);
+  slimeDeath.clear();
 
   // Dragon
   for (auto &tex : texDragonFly) UnloadTexture(tex);

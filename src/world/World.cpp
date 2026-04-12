@@ -882,8 +882,8 @@ Texture2D World::GetTextureForUI(EntityType type) const {
     return {0};
   }
   if (type == EntityType::Slime) {
-    if (resourceManager.texSlimeIdle.id > 0)
-      return resourceManager.texSlimeIdle;
+    if (!resourceManager.slimeIdle.empty() && !resourceManager.slimeIdle[0].empty())
+      return resourceManager.slimeIdle[0][0];
     return {0};
   }
   if (type == EntityType::Dragon) {

@@ -605,110 +605,122 @@ void UIManager::DrawToolbar(const World &world) {
 
   if (currentTab == UIState::Settings) {
     // === HOME / SETTINGS TAB ===
+    
+    float paddingX = 30.0f;
+    float currentX = startX;
+    float currentY = startY + 5.0f;
+    
+    // Internal helper lambda for dynamic drawing of icons
+    auto drawIconBtn = [&](Texture2D tex, Vector2 pos, bool isHover, const char* fallbackLabel, const char* stateText, float& outWidth) {
+        float tgtH = 50.0f;
+        float tgtW = tgtH;
+        if (tex.id > 0) {
+            tgtW = tex.width * (tgtH / tex.height);
+            Color tint = isHover ? LIGHTGRAY : WHITE;
+            Rectangle src = {0, 0, (float)tex.width, (float)tex.height};
+            Rectangle dest = {pos.x, pos.y, tgtW, tgtH};
+            DrawTexturePro(tex, src, dest, {0,0}, 0.0f, tint);
+            if (isHover) DrawRectangleLinesEx(dest, 2, YELLOW);
+        } else {
+            tgtW = 100.0f;
+            Rectangle rect = {pos.x, pos.y, tgtW, tgtH};
+            DrawRectangleRec(rect, isHover ? LIGHTGRAY : DARKGRAY);
+            DrawTextEx(uiFont, fallbackLabel, {pos.x + 5, pos.y + 15}, 16, 1, WHITE);
+        }
+        
+        if (stateText) {
+            Vector2 tSize = MeasureTextEx(uiFont, stateText, 16, 1);
+            float tx = pos.x + (tgtW - tSize.x) / 2;
+            DrawTextEx(uiFont, stateText, {tx, pos.y + tgtH + 4}, 16, 1, WHITE);
+        }
+        outWidth = tgtW;
+    };
 
-    // 1. Brush Size Control (Moved here)
-    DrawTextEx(uiFont, "Brush Size:", {(float)startX, (float)startY}, 20, 1,
-               WHITE);
-
-    float toggleW = 120;
-    Rectangle toggleRect = {startX, startY + 30, toggleW, 40}; // Below label
-    bool isToggleHover = CheckCollisionPointRec(mousePos, toggleRect);
-
-    DrawTexturedButton(texButton, toggleRect, false, isToggleHover);
-
+    // 1. Brush Size Control
+    float w1 = 0;
+    // Pre-calculate width roughly if ID > 0 for hover detection
+    float estW1 = (texIconBrushSize.id > 0) ? texIconBrushSize.width * (50.0f / texIconBrushSize.height) : 100.0f;
+    Rectangle brushRect = {currentX, currentY, estW1, 50.0f};
+    bool isBrushHover = CheckCollisionPointRec(mousePos, brushRect);
+    
     const char *sizeNames[] = {"Single", "Small", "Medium", "Large", "X-Large"};
     int sizeIndex = 0;
-    if (currentBrushSize == BrushSize::S)
-      sizeIndex = 1;
-    else if (currentBrushSize == BrushSize::M)
-      sizeIndex = 2;
-    else if (currentBrushSize == BrushSize::L)
-      sizeIndex = 3;
-    else if (currentBrushSize == BrushSize::XL)
-      sizeIndex = 4;
+    if (currentBrushSize == BrushSize::S) sizeIndex = 1;
+    else if (currentBrushSize == BrushSize::M) sizeIndex = 2;
+    else if (currentBrushSize == BrushSize::L) sizeIndex = 3;
+    else if (currentBrushSize == BrushSize::XL) sizeIndex = 4;
+    
+    drawIconBtn(texIconBrushSize, {currentX, currentY}, isBrushHover, "Brush", sizeNames[sizeIndex], w1);
 
-    // Draw Size Text inside button
-    Vector2 szTextSize = MeasureTextEx(uiFont, sizeNames[sizeIndex], 20, 1);
-    DrawTextEx(uiFont, sizeNames[sizeIndex],
-               {toggleRect.x + (toggleRect.width - szTextSize.x) / 2,
-                toggleRect.y + (toggleRect.height - szTextSize.y) / 2},
-               20, 1, WHITE);
-
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isToggleHover) {
-      if (currentBrushSize == BrushSize::Single)
-        currentBrushSize = BrushSize::S;
-      else if (currentBrushSize == BrushSize::S)
-        currentBrushSize = BrushSize::M;
-      else if (currentBrushSize == BrushSize::M)
-        currentBrushSize = BrushSize::L;
-      else if (currentBrushSize == BrushSize::L)
-        currentBrushSize = BrushSize::XL;
-      else
-        currentBrushSize = BrushSize::Single;
-      TraceLog(LOG_INFO, "UI: Changed Brush Size to %d", (int)currentBrushSize);
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isBrushHover) {
+      if (currentBrushSize == BrushSize::Single) currentBrushSize = BrushSize::S;
+      else if (currentBrushSize == BrushSize::S) currentBrushSize = BrushSize::M;
+      else if (currentBrushSize == BrushSize::M) currentBrushSize = BrushSize::L;
+      else if (currentBrushSize == BrushSize::L) currentBrushSize = BrushSize::XL;
+      else currentBrushSize = BrushSize::Single;
     }
+    
+    currentX += w1 + paddingX;
 
     // 2. Time Control Button
-    DrawTextEx(uiFont, "Time Control:", {startX + 150, (float)startY}, 20, 1,
-               WHITE);
-
-    Rectangle timeBtnRect = {startX + 150, startY + 30, 120, 40};
-    bool isTimeBtnHover = CheckCollisionPointRec(mousePos, timeBtnRect);
-    DrawTexturedButton(texButton, timeBtnRect, showTimePopup, isTimeBtnHover);
-
-    // Show current speed or PAUSED
+    float w2 = 0;
+    float estW2 = (texIconTimeControl.id > 0) ? texIconTimeControl.width * (50.0f / texIconTimeControl.height) : 100.0f;
+    Rectangle timeRect = {currentX, currentY, estW2, 50.0f};
+    bool isTimeHover = CheckCollisionPointRec(mousePos, timeRect);
+    
     TimeManager &tm = TimeManager::Get();
-    const char *timeLabel =
-        tm.IsPaused() ? "PAUSED" : TextFormat("%.0fx", tm.GetTimeScale());
-    Vector2 timeLabelSize = MeasureTextEx(uiFont, timeLabel, 20, 1);
-    DrawTextEx(uiFont, timeLabel,
-               {timeBtnRect.x + (timeBtnRect.width - timeLabelSize.x) / 2,
-                timeBtnRect.y + (timeBtnRect.height - timeLabelSize.y) / 2},
-               20, 1, tm.IsPaused() ? RED : WHITE);
+    const char *timeLabel = tm.IsPaused() ? "PAUSED" : TextFormat("%.0fx", tm.GetTimeScale());
+    
+    drawIconBtn(texIconTimeControl, {currentX, currentY}, isTimeHover, "Time", timeLabel, w2);
 
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isTimeBtnHover) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isTimeHover) {
       showTimePopup = !showTimePopup;
       popupJustOpened = showTimePopup;
     }
 
-    // 3. Save Menu Button (Standalone Icon)
-    float iconSize = 64.0f;
-    float iconX = startX + 300;
-    float iconY = startY + 5.0f;
-    Rectangle saveIconRect = {iconX, iconY, iconSize, iconSize};
-    bool isSaveBtnHover = CheckCollisionPointRec(mousePos, saveIconRect);
+    currentX += w2 + paddingX;
 
-    if (texSaveIcon.id > 0) {
-      Rectangle src = {0, 0, (float)texSaveIcon.width,
-                       (float)texSaveIcon.height};
-      Color tint = isSaveBtnHover ? LIGHTGRAY : WHITE;
-      DrawTexturePro(texSaveIcon, src, saveIconRect, {0, 0}, 0.0f, tint);
-    } else {
-      DrawRectangleRec(saveIconRect, isSaveBtnHover ? LIGHTGRAY : DARKGRAY);
-      DrawTextEx(uiFont, "Save", {iconX + 10, iconY + 20}, 20, 1, WHITE);
-    }
+    // 3. Save Menu Button
+    float w3 = 0;
+    float estW3 = (texSaveIcon.id > 0) ? texSaveIcon.width * (50.0f / texSaveIcon.height) : 100.0f;
+    Rectangle saveRect = {currentX, currentY, estW3, 50.0f};
+    bool isSaveHover = CheckCollisionPointRec(mousePos, saveRect);
+    
+    drawIconBtn(texSaveIcon, {currentX, currentY}, isSaveHover, "Save", "", w3);
 
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isSaveBtnHover) {
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isSaveHover) {
       showSavePopup = !showSavePopup;
       if (showSavePopup && (savePopupPos.x == 0 && savePopupPos.y == 0)) {
         savePopupPos = {getScreenW() / 2.0f - 250, getScreenH() / 2.0f - 200};
       }
       popupJustOpened = showSavePopup;
     }
+    
+    currentX += w3 + paddingX;
 
-    // 4. Return to Main Menu Button
-    Rectangle menuBtnRect = {iconX + iconSize + 20, startY + 5.0f, 160, 50};
-    bool isMenuBtnHover = CheckCollisionPointRec(mousePos, menuBtnRect);
-    DrawTexturedButton(texButton, menuBtnRect, false, isMenuBtnHover);
-    const char *menuLabel = "Menu";
-    Vector2 menuLabelSz = MeasureTextEx(uiFont, menuLabel, 18, 1);
-    DrawTextEx(uiFont, menuLabel,
-               {menuBtnRect.x + (menuBtnRect.width - menuLabelSz.x) / 2,
-                menuBtnRect.y + (menuBtnRect.height - menuLabelSz.y) / 2},
-               18, 1, WHITE);
+    // 4. Options Button
+    float w4 = 0;
+    float estW4 = (texIconOptions.id > 0) ? texIconOptions.width * (50.0f / texIconOptions.height) : 100.0f;
+    Rectangle optRect = {currentX, currentY, estW4, 50.0f};
+    bool isOptHover = CheckCollisionPointRec(mousePos, optRect);
+    
+    drawIconBtn(texIconOptions, {currentX, currentY}, isOptHover, "Options", "", w4);
 
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isMenuBtnHover) {
-      // CLEAR EVERYTHING TO AVOID DANGING POINTER CRASHES
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isOptHover) {
+      showOptionsPopup = !showOptionsPopup;
+    }
+
+    currentX += w4 + paddingX;
+
+    // 5. Return to Main Menu Button
+    float w5 = 0;
+    float estW5 = (texIconMenu.id > 0) ? texIconMenu.width * (50.0f / texIconMenu.height) : 100.0f;
+    Rectangle menuRect = {currentX, currentY, estW5, 50.0f};
+    bool isMenuHover = CheckCollisionPointRec(mousePos, menuRect);
+    
+    drawIconBtn(texIconMenu, {currentX, currentY}, isMenuHover, "Menu", "", w5);
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isMenuHover) {
       currentState = GameState::MAIN_MENU;
       isMainMenuNight = false;
       shouldStartGame = false;
@@ -719,34 +731,16 @@ void UIManager::DrawToolbar(const World &world) {
       showBrushPopup = false;
       showTimePopup = false;
       showOptionsPopup = false;
-
-      // Stop rendering any selected things
       selectedToolIndex = 0;
       popupCitizenID = -1;
       popupCityID = -1;
     }
 
-    // 5. Options Button (next to Menu)
-    Rectangle optBtnRect = {menuBtnRect.x + menuBtnRect.width + 10,
-                            startY + 5.0f, 160, 50};
-    bool isOptBtnHover = CheckCollisionPointRec(mousePos, optBtnRect);
-    DrawTexturedButton(texButton, optBtnRect, false, isOptBtnHover);
-    const char *optLabel = "Opções";
-    Vector2 optLabelSz = MeasureTextEx(uiFont, optLabel, 18, 1);
-    DrawTextEx(uiFont, optLabel,
-               {optBtnRect.x + (optBtnRect.width - optLabelSz.x) / 2,
-                optBtnRect.y + (optBtnRect.height - optLabelSz.y) / 2},
-               18, 1, WHITE);
-
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && isOptBtnHover) {
-      showOptionsPopup = !showOptionsPopup;
-    }
+    currentX += w5 + paddingX + 20;
 
     // 6. Seed Display (Subtle)
     const char *seedLabel = TextFormat("Seed: %u", world.GetSeed());
-    DrawTextEx(uiFont, seedLabel,
-               {optBtnRect.x + optBtnRect.width + 30, startY + 20}, 16, 1,
-               DARKGRAY);
+    DrawTextEx(uiFont, seedLabel, {currentX, currentY + 20}, 16, 1, DARKGRAY);
   }
 
   // === TIME POPUP (drawn above everything) ===

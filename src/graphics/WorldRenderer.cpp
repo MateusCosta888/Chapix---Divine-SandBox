@@ -724,57 +724,62 @@ void WorldRenderer::Draw(const Camera2D &camera,
       else
         tex = getIdx(resourceManager.texBoarIdle, 4);
     }
-    // === SLIME DRAWING (sprite sheet) ===
+    // === SLIME DRAWING ===
     else if (e.type == EntityType::Slime) {
-      Texture2D sheet;
-      int framesPerRow = 6; // 6 columns in sprite sheet
-      int numRows = 4;      // 4 rows (directions or states)
+      int dirIndex = 0; // 0=Down, 1=Right, 2=Up, 3=Left
+      if (e.facingDirection == 0) dirIndex = 0; // Down
+      else if (e.facingDirection == 1) dirIndex = 1; // Right
+      else if (e.facingDirection == 2) dirIndex = 2; // Up
+      else if (e.facingDirection == -1) dirIndex = 3; // Left
 
-      if (e.state == EntityState::Idle)
-        sheet = resourceManager.texSlimeIdle;
-      else if (e.state == EntityState::Walking)
-        sheet = resourceManager.texSlimeWalk;
-      else if (e.state == EntityState::Run)
-        sheet = resourceManager.texSlimeRun;
-      else if (e.state == EntityState::Attack)
-        sheet = resourceManager.texSlimeAttack;
-      else if (e.state == EntityState::Hurt)
-        sheet = resourceManager.texSlimeHurt;
-      else if (e.state == EntityState::Die)
-        sheet = resourceManager.texSlimeDeath;
-      else
-        sheet = resourceManager.texSlimeIdle;
+      const std::vector<Texture2D>* animFrames = nullptr;
+      float speed = 0.15f; 
 
-      if (sheet.id > 0) {
-        int frameW = 64; // Known Slime frame size
-        int frameH = 64;
-        int framesPerRow = sheet.width / frameW;
-        int frame = e.currentFrame % framesPerRow;
-        // Row 0 for all directions (sprite sheet has 4 rows but we use first)
-        int row = 0; // Idle
-        if (e.state == EntityState::Walking)
-          row = 1;
-        else if (e.state == EntityState::Run || e.state == EntityState::Attack)
-          row = 2;
-        else if (e.state == EntityState::Hurt || e.state == EntityState::Die)
-          row = 3;
+      if (e.state == EntityState::Die) {
+          if (dirIndex < resourceManager.slimeDeath.size())
+              animFrames = &resourceManager.slimeDeath[dirIndex];
+          speed = 0.15f;
+      } else if (e.state == EntityState::Attack) {
+          if (dirIndex < resourceManager.slimeAttack.size())
+              animFrames = &resourceManager.slimeAttack[dirIndex];
+          speed = 0.1f;
+      } else if (e.state == EntityState::Hurt) {
+          if (dirIndex < resourceManager.slimeHurt.size())
+              animFrames = &resourceManager.slimeHurt[dirIndex];
+          speed = 0.1f;
+      } else if (e.state == EntityState::Walking || e.state == EntityState::Run) {
+          if (dirIndex < resourceManager.slimeWalk.size())
+              animFrames = &resourceManager.slimeWalk[dirIndex];
+          speed = 0.12f;
+      } else {
+          if (dirIndex < resourceManager.slimeIdle.size())
+              animFrames = &resourceManager.slimeIdle[dirIndex];
+          speed = 0.15f;
+      }
 
-        Rectangle src = {(float)(frame * frameW), (float)(row * frameH),
-                         (float)frameW, (float)frameH};
-        float scale = 0.4f;
-        float destW = frameW * scale;
-        float destH = frameH * scale;
-        Rectangle dest = {e.position.x * tileSize, e.position.y * tileSize,
-                          destW, destH};
-        Vector2 origin = {destW / 2, destH * 0.9f};
+      if (animFrames && !animFrames->empty()) {
+          int frameCount = animFrames->size();
+          int currentFrame = e.currentFrame % frameCount;
+          
+          if (e.state == EntityState::Die && frameCount > 0) {
+              // Clamp death frame to last instead of looping
+              currentFrame = std::min(e.currentFrame, frameCount - 1);
+          }
 
-        // Tint red when hurt
-        Color tint = (e.state == EntityState::Hurt)
-                         ? (Color){255, 100, 100, 255}
-                         : WHITE;
-        items.push_back(
-            {sheet, src, dest, origin, tint, dest.y + destH * 0.9f});
-        continue; // Skip the tex.id > 0 check below since we already pushed
+          Texture2D texAnim = (*animFrames)[currentFrame];
+          if (texAnim.id > 0) {
+              float scale = 0.6f; 
+              float destW = texAnim.width * scale;
+              float destH = texAnim.height * scale;
+              
+              Rectangle src = {0, 0, (float)texAnim.width, (float)texAnim.height};
+              Rectangle dest = {e.position.x * tileSize, e.position.y * tileSize, destW, destH};
+              Vector2 origin = {destW / 2.0f, destH * 0.9f};
+              
+              Color tint = (e.state == EntityState::Hurt) ? (Color){255, 100, 100, 255} : WHITE;
+              items.push_back({texAnim, src, dest, origin, tint, dest.y + destH * 0.9f});
+              continue;
+          }
       }
     }
     // === DRAGON DRAWING ===

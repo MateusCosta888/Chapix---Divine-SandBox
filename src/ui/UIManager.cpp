@@ -126,6 +126,10 @@ void UIManager::Load(std::function<void(const char *)> loadingCallback) {
   texIconWaterOcean = LoadTexture("assets/UI/Icons/water/media agua.png");
   texIconWaterShallow = LoadTexture("assets/UI/Icons/water/rasa agua.png");
   texSaveIcon = LoadTexture("assets/UI/Icons/SaveIcon.png"); // New Save Icon
+  texIconBrushSize = LoadTexture("assets/UI/Icons/BrushSizeIcons.png");
+  texIconTimeControl = LoadTexture("assets/UI/Icons/TimeControlIcon.png");
+  texIconMenu = LoadTexture("assets/UI/Icons/MenuIcon.png");
+  texIconOptions = LoadTexture("assets/UI/Icons/OptionsIcon.png");
 
   // Load Power Icons
   texIconLightning =
@@ -261,6 +265,10 @@ void UIManager::Unload() {
   UnloadTexture(texIconWaterOcean);
   UnloadTexture(texIconWaterShallow);
   UnloadTexture(texSaveIcon);
+  UnloadTexture(texIconBrushSize);
+  UnloadTexture(texIconTimeControl);
+  UnloadTexture(texIconMenu);
+  UnloadTexture(texIconOptions);
   UnloadTexture(texIconLightning);
   UnloadTexture(texIconFire);
   UnloadFont(uiFont);

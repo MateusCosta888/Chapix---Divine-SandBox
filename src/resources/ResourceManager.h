@@ -194,13 +194,13 @@ public:
   Texture2D texNotifMid;
   Texture2D texNotifRight;
 
-  // Slime Mob
-  Texture2D texSlimeIdle;
-  Texture2D texSlimeWalk;
-  Texture2D texSlimeRun;
-  Texture2D texSlimeAttack;
-  Texture2D texSlimeHurt;
-  Texture2D texSlimeDeath;
+  // Slime Mob (2D array: [direction][frame])
+  // Directions: 0=Down, 1=Right, 2=Up, 3=Left
+  std::vector<std::vector<Texture2D>> slimeIdle;
+  std::vector<std::vector<Texture2D>> slimeWalk;
+  std::vector<std::vector<Texture2D>> slimeAttack;
+  std::vector<std::vector<Texture2D>> slimeHurt;
+  std::vector<std::vector<Texture2D>> slimeDeath;
 
   // Dragon Boss
   std::vector<Texture2D> texDragonFly;
