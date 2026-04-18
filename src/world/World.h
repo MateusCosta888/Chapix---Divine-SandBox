@@ -3,6 +3,7 @@
 #include "../simulation/SimulationManager.h" // Civilization simulation
 #include "../utils/JsonHelpers.h"
 #include "../utils/Random.h"
+#include "../utils/SpatialHash.h"
 #include "Entity.h" // Added
 #include "Tile.h"
 #include "raylib.h"
@@ -48,14 +49,23 @@ public:
   void UpdateEntities(float dt); // Added
   void UpdateWorldEvents(float dt);
 
-  // Entities
+  // Entities (stable map: insert/erase don't invalidate pointers)
   void AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom = false);
-  const std::vector<Entity> &GetEntities() const { return entities; }
-  std::vector<Entity> &GetEntitiesMutable() {
+  const std::unordered_map<int, Entity> &GetEntities() const { return entities; }
+  std::unordered_map<int, Entity> &GetEntitiesMutable() {
     return entities;
-  } // For simulation
+  }
 
-  // O(1) Lookup cache
+  // Direct entity lookup by unique ID - O(1)
+  int GenerateEntityID() { return nextEntityID++; }
+  Entity *GetEntityByID(int id);
+  const Entity *GetEntityByID(int id) const;
+
+  // Spatial queries - O(k) where k = nearby entities
+  std::vector<Entity *> GetEntitiesInRadius(Vector2 center, float radius);
+  void RebuildSpatialHash();
+
+  // O(1) Lookup cache (citizen -> entity)
   Entity *GetEntityByCitizenID(int citizenID);
   const Entity *GetEntityByCitizenID(int citizenID) const;
   void RebuildEntityCache();
@@ -128,10 +138,11 @@ private:
   uint32_t seed_;
   Random rng_;
   std::vector<Tile> tiles;
-  int nextEntityID = 0;         // Globally unique ID for all new entities
-  std::vector<Entity> entities; // Added entities vector
+  int nextEntityID = 0;
+  std::unordered_map<int, Entity> entities; // Stable storage (no pointer invalidation)
   std::unordered_map<int, Entity *>
       citizenEntityMap; // O(1) cache for citizen lookup
+  SpatialHash spatialHash; // Spatial query acceleration
 
   // Spawn Effects
   std::vector<SpawnEffect> spawnEffects;

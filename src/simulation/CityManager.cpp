@@ -2,6 +2,7 @@
 #include "../world/Tile.h"
 #include "../world/World.h"
 #include "SimulationManager.h"
+#include "../utils/GlobalRandom.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -83,11 +84,14 @@ static std::string GenerateRandomCityName() {
                             "y",  "grad", "burg", "ville", "ton"};
 
   std::string name = "";
-  if (rand() % 4 == 0) {
-    name += prefixes[rand() % (sizeof(prefixes) / sizeof(prefixes[0]))];
+  if (GRandom.Chance(25)) {
+    int numPrefixes = sizeof(prefixes) / sizeof(prefixes[0]);
+    name += prefixes[GRandom.Int(0, numPrefixes - 1)];
   }
-  name += roots[rand() % (sizeof(roots) / sizeof(roots[0]))];
-  name += suffixes[rand() % (sizeof(suffixes) / sizeof(suffixes[0]))];
+  int numRoots = sizeof(roots) / sizeof(roots[0]);
+  int numSuffixes = sizeof(suffixes) / sizeof(suffixes[0]);
+  name += roots[GRandom.Int(0, numRoots - 1)];
+  name += suffixes[GRandom.Int(0, numSuffixes - 1)];
   return name;
 }
 
@@ -266,12 +270,12 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
         city.citizenIDs.push_back(childID);
 
         // Spawn child entity
-        float spawnX = city.center.x + (rand() % 3 - 1);
-        float spawnY = city.center.y + (rand() % 3 - 1);
+        float spawnX = city.center.x + (float)GRandom.Int(-1, 1);
+        float spawnY = city.center.y + (float)GRandom.Int(-1, 1);
 
-        std::vector<Entity> &entities = world.GetEntitiesMutable();
+        auto &entities = world.GetEntitiesMutable();
         Entity e;
-        e.id = entities.size();
+        e.id = world.GenerateEntityID();
         e.type =
             child.isFemale ? EntityType::HumanWoman : EntityType::HumanUnarmed;
         e.position = {spawnX, spawnY};
@@ -284,7 +288,8 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
         e.hasTarget = false;
         e.speed = 2.0f;
         e.citizenID = childID;
-        entities.push_back(e);
+        entities[e.id] = e;
+        world.RebuildEntityCache();
 
         // Cost for birth
         city.resources.food -= 20;

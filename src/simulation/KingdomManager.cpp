@@ -2,9 +2,9 @@
 #include "../world/Tile.h"
 #include "../world/World.h"
 #include "SimulationManager.h"
+#include "../utils/GlobalRandom.h"
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 
 
 // ============================================================================
@@ -51,7 +51,7 @@ void SimulationManager::UpdateKingdoms(World &world, float deltaTime) {
           // Natural war chance when relations are very hostile
           if (relation < -50.0f) {
             float chance = (-relation / 100.0f) * 0.05f;
-            float roll = (float)rand() / (float)RAND_MAX;
+            float roll = GRandom.Float();
             if (roll < chance) {
               ForceDeclareWar(kingdom.id, other.id);
               TraceLog(LOG_INFO,
@@ -207,7 +207,7 @@ void SimulationManager::ExpandTerritory(City &city, World &world) {
 
   // Pick a random candidate if any found
   if (!candidates.empty()) {
-    int idx = rand() % candidates.size(); // Simple random selection
+    int idx = GRandom.Int(0, (int)candidates.size() - 1);
     Vector2 target = candidates[idx];
 
     // Add to territory

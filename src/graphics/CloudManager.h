@@ -3,7 +3,7 @@
 #include "raylib.h"
 #include <vector>
 #include <algorithm>
-#include <cstdlib>
+#include "../utils/GlobalRandom.h"
 #include <cmath>
 
 struct Cloud {
@@ -53,11 +53,11 @@ public:
       if (isCloudy) {
         // Acaba a passagem de nuvens, tempo limpo de 2 a 4 minutos (120 - 240 segundos)
         isCloudy = false;
-        weatherTimer = 120.0f + (float)(rand() % 120); 
+        weatherTimer = 120.0f + (float)GRandom.Int(0, 119); 
       } else {
         // Começa a transição de nuvens durante 30 a 60 segundos
         isCloudy = true;
-        weatherTimer = 30.0f + (float)(rand() % 30);
+        weatherTimer = 30.0f + (float)GRandom.Int(0, 29);
         spawnTimer = 0.0f;
       }
     }
@@ -88,13 +88,13 @@ public:
     if (isCloudy) {
       spawnTimer += dt;
       if (spawnTimer >= spawnInterval) {
-        int batch = 1 + rand() % 2; // Spawn 1-2 clouds at a time
+        int batch = GRandom.Int(1, 2); // Spawn 1-2 clouds at a time
         for (int i = 0; i < batch && (int)clouds.size() < MAX_CLOUDS; i++) {
           SpawnCloudNearCamera(leftBound, camera.target.y, screenHWorld);
         }
         spawnTimer = 0.0f;
         // Tempo curto entre aparições durante a fase de nuvens
-        spawnInterval = 3.0f + (float)(rand() % 5);
+        spawnInterval = 3.0f + (float)GRandom.Int(0, 4);
       }
     }
   }
@@ -128,17 +128,17 @@ private:
 
   void SpawnCloudNearCamera(float leftBound, float targetY, float screenHWorld) {
     Cloud c;
-    c.textureIndex = rand() % NUM_TEXTURES;
-    c.scale = 2.0f + (float)(rand() % 30) / 10.0f; // 2.0 - 5.0 (tamanho reduzido a pedido do user)
-    c.speed = 10.0f + (float)(rand() % 30);         // 10 - 40 px/s
-    c.alpha = 0.5f + (float)(rand() % 30) / 100.0f; // 0.5 - 0.8 
+    c.textureIndex = GRandom.Int(0, NUM_TEXTURES - 1);
+    c.scale = 2.0f + (float)GRandom.Int(0, 29) / 10.0f; // 2.0 - 5.0
+    c.speed = 10.0f + (float)GRandom.Int(0, 29);         // 10 - 40 px/s
+    c.alpha = 0.5f + (float)GRandom.Int(0, 29) / 100.0f; // 0.5 - 0.8 
 
     // Aparece BEM distante à esquerda da câmera, invisível ao jogador
-    c.worldX = leftBound - (float)(rand() % 500);
+    c.worldX = leftBound - (float)GRandom.Int(0, 499);
 
-    // Y espalhado perto do que o jogador está olhando, pra garantir que passe por ele
+    // Y espalhado perto do que o jogador está olhando
     float rangeY = screenHWorld + 1000.0f; 
-    c.worldY = targetY - (rangeY * 0.5f) + (float)(rand() % (int)rangeY);
+    c.worldY = targetY - (rangeY * 0.5f) + (float)GRandom.Int(0, std::max(1, (int)rangeY - 1));
 
     clouds.push_back(c);
   }

@@ -1,5 +1,5 @@
 #include "City.h"
-#include <cstdlib>
+#include "../utils/GlobalRandom.h"
 
 City CreateCity(int id, Vector2 center, const std::string &name, Color color) {
   City c;
@@ -9,7 +9,7 @@ City CreateCity(int id, Vector2 center, const std::string &name, Color color) {
   c.color = color;
   c.isAlive = true;
   c.age = 0.0f;
-  c.flagID = rand() % 80; // Default random flag
+  c.flagID = GRandom.Int(0, 79); // Random flag
 
   // Initial resources
   c.resources.food = 50;

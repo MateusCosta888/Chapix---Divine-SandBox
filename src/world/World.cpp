@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
+#include "../utils/GlobalRandom.h"
 #include <functional>
 
 World::World(int width, int height, uint32_t seed)
@@ -684,12 +684,12 @@ void World::UpdateWorldEvents(float deltaTime) {
   if (eventTimer >= eventInterval) {
     eventTimer = 0.0f;
     // Random chance for Dragon Spawn
-    if (rand() % 10 == 0) { // 10% chance
+    if (GRandom.Chance(10)) { // 10% chance
       // Find a random position, perhaps near a city
       int attempts = 10;
       for (int i = 0; i < attempts; i++) {
-        int x = rand() % width;
-        int y = rand() % height;
+        int x = GRandom.Int(0, width - 1);
+        int y = GRandom.Int(0, height - 1);
         if (GetTile(x, y).type == TileType::Grass) {
           Vector2 pos = {static_cast<float>(x), static_cast<float>(y)};
           AddEntity(EntityType::Dragon, pos, true); // true = skip gender random
@@ -836,7 +836,7 @@ void World::ClearTileContents(int x, int y) {
   tile.isOccupied = false;
 
   // 3. Kill all entities on this tile (humans and animals)
-  for (auto &e : entities) {
+  for (auto &[eid, e] : entities) {
     if ((int)e.position.x == x && (int)e.position.y == y) {
       e.health = 0;
       e.state = EntityState::Die;
@@ -964,7 +964,7 @@ void World::AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom) {
   // 50/50 chance: player-placed unarmed humans may be women (only for Random)
   // If type is already HumanWoman, skip randomization
   if (!skipGenderRandom && type == EntityType::HumanUnarmed &&
-      (rand() % 2 == 0)) {
+      GRandom.Chance(50)) {
     type = EntityType::HumanWoman;
   }
 
@@ -1088,18 +1088,51 @@ void World::AddEntity(EntityType type, Vector2 pos, bool skipGenderRandom) {
     }
   }
 
-  entities.push_back(e);
+  entities[e.id] = e;
   RebuildEntityCache();
   TraceLog(LOG_INFO, "WORLD: Added Entity Type %d at %.2f, %.2f", (int)type,
            pos.x, pos.y);
 }
 
+Entity *World::GetEntityByID(int id) {
+  auto it = entities.find(id);
+  return it != entities.end() ? &it->second : nullptr;
+}
+
+const Entity *World::GetEntityByID(int id) const {
+  auto it = entities.find(id);
+  return it != entities.end() ? &it->second : nullptr;
+}
+
+void World::RebuildSpatialHash() {
+  spatialHash.Clear();
+  for (auto &[id, e] : entities) {
+    if (e.health > 0 && e.state != EntityState::Die) {
+      spatialHash.Insert(id, e.position.x, e.position.y);
+    }
+  }
+}
+
+std::vector<Entity *> World::GetEntitiesInRadius(Vector2 center, float radius) {
+  std::vector<Entity *> result;
+  auto ids = spatialHash.Query(center.x, center.y, radius);
+  float radiusSq = radius * radius;
+  for (int id : ids) {
+    Entity *e = GetEntityByID(id);
+    if (e && e->health > 0 && e->state != EntityState::Die) {
+      float dx = e->position.x - center.x;
+      float dy = e->position.y - center.y;
+      if (dx * dx + dy * dy <= radiusSq) {
+        result.push_back(e);
+      }
+    }
+  }
+  return result;
+}
+
 void World::RebuildEntityCache() {
   citizenEntityMap.clear();
-  // We reserve space to minimize rehashing
-  citizenEntityMap.reserve(entities.size() /
-                           2); // Roughly half entities are citizens
-  for (auto &e : entities) {
+  for (auto &[id, e] : entities) {
     if (e.citizenID != -1) {
       citizenEntityMap[e.citizenID] = &e;
     }
@@ -1123,17 +1156,16 @@ const Entity *World::GetEntityByCitizenID(int citizenID) const {
 }
 
 void World::UpdateEntities(float deltaTime) {
-  // Always rebuild the pointer cache at the start of the frame.
-  // This guarantees pointers are valid even if entities vector reallocated in
-  // the previous frame. Rebuilding a hash map of 1000 items is much faster than
-  // doing massive O(N) searches everywhere.
+  // Rebuild caches at start of frame
   RebuildEntityCache();
+  RebuildSpatialHash();
 
-  for (size_t i = 0; i < entities.size(); i++) {
-    Entity &e = entities[i];
+  // Collect IDs of dead entities for deferred removal
+  std::vector<int> deadEntityIDs;
+
+  for (auto &[entityID, e] : entities) {
 
     // === UNIVERSAL DEATH HANDLER ===
-    // Handles death for ALL entity types (animals, humans, etc.)
     if (e.health <= 0 || e.state == EntityState::Die) {
       e.state = EntityState::Die;
       e.health = 0;
@@ -1143,12 +1175,10 @@ void World::UpdateEntities(float deltaTime) {
         e.currentFrame++;
       }
       if (e.currentFrame >= 4) {
-        // Remove citizen from simulation if this was an intelligent entity
         if (e.IsIntelligent() && e.citizenID != -1) {
           simulation.RemoveCitizen(e.citizenID);
         }
-        entities.erase(entities.begin() + i--);
-        RebuildEntityCache();
+        deadEntityIDs.push_back(entityID);
       }
       continue;
     }
@@ -1214,7 +1244,7 @@ void World::UpdateEntities(float deltaTime) {
         }
       } else if (e.IsIntelligent()) {
         // Humans hunt boars and slimes
-        for (const auto &other : entities) {
+        for (const auto &[oid, other] : entities) {
           if ((other.type == EntityType::Boar ||
                other.type == EntityType::Slime) &&
               other.health > 0) {
@@ -1248,7 +1278,7 @@ void World::UpdateEntities(float deltaTime) {
 
         // Count current population of this species
         int speciesCount = 0;
-        for (const auto &other : entities) {
+        for (const auto &[oid, other] : entities) {
           if (other.type == e.type && other.health > 0)
             speciesCount++;
         }
@@ -1257,16 +1287,15 @@ void World::UpdateEntities(float deltaTime) {
         if (speciesCount < 30) {
           // Find a mate of same species within radius 5
           bool foundMate = false;
-          for (size_t j = 0; j < entities.size(); j++) {
-            if (j == i)
+          for (auto &[oid, mate] : entities) {
+            if (oid == entityID)
               continue;
-            Entity &mate = entities[j];
             if (mate.type == e.type && mate.health > 0 &&
                 mate.state != EntityState::Die) {
               float d = Vector2Distance(e.position, mate.position);
               if (d < 5.0f) {
                 foundMate = true;
-                mate.reproductionTimer = 0.0f; // Reset mate's timer too
+                mate.reproductionTimer = 0.0f;
                 break;
               }
             }
@@ -1275,8 +1304,8 @@ void World::UpdateEntities(float deltaTime) {
           if (foundMate) {
             // Find a walkable spot nearby to spawn offspring
             for (int attempt = 0; attempt < 10; attempt++) {
-              int ox = static_cast<int>(e.position.x) + (rand() % 5) - 2;
-              int oy = static_cast<int>(e.position.y) + (rand() % 5) - 2;
+              int ox = static_cast<int>(e.position.x) + GRandom.Int(-2, 2);
+              int oy = static_cast<int>(e.position.y) + GRandom.Int(-2, 2);
               if (ox >= 0 && ox < width && oy >= 0 && oy < height &&
                   IsWalkable(ox, oy)) {
                 Entity baby;
@@ -1285,9 +1314,9 @@ void World::UpdateEntities(float deltaTime) {
                 baby.position = {(float)ox + 0.5f, (float)oy + 0.5f};
                 baby.targetPos = baby.position;
                 baby.state = EntityState::Idle;
-                baby.facingDirection = rand() % 4 - 1;
-                baby.speed = e.speed * 0.8f;   // Slightly slower baby
-                baby.health = e.health * 0.5f; // Born with half health
+                baby.facingDirection = GRandom.Int(0, 3);
+                baby.speed = e.speed * 0.8f;
+                baby.health = e.health * 0.5f;
                 baby.animTime = 0.0f;
                 baby.currentFrame = 0;
                 baby.hasTarget = false;
@@ -1295,7 +1324,8 @@ void World::UpdateEntities(float deltaTime) {
                 baby.bodyTemperature = 37.0f;
                 baby.reproductionTimer = 0.0f;
                 baby.reproductionCooldown = e.reproductionCooldown;
-                entities.push_back(baby);
+                baby.maxHP = baby.health;
+                entities[baby.id] = baby;
                 TraceLog(
                     LOG_INFO,
                     "REPRODUCE: Animal type %d spawned offspring at (%d,%d)",
@@ -1318,7 +1348,7 @@ void World::UpdateEntities(float deltaTime) {
           e.currentFrame++;
         }
         if (e.currentFrame >= 6)
-          entities.erase(entities.begin() + i--);
+          deadEntityIDs.push_back(entityID);
         continue;
       }
       if (e.state == EntityState::Hurt) {
@@ -1469,7 +1499,7 @@ void World::UpdateEntities(float deltaTime) {
           e.currentFrame++;
         }
         if (e.currentFrame >= 6)
-          entities.erase(entities.begin() + i--);
+          deadEntityIDs.push_back(entityID);
         continue;
       }
       if (e.state == EntityState::Hurt) {
@@ -1617,7 +1647,7 @@ void World::UpdateEntities(float deltaTime) {
           e.currentFrame++;
         }
         if (e.currentFrame >= 4)
-          entities.erase(entities.begin() + i--);
+          deadEntityIDs.push_back(entityID);
         continue;
       }
       // Block
@@ -1645,7 +1675,7 @@ void World::UpdateEntities(float deltaTime) {
           e.animTime = 0.0f;
           e.currentFrame++;
           if (e.currentFrame == 2) {
-            for (auto &target : entities) {
+            for (auto &[tid, target] : entities) {
               if ((target.type == EntityType::Boar ||
                    target.type == EntityType::Slime ||
                    target.type == EntityType::Dragon) &&
@@ -1725,13 +1755,8 @@ void World::UpdateEntities(float deltaTime) {
       // Hunt Boars, Slimes and Dragons
       Entity *target = nullptr;
       if (e.hasTarget && e.targetID >= 0) {
-        // Pointer might be invalid after vector reallocation, so lookup by ID
-        for (auto &p : citizenEntityMap) {
-          if (p.first == e.targetID) {
-            target = p.second;
-            break;
-          }
-        }
+        // Lookup target by entity ID from the map
+        target = GetEntityByID(e.targetID);
         if (!target || target->health <= 0) {
           e.hasTarget = false;
           e.targetID = -1;
@@ -1949,6 +1974,14 @@ void World::UpdateEntities(float deltaTime) {
       }
     }
   }
+
+  // === DEFERRED REMOVAL of dead entities ===
+  for (int deadID : deadEntityIDs) {
+    entities.erase(deadID);
+  }
+  if (!deadEntityIDs.empty()) {
+    RebuildEntityCache();
+  }
 }
 
 // ============================================================================
@@ -1977,26 +2010,26 @@ void World::AddSpawnEffect(int tileX, int tileY, Color color, VfxType type) {
   fx.currentFrame = 0;
 
   // Create 6-10 sparkle particles
-  int numParticles = 6 + (rand() % 5);
+  int numParticles = GRandom.Int(6, 10);
   for (int i = 0; i < numParticles; i++) {
     SpawnParticle p;
-    float angle = (float)(rand() % 360) * DEG2RAD;
-    float dist = (float)(rand() % 40) / 10.0f;
+    float angle = (float)GRandom.Int(0, 359) * DEG2RAD;
+    float dist = (float)GRandom.Int(0, 39) / 10.0f;
     p.pos = {fx.worldX + cosf(angle) * dist, fx.worldY + sinf(angle) * dist};
 
-    float speed = 8.0f + (float)(rand() % 20);
-    p.velocity = {cosf(angle) * speed, -5.0f - (float)(rand() % 15)};
+    float speed = 8.0f + (float)GRandom.Int(0, 19);
+    p.velocity = {cosf(angle) * speed, -5.0f - (float)GRandom.Int(0, 14)};
 
-    p.maxLife = 0.3f + (float)(rand() % 50) / 100.0f;
+    p.maxLife = 0.3f + (float)GRandom.Int(0, 49) / 100.0f;
     p.lifetime = p.maxLife;
 
     p.color = color;
-    p.color.r = (unsigned char)std::min(255, (int)color.r + (rand() % 60 - 30));
-    p.color.g = (unsigned char)std::min(255, (int)color.g + (rand() % 60 - 30));
-    p.color.b = (unsigned char)std::min(255, (int)color.b + (rand() % 60 - 30));
+    p.color.r = (unsigned char)std::min(255, (int)color.r + GRandom.Int(-30, 29));
+    p.color.g = (unsigned char)std::min(255, (int)color.g + GRandom.Int(-30, 29));
+    p.color.b = (unsigned char)std::min(255, (int)color.b + GRandom.Int(-30, 29));
     p.color.a = 255;
 
-    p.size = 1.0f + (float)(rand() % 20) / 10.0f;
+    p.size = 1.0f + (float)GRandom.Int(0, 19) / 10.0f;
 
     fx.particles.push_back(p);
   }
@@ -2194,7 +2227,7 @@ void World::TriggerGodPower(int powerIndex, int tx, int ty) {
 
     // Apply AOE Damage (Radius in TILES)
     float radius = 4.5f;
-    for (auto &e : entities) {
+    for (auto &[eid, e] : entities) {
       if (e.health <= 0)
         continue;
       float d = Vector2Distance(e.position, impactGrid);
@@ -2225,7 +2258,7 @@ void World::TriggerGodPower(int powerIndex, int tx, int ty) {
 
     // Damage entities in radius
     float radius = 3.5f;
-    for (auto &e : entities) {
+    for (auto &[eid, e] : entities) {
       if (e.health <= 0)
         continue;
       float d = Vector2Distance(e.position, impactGrid);
@@ -2250,7 +2283,7 @@ void World::TriggerGodPower(int powerIndex, int tx, int ty) {
         }
       }
     }
-    for (auto &e : entities) {
+    for (auto &[eid, e] : entities) {
       if (e.health <= 0) continue;
       float d = Vector2Distance(e.position, impactGrid);
       if (d < radius) {
@@ -2276,7 +2309,7 @@ void World::TriggerGodPower(int powerIndex, int tx, int ty) {
       }
     }
     float radius = 5.0f;
-    for (auto &e : entities) {
+    for (auto &[eid, e] : entities) {
       if (e.health <= 0) continue;
       float d = Vector2Distance(e.position, impactGrid);
       if (d < radius) {
@@ -2287,7 +2320,7 @@ void World::TriggerGodPower(int powerIndex, int tx, int ty) {
   } else if (powerIndex == 4) { // Dark Bolt
     AddSpawnEffect(tx, ty, {120, 50, 180, 255}, VfxType::DarkBolt);
     float radius = 4.0f;
-    for (auto &e : entities) {
+    for (auto &[eid, e] : entities) {
       if (e.health <= 0) continue;
       float d = Vector2Distance(e.position, impactGrid);
       if (d < radius) {
@@ -2297,7 +2330,7 @@ void World::TriggerGodPower(int powerIndex, int tx, int ty) {
   } else if (powerIndex == 5) { // Thunder 2
     AddSpawnEffect(tx, ty, {200, 200, 255, 255}, VfxType::Thunder2);
     float radius = 4.5f;
-    for (auto &e : entities) {
+    for (auto &[eid, e] : entities) {
       if (e.health <= 0) continue;
       float d = Vector2Distance(e.position, impactGrid);
       if (d < radius) {
@@ -2308,12 +2341,19 @@ void World::TriggerGodPower(int powerIndex, int tx, int ty) {
 }
 
 void to_json(nlohmann::json &j, const World &w) {
+  // Convert entity map to vector for JSON serialization (backward compatible)
+  std::vector<Entity> entityVec;
+  entityVec.reserve(w.entities.size());
+  for (const auto &[id, e] : w.entities) {
+    entityVec.push_back(e);
+  }
+
   j = nlohmann::json{{"width", w.width},
                      {"height", w.height},
                      {"seed", w.seed_},
                      {"tiles", w.tiles},
                      {"nextEntityID", w.nextEntityID},
-                     {"entities", w.entities},
+                     {"entities", entityVec},
                      {"simulation", w.simulation}};
 }
 
@@ -2323,12 +2363,21 @@ void from_json(const nlohmann::json &j, World &w) {
   j.at("seed").get_to(w.seed_);
   j.at("tiles").get_to(w.tiles);
 
+  // Load entities from vector format into the map
+  std::vector<Entity> entityVec;
+  j.at("entities").get_to(entityVec);
+  w.entities.clear();
+  int maxID = 0;
+  for (auto &e : entityVec) {
+    w.entities[e.id] = e;
+    if (e.id >= maxID) maxID = e.id + 1;
+  }
+
   if (j.contains("nextEntityID")) {
     j.at("nextEntityID").get_to(w.nextEntityID);
   } else {
-    w.nextEntityID = w.entities.size(); // Backward compatibility
+    w.nextEntityID = maxID; // Backward compatibility
   }
 
-  j.at("entities").get_to(w.entities);
   j.at("simulation").get_to(w.simulation);
 }

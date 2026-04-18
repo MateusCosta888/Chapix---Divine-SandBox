@@ -622,8 +622,8 @@ void WorldRenderer::Draw(const Camera2D &camera,
   } // end if (cities)
 
   // Entities
-  const std::vector<Entity> &entities = world.GetEntities();
-  for (const Entity &e : entities) {
+  const auto &entities = world.GetEntities();
+  for (const auto &[eid, e] : entities) {
     if (!resourceManager.IsLoaded())
       continue;
 
@@ -950,7 +950,7 @@ void WorldRenderer::Draw(const Camera2D &camera,
   }
 
   // === COMBAT VFX & HEALTH BARS (drawn above entities) ===
-  for (const Entity &e : entities) {
+  for (const auto &[eid, e] : entities) {
     if (e.health <= 0)
       continue;
 
@@ -1025,19 +1025,7 @@ void WorldRenderer::Draw(const Camera2D &camera,
                   barColor);
   }
 
-  // Draw Visual Boundaries
-  int padding = 10;
-  float startX = padding * tileSize;
-  float startY = padding * tileSize;
-  float endX = (width - padding) * tileSize;
-  float endY = (height - padding) * tileSize;
-  Color boundaryColor = (Color){200, 200, 200, 150};
-  float dashLen = 20.0f;
-  float gapLen = 10.0f;
 
-  for (float py = startY; py < endY; py += dashLen + gapLen)
-    DrawRectangle((int)endX, (int)py, 4, (int)std::min(dashLen, endY - py),
-                  boundaryColor);
 
   // === CITY TERRITORY VISUALIZATION ===
   // Draw colored overlays for city territories
@@ -1131,12 +1119,12 @@ void WorldRenderer::Draw(const Camera2D &camera,
   // === CITIZEN SELECTION (Right-click) ===
   if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
     // Check if clicking on a human entity
-    const std::vector<Entity> &entities = world.GetEntities();
+    const auto &entities = world.GetEntities();
     int closestCitizenID = -1;
     float closestDist = 999999.0f;
     Vector2 closestPos = {0, 0};
 
-    for (const Entity &e : entities) {
+    for (const auto &[eid, e] : entities) {
       if (e.type == EntityType::HumanUnarmed ||
           e.type == EntityType::HumanArmed) {
         float ex = e.position.x * tileSize;
@@ -1274,9 +1262,9 @@ void WorldRenderer::DrawEntities() {
     return;
 
   int tileSize = 10;
-  const std::vector<Entity> &entities = world.GetEntities();
+  const auto &entities = world.GetEntities();
 
-  for (const Entity &e : entities) {
+  for (const auto &[eid, e] : entities) {
     if (e.type == EntityType::HumanUnarmed ||
         e.type == EntityType::HumanArmed) {
       // Determine State Index (0:Idle, 1:Walk, 2:Attack)

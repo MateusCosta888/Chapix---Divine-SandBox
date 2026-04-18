@@ -5,7 +5,7 @@
 #include "raymath.h"
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
+#include "../utils/GlobalRandom.h"
 #include <vector>
 
 // ============================================================================
@@ -42,16 +42,14 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       Entity *threat = nullptr;
       float minThreatDist = 999.0f;
 
-      auto &allEntities = world.GetEntitiesMutable();
-      for (auto &ae : allEntities) {
-        if (ae.health <= 0 || ae.state == EntityState::Die)
-          continue;
-        if (ae.type == EntityType::Boar || ae.type == EntityType::Slime || ae.type == EntityType::Dragon) {
-          float d = std::hypot(myEntity->position.x - ae.position.x,
-                               myEntity->position.y - ae.position.y);
-          if (d < fleeRadius && d < minThreatDist) {
+      auto nearbyEntities = world.GetEntitiesInRadius(myEntity->position, fleeRadius);
+      for (Entity *ae : nearbyEntities) {
+        if (ae->type == EntityType::Boar || ae->type == EntityType::Slime || ae->type == EntityType::Dragon) {
+          float d = std::hypot(myEntity->position.x - ae->position.x,
+                               myEntity->position.y - ae->position.y);
+          if (d < minThreatDist) {
             minThreatDist = d;
-            threat = &ae;
+            threat = ae;
           }
         }
       }
@@ -201,11 +199,37 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
     }
     c.energy -= deltaTime * decayRate;
 
-    // 3. Go Home if Tired
+    // 3. Go Home if Tired (now probabilistic and influenced by personality)
     // Homeless push themselves harder (need < 10% energy to stop)
     float restThreshold = (c.homeID != -1) ? 20.0f : 10.0f;
-    bool needsRest = c.energy < restThreshold;
-    if (needsRest && !c.isGoingHome && !c.isResting) {
+    float chanceToRest = 0.0f;
+    if (c.energy < restThreshold) {
+        // How tired are we? (0 to 1)
+        float tiredness = (restThreshold - c.energy) / restThreshold;
+        // Base chance is tiredness, then adjust by personality
+        switch (c.personality) {
+            case PersonalityTrait::Lazy:
+                chanceToRest = tiredness * 1.5f;
+                break;
+            case PersonalityTrait::Coward:
+                chanceToRest = tiredness * 1.2f;
+                break;
+            case PersonalityTrait::Hardworking:
+                chanceToRest = tiredness * 0.5f;
+                break;
+            case PersonalityTrait::Brave:
+                chanceToRest = tiredness * 0.8f;
+                break;
+            case PersonalityTrait::Normal:
+            default:
+                chanceToRest = tiredness;
+                break;
+        }
+        // Clamp to 1.0
+        if (chanceToRest > 1.0f) chanceToRest = 1.0f;
+    }
+
+    if (chanceToRest > 0.0f && GRandom.Chance(chanceToRest * 100.0f) && !c.isGoingHome && !c.isResting) {
       // Stop working immediately
       c.workState = Citizen::WorkState::Idle;
       c.isWorking = false;
@@ -316,12 +340,27 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       continue; // CRITICAL FIX: Prevent massive crashes when iterating over
                 // entities inside Jobs
 
+    // === GENERIC IDLE STATES (SITTING/OBSERVING/SOCIALIZING) ===
+    if (c.workState == Citizen::WorkState::IdleSitting ||
+        c.workState == Citizen::WorkState::IdleObserving ||
+        c.workState == Citizen::WorkState::IdleSocializing) {
+      if (myEntity) {
+        myEntity->hasTarget = false;
+        myEntity->state = EntityState::Idle;
+      }
+      c.workTimer -= deltaTime;
+      if (c.workTimer <= 0.0f) {
+        c.workState = Citizen::WorkState::Idle;
+        c.stateTimer = 0.0f;
+      }
+    }
+
     // === GENERIC WANDERING ===
     // If wandering, pick a random spot and move there
     if (c.workState == Citizen::WorkState::Wandering) {
       if (!myEntity->hasTarget) {
-        int rx = (rand() % 11) - 5;
-        int ry = (rand() % 11) - 5;
+        int rx = GRandom.Int(-5, 5);
+        int ry = GRandom.Int(-5, 5);
         int tx = static_cast<int>(myEntity->position.x) + rx;
         int ty = static_cast<int>(myEntity->position.y) + ry;
 
@@ -352,8 +391,39 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
     // === SETTLER AI ===
     // Homeless adults periodically check if they should join or found a city
 
-    // === HUNTING AI (any profession, triggered by hunger) ===
-    if (c.hunger > 60.0f && c.isAdult() && myEntity &&
+    // === HUNTING AI (any profession, triggered by hunger - now probabilistic) ===
+    // Base hunger chance increases as hunger grows
+    float baseHuntChance = 0.0f;
+    if (c.hunger > 30.0f) { // Start considering hunt at 30 hunger
+        baseHuntChance = (c.hunger - 30.0f) * 0.015f; // 0% at 30, 100% at 96+ hunger
+        if (baseHuntChance > 1.0f) baseHuntChance = 1.0f;
+    }
+
+    // Modify chance by personality
+    float huntChance = baseHuntChance;
+    switch (c.personality) {
+        case PersonalityTrait::Brave:
+            huntChance *= 1.3f; // Braver citizens hunt more eagerly
+            break;
+        case PersonalityTrait::Hardworking:
+            huntChance *= 1.1f; // Hardworking citizens slightly more likely to hunt
+            break;
+        case PersonalityTrait::Lazy:
+            huntChance *= 0.7f; // Lazy citizens hunt less
+            break;
+        case PersonalityTrait::Coward:
+            huntChance *= 0.5f; // Cowards avoid hunting
+            break;
+        case PersonalityTrait::Normal:
+        default:
+            // Normal personality uses base chance
+            break;
+    }
+
+    // Clamp chance
+    if (huntChance > 1.0f) huntChance = 1.0f;
+
+    if (huntChance > 0.0f && GRandom.Chance(huntChance * 100.0f) && c.isAdult() && myEntity &&
         c.workState != Citizen::WorkState::Hunting) {
       // Check if city has low food or citizen is cityless
       bool needsHunting = (c.cityID < 0);
@@ -366,34 +436,33 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       if (needsHunting) {
         // Scan for nearest animal
         float bestDist = 999999.0f;
-        int bestAnimalEntityIdx = -1;
-        auto &allEntities = world.GetEntitiesMutable();
-        for (size_t ei = 0; ei < allEntities.size(); ei++) {
-          Entity &ae = allEntities[ei];
-          if (ae.health <= 0 || ae.state == EntityState::Die)
-            continue;
+        int bestAnimalEntityID = -1;
+        auto nearbyAnimals = world.GetEntitiesInRadius(myEntity->position, 30.0f);
+
+        for (Entity *ae : nearbyAnimals) {
           // Only hunt non-hostile animals (not Boars or Humans)
           bool isHuntable =
-              (ae.type == EntityType::Cow || ae.type == EntityType::Chicken ||
-               ae.type == EntityType::Sheep || ae.type == EntityType::Bull ||
-               ae.type == EntityType::Chicken2 || ae.type == EntityType::Lamb ||
-               ae.type == EntityType::Pig || ae.type == EntityType::Turkey);
+              (ae->type == EntityType::Cow || ae->type == EntityType::Chicken ||
+               ae->type == EntityType::Sheep || ae->type == EntityType::Bull ||
+               ae->type == EntityType::Chicken2 || ae->type == EntityType::Lamb ||
+               ae->type == EntityType::Pig || ae->type == EntityType::Turkey);
           if (!isHuntable)
             continue;
-          float d = std::hypot(myEntity->position.x - ae.position.x,
-                               myEntity->position.y - ae.position.y);
-          if (d < 30.0f && d < bestDist) {
+          float d = std::hypot(myEntity->position.x - ae->position.x,
+                               myEntity->position.y - ae->position.y);
+          if (d < bestDist) {
             bestDist = d;
-            bestAnimalEntityIdx = (int)ei;
+            bestAnimalEntityID = ae->id;
           }
         }
-        if (bestAnimalEntityIdx >= 0) {
+        if (bestAnimalEntityID >= 0) {
+          Entity *prey = world.GetEntityByID(bestAnimalEntityID);
           // Enter hunting mode
           c.workState = Citizen::WorkState::Hunting;
           c.isWorking = true;
           c.workTimer = 0.0f;
-          c.targetEntityID = allEntities[bestAnimalEntityIdx].id;
-          myEntity->targetPos = allEntities[bestAnimalEntityIdx].position;
+          c.targetEntityID = bestAnimalEntityID;
+          myEntity->targetPos = prey->position;
           myEntity->hasTarget = true;
           myEntity->state = EntityState::Run;
           TraceLog(LOG_INFO,
@@ -406,14 +475,9 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
     // === HUNTING STATE MACHINE ===
     if (c.workState == Citizen::WorkState::Hunting && myEntity) {
       // Find the target animal entity by ID
-      Entity *prey = nullptr;
-      auto &allEntities = world.GetEntitiesMutable();
-      for (auto &ae : allEntities) {
-        if (ae.id == c.targetEntityID && ae.health > 0 &&
-            ae.state != EntityState::Die) {
-          prey = &ae;
-          break;
-        }
+      Entity *prey = world.GetEntityByID(c.targetEntityID);
+      if (prey && (prey->health <= 0 || prey->state == EntityState::Die)) {
+        prey = nullptr;
       }
       if (!prey) {
         // Prey died or disappeared
@@ -650,7 +714,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           tile.originalTree = tile.decoration; // Remember what tree was here
           tile.decoration = DecorationType::None;
           tile.hasStump = true; // Mark for visual stump + reforestation
-          tile.stumpVariant = rand() % 2; // Random stump art (0 or 1)
+          tile.stumpVariant = GRandom.Int(0, 1); // Random stump art (0 or 1)
           tile.regrowthTimer = 0.0f;      // Start regrowth countdown
 
           c.carryingResource += 3;    // Each tree gives 3 wood
@@ -779,7 +843,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         int harvestX = -1, harvestY = -1;
         if (!harvestCandidates.empty()) {
           std::sort(harvestCandidates.begin(), harvestCandidates.end());
-          int pick = rand() % std::min((int)harvestCandidates.size(), 5);
+          int pick = GRandom.Int(0, std::min((int)harvestCandidates.size(), 5) - 1);
           harvestX = harvestCandidates[pick].second.first;
           harvestY = harvestCandidates[pick].second.second;
         }
@@ -787,14 +851,14 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         int plantX = -1, plantY = -1;
         if (!plantCandidates.empty()) {
           std::sort(plantCandidates.begin(), plantCandidates.end());
-          int pick = rand() % std::min((int)plantCandidates.size(), 5);
+          int pick = GRandom.Int(0, std::min((int)plantCandidates.size(), 5) - 1);
           plantX = plantCandidates[pick].second.first;
           plantY = plantCandidates[pick].second.second;
         }
 
         // Priority 3: Plant Trees (Reforestation)
         // Only 30% chance per idle cycle to attempt tree planting (reduce spam)
-        if (harvestX == -1 && plantX == -1 && (rand() % 100) < 30) {
+        if (harvestX == -1 && plantX == -1 && GRandom.Chance(30)) {
           int SEARCH_RADIUS = 50;
           int cx = static_cast<int>(myEntity->position.x);
           int cy = static_cast<int>(myEntity->position.y);
@@ -839,7 +903,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           }
           // Pick a random candidate from the list for organic placement
           if (!treeCandidates.empty()) {
-            int idx = rand() % treeCandidates.size();
+            int idx = GRandom.Int(0, (int)treeCandidates.size() - 1);
             treePlantX = treeCandidates[idx].first;
             treePlantY = treeCandidates[idx].second;
           }
@@ -911,7 +975,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
             if (!tile.isOccupied) { // Prevent planting under buildings
               tile.decoration = DecorationType::Tree;
               tile.hasStump = false;               // Reset stump flag
-              tile.decorationVariant = rand() % 3; // Random variant
+              tile.decorationVariant = GRandom.Int(0, 2); // Random variant
 
               TraceLog(LOG_INFO, "FARMER: Citizen %d planted a TREE at (%d,%d)",
                        c.id, c.targetTileX, c.targetTileY);
@@ -1035,7 +1099,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         if (!myEntity->hasTarget) {
           // Pick a random tile within city territory to walk to
           if (!myCity->territory.empty()) {
-            int idx = rand() % myCity->territory.size();
+            int idx = GRandom.Int(0, (int)myCity->territory.size() - 1);
             float tx = myCity->territory[idx].x + 0.5f;
             float ty = myCity->territory[idx].y + 0.5f;
             if (world.IsWalkable((int)tx, (int)ty)) {
@@ -1198,7 +1262,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
             myCity->resources.stone = myCity->maxStorage;
 
           // Small chance for ore/gold?
-          if (rand() % 10 == 0)
+          if (GRandom.Chance(10))
             myCity->resources.ore += 1;
 
           TraceLog(LOG_INFO, "MINER: Citizen %d deposited %d stone.", c.id,
@@ -1346,12 +1410,13 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
         if (myCity->kingdomID >= 0)
           myKingdom = GetKingdom(myCity->kingdomID);
 
-        for (Entity &otherE : world.GetEntitiesMutable()) {
-          if (otherE.id == myEntity->id)
+        auto nearbyEntities = world.GetEntitiesInRadius(myEntity->position, detectRange);
+        for (Entity *otherE : nearbyEntities) {
+          if (otherE->id == myEntity->id)
             continue;
 
-          if (otherE.IsIntelligent()) {
-            Citizen *otherCitizen = GetCitizen(otherE.citizenID);
+          if (otherE->IsIntelligent()) {
+            Citizen *otherCitizen = GetCitizen(otherE->citizenID);
             if (otherCitizen && otherCitizen->cityID != c.cityID &&
                 otherCitizen->cityID != -1) {
               // Check if we are at war with their kingdom
@@ -1363,16 +1428,16 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
               // Also attack anyone near our city who belongs to another city
               if (!isEnemy && myCity) {
                 float distToMyCity =
-                    std::hypot(otherE.position.x - myCity->center.x,
-                               otherE.position.y - myCity->center.y);
+                    std::hypot(otherE->position.x - myCity->center.x,
+                               otherE->position.y - myCity->center.y);
                 if (distToMyCity < 20.0f) {
                   isEnemy = true; // Trespasser in our territory
                 }
               }
 
               if (isEnemy) {
-                float d = std::hypot(myEntity->position.x - otherE.position.x,
-                                     myEntity->position.y - otherE.position.y);
+                float d = std::hypot(myEntity->position.x - otherE->position.x,
+                                     myEntity->position.y - otherE->position.y);
                 if (d <= detectRange && d < closestDist) {
                   closestDist = d;
                   enemyID = otherCitizen->id;
@@ -1424,7 +1489,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           // Patrol logic: Walk in straight lines through the city streets
           if (!myEntity->hasTarget) {
             // Pick a random cardinal direction
-            int r = rand() % 4;
+            int r = GRandom.Int(0, 3);
             int dx = 0, dy = 0;
             if (r == 0)
               dx = 1;
@@ -1435,7 +1500,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
             else
               dy = -1;
 
-            int maxDist = 4 + rand() % 8; // Patrol 4 to 11 tiles
+            int maxDist = GRandom.Int(4, 11); // Patrol 4 to 11 tiles
             int cx = (int)myEntity->position.x;
             int cy = (int)myEntity->position.y;
             int validDist = 0;
@@ -1570,6 +1635,18 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
     if (c.workState == Citizen::WorkState::Idle &&
         c.profession == Profession::None) {
       c.workState = Citizen::WorkState::Wandering;
+    }
+
+    // Interceptor for rich idle states
+    if (c.workState == Citizen::WorkState::Wandering && c.stateTimer == 0.0f) { // Acabou de decidir vagar
+        if (GRandom.Chance(25)) { // 25% de chance de fazer um idle rico
+            int r = GRandom.Int(0, 2);
+            if (r == 0) c.workState = Citizen::WorkState::IdleSitting;
+            else if (r == 1) c.workState = Citizen::WorkState::IdleObserving;
+            else c.workState = Citizen::WorkState::IdleSocializing;
+
+            c.workTimer = (float)GRandom.Int(3, 6); // Fica de 3 a 6 segundos parado
+        }
     }
   }
 }

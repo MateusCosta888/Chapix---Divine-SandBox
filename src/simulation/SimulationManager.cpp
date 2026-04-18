@@ -4,7 +4,7 @@
 #include "../world/World.h"
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
+#include "../utils/GlobalRandom.h"
 #include <vector>
 
 
@@ -87,7 +87,7 @@ void SimulationManager::Update(World &world, float deltaTime) {
                   treeType = DecorationType::Tree;
               }
               tile.decoration = treeType;
-              tile.decorationVariant = rand() % 9;
+              tile.decorationVariant = GRandom.Int(0, 8);
               tile.hasStump = false;
               tile.regrowthTimer = 0.0f;
               tile.originalTree = DecorationType::None;

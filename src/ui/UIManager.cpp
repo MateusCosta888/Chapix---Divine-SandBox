@@ -367,8 +367,8 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
 
     // 1. Check for CITIZENS (Priority over City)
     int clickedCitizenID = -1;
-    const std::vector<Entity> &entities = world.GetEntities();
-    for (const auto &e : entities) {
+    const auto &entities = world.GetEntities();
+    for (const auto &[eid, e] : entities) {
       if (e.citizenID != -1) {
         // Entity pos is in Grid Coords (e.g. 50.5), TileSize = 10.0f
         Vector2 entPosPx = {e.position.x * 10.0f, e.position.y * 10.0f};

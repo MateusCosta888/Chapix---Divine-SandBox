@@ -14,6 +14,24 @@
 #include <string>
 #include <vector>
 
+// RAII helper to ensure planet frames are unloaded even on early exit
+struct PlanetFramesGuard {
+  std::vector<Texture2D> &frames;
+  bool released = false;
+  explicit PlanetFramesGuard(std::vector<Texture2D> &f) : frames(f) {}
+  ~PlanetFramesGuard() { Release(); }
+  void Release() {
+    if (released) return;
+    released = true;
+    for (Texture2D &tex : frames) {
+      if (tex.id > 0) UnloadTexture(tex);
+    }
+    frames.clear();
+  }
+  PlanetFramesGuard(const PlanetFramesGuard&) = delete;
+  PlanetFramesGuard& operator=(const PlanetFramesGuard&) = delete;
+};
+
 // UI Constants (Keep for InitWindow)
 const int TOOLBAR_HEIGHT = 100;
 const int TAB_HEIGHT = 30;
@@ -29,6 +47,7 @@ int main(int argc, char *argv[]) {
   // Dynamic resolution: detect monitor and adapt
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
   InitWindow(800, 600, "ChapiX - Divine SandBox"); // Temp size, resized below
+  SetExitKey(0); // KEY_NULL - prevent ESC from closing the window immediately
   Image myicon = LoadImage("assets/UI/main menu/Ilustration.png");
   SetWindowIcon(myicon);
   UnloadImage(myicon);
@@ -47,6 +66,7 @@ int main(int argc, char *argv[]) {
 
   // === LOADING SCREEN HELPER ===
   std::vector<Texture2D> planetFrames;
+  PlanetFramesGuard planetGuard(planetFrames);
   for (int i = 1; i <= 77; i++) {
     char path[256];
     sprintf(path, "assets/UI/Planet/Animed Earth/Planet%03d.png", i);
@@ -93,8 +113,13 @@ int main(int argc, char *argv[]) {
 
   {
     uint32_t seed = 0;
-    if (argc > 1 && std::string(argv[1]) == "--seed") {
-      seed = std::stoul(argv[2]);
+    if (argc > 2 && std::string(argv[1]) == "--seed") {
+      try {
+        seed = std::stoul(argv[2]);
+      } catch (const std::exception& e) {
+        TraceLog(LOG_WARNING, "Failed to parse seed '%s', using random", argv[2]);
+        seed = (uint32_t)GetTime();
+      }
     } else {
       seed = (uint32_t)GetTime();
     }
@@ -241,7 +266,7 @@ int main(int argc, char *argv[]) {
           // Find closest intelligent entity within radius (increased tolerance to 2.5 tiles = 25 pixels)
           float closestDist = 2.5f;
           int closestID = -1;
-          for (const auto &e : world.GetEntities()) {
+          for (const auto &[eid, e] : world.GetEntities()) {
             if (e.IsIntelligent() && e.citizenID >= 0) {
               float dist = Vector2Distance(e.position, {exMouseX, exMouseY});
               if (dist < closestDist) {
@@ -347,7 +372,7 @@ int main(int argc, char *argv[]) {
                 if (citizen) controlledCityID = citizen->cityID;
               }
 
-              for (auto &other : world.GetEntitiesMutable()) {
+              for (auto &[eid, other] : world.GetEntitiesMutable()) {
                 if (&other == controlled || other.health <= 0) continue;
                 float dist = Vector2Distance(controlled->position, other.position);
                 if (dist >= 1.5f) continue;

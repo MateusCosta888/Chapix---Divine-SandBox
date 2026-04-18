@@ -22,6 +22,17 @@ enum class Profession {
 };
 
 // ============================================================================
+// PERSONALITY TRAITS
+// ============================================================================
+enum class PersonalityTrait {
+  Normal,      // Default balanced behavior
+  Lazy,        // Prefers resting, avoids work
+  Hardworking, // Works longer, rests less
+  Brave,       // Faces dangers others flee
+  Coward       // Flees at minor threats
+};
+
+// ============================================================================
 // CITIZEN STATS
 // ============================================================================
 struct CitizenStats {
@@ -65,7 +76,6 @@ struct Citizen {
   bool isGoingHome = false; // True if traveling to home
 
   // === STATS & GENETICS ===
-  // === STATS & GENETICS ===
   CitizenStats stats;
   CitizenGenetics genes;
 
@@ -88,6 +98,7 @@ struct Citizen {
   int cityID = -1;    // Which city do I belong to?
   int kingdomID = -1; // Which kingdom?
   Profession profession = Profession::None;
+  PersonalityTrait personality = PersonalityTrait::Normal;
 
   // === JOB CONTEXT ===
   enum class JobType {
@@ -110,6 +121,9 @@ struct Citizen {
   // === WORK STATE ===
   enum class WorkState {
     Idle,         // Not working, waiting for task
+    IdleSitting,    // Taking a break, sitting down
+    IdleObserving,  // Watching surroundings
+    IdleSocializing, // Chatting with nearby citizen
     Wandering,    // Moving randomly (because no task found)
     GoingToWork,  // Moving to work target
     Working,      // Actively working (chopping, farming, etc.)
@@ -140,7 +154,7 @@ struct Citizen {
   bool isAdult() const { return age >= 16.0f; }
   bool isElder() const { return age >= 60.0f; }
   bool isChild() const { return age < 16.0f; }
-  bool isStarving() const { return hunger >= 80.0f; }
+  bool isStarving() const { return hunger >= 80.0f; };
 };
 
 // ============================================================================
@@ -160,7 +174,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(
     Citizen, id, name, isFemale, age, health, maxHealth, hunger, energy,
     homeID, isResting, isGoingHome, stats, genes, level,
     experience, maxExperience, inventory, abilities, cityID, kingdomID,
-    profession, currentJob, skillFarming, skillWoodcutting, skillMining,
+    profession, personality, currentJob, skillFarming, skillWoodcutting, skillMining,
     skillBuilding, skillCombat, workState, lastWorkState, isWorking, workTimer,
     stateTimer, targetTileX, targetTileY, targetEntityID, carryingResource,
     maxCarryCapacity, motherID, fatherID, spouseID, isAlive)

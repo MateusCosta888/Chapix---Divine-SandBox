@@ -1,12 +1,11 @@
 #include "Citizen.h"
-#include <cstdlib>
-#include <ctime>
 #include <string>
+#include "../utils/GlobalRandom.h"
+#include "../utils/Random.h"
 
-// Helper for random float in range
+// Helper for random float in range (deprecated, use GRandom.FloatRange)
 static float RandFloat(float min, float max) {
-  return min + static_cast<float>(rand()) /
-                   (static_cast<float>(RAND_MAX / (max - min)));
+  return GRandom.FloatRange(min, max);
 }
 
 // Male first names (medieval/fantasy style)
@@ -48,15 +47,15 @@ static const int NUM_SUFFIXES =
 static std::string GenerateRandomName(bool isFemale) {
   std::string name;
   if (isFemale)
-    name = FEMALE_FIRST_NAMES[rand() % NUM_FEMALE_NAMES];
+    name = FEMALE_FIRST_NAMES[GRandom.Int(0, NUM_FEMALE_NAMES - 1)];
   else
-    name = MALE_FIRST_NAMES[rand() % NUM_MALE_NAMES];
+    name = MALE_FIRST_NAMES[GRandom.Int(0, NUM_MALE_NAMES - 1)];
 
   // 50% chance to add a last name
-  if (rand() % 2 == 0) {
+  if (GRandom.Chance(50)) {
     name += " ";
-    name += LAST_PREFIXES[rand() % NUM_PREFIXES];
-    name += LAST_SUFFIXES[rand() % NUM_SUFFIXES];
+    name += LAST_PREFIXES[GRandom.Int(0, NUM_PREFIXES - 1)];
+    name += LAST_SUFFIXES[GRandom.Int(0, NUM_SUFFIXES - 1)];
   }
 
   return name;
@@ -66,7 +65,7 @@ Citizen CreateRandomCitizen(int id, int cityID) {
   Citizen c;
   c.id = id;
   c.cityID = cityID;
-  c.isFemale = (rand() % 2 == 0);
+  c.isFemale = GRandom.Chance(50);
   c.name = GenerateRandomName(c.isFemale);
   c.age = RandFloat(18.0f, 35.0f); // Start as adult
   c.health = 100.0f;
@@ -87,6 +86,9 @@ Citizen CreateRandomCitizen(int id, int cityID) {
   c.genes.baseEndurance = c.stats.endurance;
   c.genes.maxAge = RandFloat(70.0f, 90.0f);
 
+  // Random personality trait
+  c.personality = static_cast<PersonalityTrait>(GRandom.Int(0, 4));
+
   c.isAlive = true;
   return c;
 }
@@ -97,14 +99,14 @@ Citizen CreateChildCitizen(int id, const Citizen &mother, const Citizen &father,
   c.id = id;
   c.cityID = cityID;
   c.age = 0.0f; // Newborn
-  c.isFemale = (rand() % 2 == 0);
+  c.isFemale = GRandom.Chance(50);
 
   // Generate name - child gets first name, may inherit father's last name
   std::string firstName;
   if (c.isFemale)
-    firstName = FEMALE_FIRST_NAMES[rand() % NUM_FEMALE_NAMES];
+    firstName = FEMALE_FIRST_NAMES[GRandom.Int(0, NUM_FEMALE_NAMES - 1)];
   else
-    firstName = MALE_FIRST_NAMES[rand() % NUM_MALE_NAMES];
+    firstName = MALE_FIRST_NAMES[GRandom.Int(0, NUM_MALE_NAMES - 1)];
 
   // Check if father has a last name (contains space)
   size_t spacePos = father.name.find(' ');
@@ -141,6 +143,9 @@ Citizen CreateChildCitizen(int id, const Citizen &mother, const Citizen &father,
   c.maxHealth = 100.0f;
   c.hunger = 0.0f;
   c.energy = 100.0f;
+
+  // Random personality trait (can inherit from parents later)
+  c.personality = static_cast<PersonalityTrait>(GRandom.Int(0, 4));
 
   c.motherID = mother.id;
   c.fatherID = father.id;

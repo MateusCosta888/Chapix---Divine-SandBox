@@ -2,9 +2,9 @@
 #include "../world/Tile.h"
 #include "../world/World.h"
 #include "SimulationManager.h"
+#include "../utils/GlobalRandom.h"
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 
 
 // ============================================================================
@@ -169,7 +169,7 @@ void SimulationManager::AttemptConstruction(City &city, World &world) {
     if (bestBx != -1)
       break;
 
-    int startIdx = rand() % city.territory.size();
+    int startIdx = GRandom.Int(0, (int)city.territory.size() - 1);
 
     for (size_t i = 0; i < city.territory.size(); i++) {
       size_t idx = (startIdx + i) % city.territory.size();
@@ -233,7 +233,7 @@ void SimulationManager::AttemptConstruction(City &city, World &world) {
         continue;
 
       float dist = std::hypot(bx - city.center.x, by - city.center.y);
-      float score = dist + (rand() % 100) / 100.0f;
+      float score = dist + GRandom.FloatRange(0.0f, 1.0f);
 
       if (score < bestScore) {
         bestScore = score;
@@ -252,7 +252,7 @@ void SimulationManager::AttemptConstruction(City &city, World &world) {
     newBuilding.isComplete = false;
     newBuilding.constructionProgress = 0.0f;
     newBuilding.type = typeToBuild;
-    newBuilding.variant = rand() % 3;
+    newBuilding.variant = GRandom.Int(0, 2);
     newBuilding.capacity = GetBuildingHousingCapacity(typeToBuild);
 
     city.resources.wood -= woodCost;
@@ -491,7 +491,7 @@ void SimulationManager::UpdateBuildingUpgrade(City &city) {
     return;
 
   // Efficiency: Small chance to process upgrade each tick
-  if (rand() % 100 > 5)
+  if (!GRandom.Chance(5))
     return;
 
   // Iterate to find a candidate for upgrade
@@ -507,7 +507,7 @@ void SimulationManager::UpdateBuildingUpgrade(City &city) {
         city.resources.wood -= costWood;
         b.type = BuildingType::Casa;
         b.capacity = 5;
-        b.variant = rand() % 6; // Variants 0-5
+        b.variant = GRandom.Int(0, 5); // Variants 0-5
         TraceLog(LOG_INFO,
                  "CITY %d: Upgraded Cabana to Wood Casa (Var %d). Cap: 5",
                  city.id, b.variant);
@@ -527,7 +527,7 @@ void SimulationManager::UpdateBuildingUpgrade(City &city) {
             city.resources.stone >= costStone) {
           city.resources.wood -= costWood;
           city.resources.stone -= costStone;
-          b.variant = 6 + (rand() % 3); // Variants 6-8
+          b.variant = 6 + GRandom.Int(0, 2); // Variants 6-8
           b.capacity = 5;
           TraceLog(LOG_INFO,
                    "CITY %d: Upgraded Wood Casa to Mixed Casa (Var %d). Cap: 5",
@@ -541,7 +541,7 @@ void SimulationManager::UpdateBuildingUpgrade(City &city) {
           city.resources.stone -= costStone;
           b.type = BuildingType::Casa2;
           b.capacity = 8;
-          b.variant = rand() % 3;
+          b.variant = GRandom.Int(0, 2);
           TraceLog(
               LOG_INFO,
               "CITY %d: Upgraded Mixed Casa to Stone Mansion (Var %d). Cap: 8",

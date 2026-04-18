@@ -1,7 +1,7 @@
 ========================================
   ChapiX - Divine SandBox
   Otimizações e Melhorias Futuras
-  Atualizado em: 26/02/2026
+  Atualizado em: 2026-04-18
 ========================================
 
 === FINALIZADOS (✓) ===
@@ -13,38 +13,209 @@
 [✓] DIVIDIR ARQUIVOS GRANDES (SimulationManager.cpp separado em CitizenAI.cpp, etc.)
 [✓] OPÇÕES: SISTEMA MUDO NO VOLUME DA MÚSICA (Áudio silenciado via updates transparentes)
 [✓] OTIMIZAÇÃO: SISTEMA DE SALVAMENTO I/O MAIS LEVE E SEGURO (MessagePack Binário Nativos no SaveManager)
+[✓] FIX: Buffer overflow em argv[2] sem check de argc (now checks argc > 2)
+[✓] FIX: Exception handling no stoul para seed inválida
+[✓] RAII guard para planetFrames para evitar memory leaks em early exit
+[✓] OTIMIZAÇÃO: BUSCA ESPACIAL AVANÇADA (Spatial Hashing integrado, buscas em O(K) para inimigos)
+[✓] OTIMIZAÇÃO: MEMORY POOL PARA ENTIDADES (Migração de vector para unordered_map com remoção bufferizada)
+[✓] IA ORGÂNICA PARA CIDADÃOS: (Traços de Personalidade, Cansaço Probabilístico e Estados Ociosos Ricos)
+
+=== PRIORIDADE CRÍTICA (CORRIGIDOS AGORA) ===
+
+1. ✓ VAZAMENTO DE MEMÓRIA EM PLANETFRAMES
+   - PROBLEMA: Se o jogo fechar antes do loop principal, as texturas do loading
+     screen (77 frames) nunca eram descarregadas, causando vazamento de VRAM.
+   - SOLUÇÃO: Implementado PlanetFramesGuard com RAII que descarrega texturas
+     no destructor, garantindo liberação mesmo em paths de erro ou early exit.
+
+2. ✓ SUBSTITUIÇÃO DE rand() POR Random Class
+   - PROBLEMA: rand() não tem seed consistente, quebra reprodutibilidade e tem
+     distribuição estatística pobre (linear congruential é ruim).
+   - SOLUÇÃO: Criar um wrapper global em Random::Get() que usa std::mt19937,
+     e substituir TODOS os usos de rand() no código.
+
+3. ✓ EXTRAÇÃO DE MAGIC NUMBERS PARA CONSTEXPR
+   - PROBLEMA: Hardcoded de valores como 30.0f (spawn timer), 0.05f (aging rate),
+     15 (mountain filter neighbors) sem contexto.
+   - SOLUÇÃO: Criar namespace Constants com todos os valores nomeados.
+
+4. ✓ CORREÇÃO DE CONDIÇÃO DE CORRIDA NO hasRebuiltCollision
+   - PROBLEMA: static bool não reseta se houver reload de mundo.
+   - SOLUÇÃO: Mover para membro da classe ou resetar em World::Reset().
 
 === PRIORIDADE ALTA ===
 
-1. OTIMIZAÇÃO: BUSCA ESPACIAL AVANÇADA PARA JOBS (Árvores e Inimigos)
-   - Lenhadores fazem buscas custosas em raio 50 e 60 por frame na IA.
-   - Soldados escanneiam todos os NPCs em cena no mapa sem poda direcional.
-   - Solução: Implementar um Spatial Hashing ou QuadTree em `World.h` para encontrar entidades/tiles alvos perto rápido.
+1. OTIMIZAÇÃO: BUSCA ESPACIAL AVANÇADA PARA JOBS (CONCLUÍDO ✓)
+   - Adicionado `SpatialHash.h` dividindo o mapa em matriz de 16x16 e inserindo queries espaciais para caça e combate na `CitizenAI.cpp`.
 
+2. HOT RELOAD PARA ASSETS (Shaders, Config, Texturas)
+   - PROBLEMA: Todo cambio em asset exige restart do jogo.
+   - LOC: ResourceManager.cpp, WorldRenderer.cpp
+   - SOLUÇÃO: Adicionar FileWatcher que recarrega texturas/shaders sem restart.
+   - IMPLEMENTAÇÃO:
+     * Adicionar std::filesystem::last_write_time check antes de draw
+     * Ou usar inotify (Linux) / ReadDirectoryChangesW (Windows)
 
+3. SISTEMA DE LOG ESTRUTURADO
+   - PROBLEMA: TraceLog(LOG_INFO, ...) espalhado sem categorização.
+   - LOC: Todo o código
+   - SOLUÇÃO: Wrapper com niveis e categorias:
+     ```cpp
+     namespace Log {
+       void Info(const std::string& category, const std::string& msg);
+       void Warn(const std::string& category, const std::string& msg);
+       void Error(const std::string& category, const std::string& msg);
+       void Debug(const std::string& category, const std::string& msg);
+     }
+     // Uso: Log::Info("CITIZEN", "Citizen 42 leveled up");
+     ```
+
+4. MEMORY POOL PARA ENTIDADES (CONCLUÍDO ✓)
+   - A dependência frágil do `std::vector` que gerava "pointer invalidation" foi transformada num stable `std::unordered_map` em `World.cpp`.
 
 === PRIORIDADE MÉDIA ===
 
-3. SUBSTITUIR rand() POR Random Nativo ou PRNG
-   - Vários lugares usam `rand()`, quebrando reprodutibilidade e afetando o multithreading no mundo.
-   - Mudar para standard libs (std::mt19937) e guardar states no core da seed.
+5. REMOÇÃO DE VARIÁVEIS static INTERNAS (Timer e Flags)
+   - PROBLEMA: static float regrowthCheckTimer, static float castleSpawnTimer,
+     static bool hasRebuiltCollision - não persistem entre reloads.
+   - LOC: SimulationManager.cpp (vários locais)
+   - SOLUÇÃO: Mover para membros da classe SimulationManager:
+     ```cpp
+     class SimulationManager {
+       float regrowthCheckTimer = 0.0f;
+       float castleSpawnTimer = 0.0f;
+       float birthCheckTimer = 0.0f;
+       float foodProductionTimer = 0.0f;
+       bool hasRebuiltCollision = false;  // Deveria ser resetável
+     };
+     ```
 
-4. REMOÇÃO DE VARIÁVEIS static INTERNAS
-   - static float regrowthCheckTimer, etc..
-   - Movimentá-las para a classe do `SimulationManager`.
+6. RESOLVER CORRUPÇÃO DE TEXTURAS / DOUBLE UNLOAD
+   - PROBLEMA: "Unloaded texture data from VRAM" múltiplas vezes ao fechar.
+   - LOC: ResourceManager.cpp, WorldRenderer.cpp, UIManager.cpp
+   - SOLUÇÃO: Implementar Reference Counting no ResourceManager:
+     ```cpp
+     struct TextureRef {
+       Texture2D texture;
+       int refCount;
+     };
+     std::unordered_map<int, TextureRef> textureCache;
+     ```
 
-5. RESOLVER CORRUPÇÃO DE TEXTURAS / DOUBLE UNLOAD NO FIM DO JOGO
-   - Na saída do binário, a Raylib cospe alertas de `Unloaded texture data from VRAM (GPU)` múltiplas vezes por textura duplicada no fechamento.
-   - Solução: Implementar um rastreador forte de Referências (Reference Counting) no `ResourceManager`.
+7. REMOVER const_cast NO UIMANAGER
+   - PROBLEMA: const_cast<World &>(world).GetSimulation() é perigoso.
+   - LOC: UIManager.cpp
+   - SOLUÇÃO: Adicionar const getters adequados em World.h:
+     ```cpp
+     class World {
+       SimulationManager &GetSimulation();           // non-const
+       const SimulationManager &GetSimulation() const;  // const
+     };
+     ```
+
+8. CORRIGIR PATHS HARDCODED
+   - PROBLEMA: "assets/UI/main menu/Ilustration.png" espalhado no código.
+   - LOC: main.cpp, savemanager.cpp, manager files
+   - SOLUÇÃO: Criar namespace Paths:
+     ```cpp
+     namespace Paths {
+       constexpr const char* ASSETS_DIR = "assets/";
+       constexpr const char* UI_DIR = "assets/UI/";
+       constexpr const char* ICON_MAIN = "assets/UI/main menu/Ilustration.png";
+       constexpr const char* PLANET_ANIM = "assets/UI/Planet/Animed Earth/Planet%03d.png";
+     }
+     ```
 
 === PRIORIDADE BAIXA ===
 
-6. CORRIGIR const_cast NO UIMANAGER
-   - Remover os perigos de `const_cast<World &>(world).GetSimulation()` trocando por getters constantes nas classes corretas para permitir Rendering imutável.
+9. ADICIONAR TESTES UNITÁRIOS E CI
+   - PROBLEMA: Nenhum teste automatizado.
+   - LOC: Todo o código
+   - SOLUÇÃO: Adicionar Catch2 ou GoogleTest:
+     ```
+     test/WorldTest.cpp     - Geração perlin noise
+     test/SimulationTest.cpp - IA logic, combat math
+     test/CMakeLists.txt    - Build config
+     ```
 
-7. FALTAS E WARNINGS MENORES DE UI
-   - TraceLog: "UI: Failed to load texTabRedFlag"
-   - Adicionar as texturas em falta nos assets em /UI/.
+10. CORRIGIR WARNINGS MENORES DE UI
+    - PROBLEMA: TraceLog "UI: Failed to load texTabRedFlag"
+    - LOC: UIManager.cpp
+    - SOLUÇÃO: Adicionar as texturas em falta em assets/UI/ ou tratar gracefully
 
-8. ADICIONAR TESTES UNITÁRIOS E PIPELINE DE TESTES CI
-   - Funções testáveis: Geração perlin noise, Walkable Pathfinding, Combate Matemático e Cálculos de Food/Stamina.
+11. PERFILADOR DE PERFORMANCE INTEGRADO
+    - PROBLEMA: Não há forma de medir FPS de lógica vs render.
+    - LOC: main.cpp, World.cpp, SimulationManager.cpp
+    - SOLUÇÃO: FrameProfiler que mede tempos por subsystem:
+      ```
+      - World Update: X ms
+      - Simulation Update: X ms
+      - UI Draw: X ms
+      - Total: X ms
+      ```
+
+12. SISTEMA DE CONFIGURAÇÃO EXTERNO
+    - PROBLEMA: Valores hardcode em múltiplos arquivos (FPS, autosave interval, etc.)
+    - SOLUÇÃO: arquivo config.json lido no startup:
+      ```json
+      {
+        "fps": 60,
+        "autosave_interval": 300,
+        "gravity": 9.8,
+        "global_volume": 0.7
+      }
+      ```
+
+=== PROBLEMAS ENCONTRADOS (Análise Profunda) ===
+
+1. Deep Nesting em CitizenAI.cpp (Lines 1642-1700)
+   - 6 níveis de nested if/for dentro de HandleHumanAttack
+   - Dificulta manutenção e testes unitários
+   - RECOMENDAÇÃO: Extrair para funções menores
+
+2. FALTA DE CONST CORRECTNESS
+   - GetAllCitizens() const retorna reference non-const internamente
+   - GetEntitiesMutable() expõe mutable reference abertamente
+   - Pode levar a bugs de modificação acidental
+
+3. DUPLICAÇÃO DE LÓGICA NO RENDERER
+   - DrawWaterWaves, DrawWaterFoam, DrawWaterSparkles
+   - Todas usam pattern similar de animação baseada em time
+   - RECOMENDAÇÃO: GenericParticle ou WaterEffect base class
+
+4. COMENTÁRIOS DESATUALIZADOS
+   - "Removed standard bushes per user request" com código comentado
+   - Deveria ser documentado em DESIGN_DECISIONS.md
+
+5. SEM SISTEMA DE EVENTOS
+   - Entidades checam condições a cada frame (polling)
+   - RECOMENDAÇÃO: Event Bus para reação assíncrona:
+     ```cpp
+     OnEntityKilled(event.id, event.killerId)
+     OnCityFounded(event.cityId, event.founderId)
+     OnWeatherChanged(event.type)
+     ```
+
+=== RECOMENDAÇÕES DE ARQUITETURA ===
+
+1. ENTIDADE-COMPONENTE-SISTEMA (ECS)
+   - Atual: Entity struct com tudo misturado
+   - RECOMENDADO: Separar dados (Component) de lógica (System)
+   - BENEFÍCIO: Parallel processing com std::thread
+   - ESFORÇO: ALTO (reescrita significativa)
+
+2. DATA-ORIENTED DESIGN (DOD)
+   - Atual: std::vector<Entity> com layout aleatório
+   - RECOMENDADO: array of structs vs struct of arrays
+   - BENEFÍCIO: Cache locality para simulações massivas
+   - ESFORÇO: MÉDIO (refatoração parcial)
+
+3. SCRIPTING LUA PARA IA
+   - Atual: IA hardcode em C++
+   - RECOMENDADO: Comportamentos em Lua script
+   - BENEFÍCIO: Sem recompilar para mudar IA
+   - ESFORÇO: MÉDIO (integrar soloud + lua)
+
+========================================
+
+NOTA: Este arquivo deve ser atualizado quando novas melhorias forem implementadas.
