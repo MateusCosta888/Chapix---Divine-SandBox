@@ -32,7 +32,6 @@ float SimulationManager::ScoreTileForCity(World &world, int x, int y) const {
   int waterCount = 0;
   int treeCount = 0;
   int grassCount = 0;
-  int oreCount = 0;
 
   for (int dy = -2; dy <= 2; dy++) {
     for (int dx = -2; dx <= 2; dx++) {
@@ -48,26 +47,30 @@ float SimulationManager::ScoreTileForCity(World &world, int x, int y) const {
       if (tile.type == TileType::ShallowOcean || tile.type == TileType::Ocean)
         waterCount++;
 
-      // Trees are resources
-      if (tile.decoration == DecorationType::Tree)
+      // Trees are resources (Include Pine and Palm)
+      if (tile.decoration == DecorationType::Tree ||
+          tile.decoration == DecorationType::PineTree ||
+          tile.decoration == DecorationType::PalmTree)
         treeCount++;
 
-      // Grass is fertile
-      if (tile.type == TileType::Grass)
+      // Fertile land (Grass, Snow, Sand, Forest)
+      if (tile.type == TileType::Grass || tile.type == TileType::Snow ||
+          tile.type == TileType::DesertSand || tile.type == TileType::Sand ||
+          tile.type == TileType::Forest)
         grassCount++;
     }
   }
 
   // Score calculation
-  // Water nearby is no longer required
   score += treeCount * 5.0f;  // Trees for wood
   score += grassCount * 3.0f; // Fertile land
+  if (waterCount > 0) score += 10.0f; // Small bonus for water
 
   // Penalty for being too close to other cities
   for (const auto &pair : cities) {
     float dist = std::hypot(pair.second.center.x - x, pair.second.center.y - y);
-    if (dist < 15.0f) {
-      score -= (15.0f - dist) * 20.0f; // Heavy penalty for proximity
+    if (dist < 18.0f) {
+      score -= (18.0f - dist) * 20.0f; // Heavy penalty for proximity
     }
   }
 
@@ -379,11 +382,21 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
     }
 
     // === AUTOMATIC BUILDING CONSTRUCTION ===
+    // Check every 2 seconds for building construction
     static float buildTimer = 0.0f;
     buildTimer += deltaTime;
-    if (buildTimer >= 5.0f) { // Check every 5 seconds
+    if (buildTimer >= 2.0f) {
       buildTimer = 0.0f;
       AttemptConstruction(city, world);
+    }
+
+    // === BUILDING EVOLUTION (UPGRADES) ===
+    // Check every 3 seconds for building upgrades
+    static float upgradeTimer = 0.0f;
+    upgradeTimer += deltaTime;
+    if (upgradeTimer >= 3.0f) {
+      upgradeTimer = 0.0f;
+      UpdateBuildingUpgrade(city);
     }
 
     // === TERRITORY EXPANSION ===
@@ -416,7 +429,5 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
       }
     }
 
-    // Update Building Evolution
-    UpdateBuildingUpgrade(city);
   }
 } // Close UpdateCities

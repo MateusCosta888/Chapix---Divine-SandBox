@@ -24,6 +24,12 @@ void SimulationManager::Reset() {
   gameTime = 0.0f;
   yearTimer = 0.0f;
   currentYear = 1;
+  // Reset timers
+  regrowthCheckTimer = 0.0f;
+  castleSpawnTimer = 0.0f;
+  birthCheckTimer = 0.0f;
+  foodProductionTimer = 0.0f;
+  hasRebuiltCollision = false;
 }
 
 // ============================================================================
@@ -41,9 +47,8 @@ void SimulationManager::Update(World &world, float deltaTime) {
 
   // Update all subsystems
 
-  // Static flag to run collision rebuild once after load / start
+  // Flag to run collision rebuild once after load / start
   // This ensures existing buildings in save files get their isOccupied flag set
-  static bool hasRebuiltCollision = false;
   if (!hasRebuiltCollision) {
     RebuildOccupationMap(world);
     hasRebuiltCollision = true;
@@ -53,7 +58,6 @@ void SimulationManager::Update(World &world, float deltaTime) {
   // Simple timer: every 5 seconds, scan all stumps and add 5 seconds to their
   // timer
   {
-    static float regrowthCheckTimer = 0.0f;
     regrowthCheckTimer += deltaTime;
     float checkInterval = 5.0f; // Check every 5 seconds
     float regrowthTime = 90.0f; // Seconds until stump regrows into tree
@@ -100,7 +104,6 @@ void SimulationManager::Update(World &world, float deltaTime) {
 
   // === CASTLE SOLDIER SPAWNING SYSTEM ===
   {
-    static float castleSpawnTimer = 0.0f;
     castleSpawnTimer += deltaTime;
     float spawnInterval = 30.0f; // Spawn soldiers every 30 seconds
     if (castleSpawnTimer >= spawnInterval) {

@@ -6,29 +6,100 @@
 #include <algorithm>
 #include <cmath>
 
+// ============================================================================
+// ASSIGN JOBS -Government system to assign professions based on city needs
+// ============================================================================
+void SimulationManager::AssignJobs(City &city) {
+  AssignHousing(city);
+
+  int population = city.GetPopulation();
+  if (population == 0) return;
+
+  // Count current workers
+  int lumberjacks = 0, farmers = 0, miners = 0, builders = 0, soldiers = 0;
+  std::vector<Citizen *> availableWorkers;
+
+  for (int id : city.citizenIDs) {
+    Citizen *c = GetCitizen(id);
+    if (!c || !c->isAlive || !c->isAdult()) continue;
+
+    switch (c->profession) {
+    case Profession::Lumberjack: lumberjacks++; break;
+    case Profession::Farmer: farmers++; break;
+    case Profession::Miner: miners++; break;
+    case Profession::Builder: builders++; break;
+    case Profession::Soldier: soldiers++; break;
+    case Profession::None:
+      availableWorkers.push_back(c);
+      break;
+    default: break;
+    }
+  }
+
+  if (availableWorkers.empty()) return;
+
+  // Calculate needs based on city state
+  bool hasIncompleteBuildings = false;
+  for (const auto &b : city.buildings) {
+    if (!b.isComplete) { hasIncompleteBuildings = true; break; }
+  }
+
+  int desiredFarmers = std::max(2, population / 3);  // 1 per 3 pop
+  int desiredLumberjacks = std::max(1, population / 5); // 1 per 5 pop
+  int desiredMiners = std::max(1, population / 8);  // 1 per 8 pop
+  int desiredBuilders = hasIncompleteBuildings ? std::max(1, population / 3) : std::max(1, population / 10);
+  int barracksCount = 0;
+  for (const auto &b : city.buildings) {
+    if (b.isComplete && b.type == BuildingType::Quartel) barracksCount++;
+  }
+  int desiredSoldiers = barracksCount * 3;
+
+  // Emergency needs
+  if (city.resources.food < 50) desiredFarmers += 2;
+  if (city.resources.wood < 30) desiredLumberjacks += 2;
+  if (city.resources.stone < 20) desiredMiners += 2;
+
+  // Assign jobs by priority
+  for (Citizen *c : availableWorkers) {
+    // Priority: Food > Wood > Stone > Build > Soldier
+    if (farmers < desiredFarmers) {
+      c->profession = Profession::Farmer;
+      farmers++;
+    } else if (lumberjacks < desiredLumberjacks && !c->isFemale) {
+      c->profession = Profession::Lumberjack;
+      lumberjacks++;
+    } else if (miners < desiredMiners && !c->isFemale) {
+      c->profession = Profession::Miner;
+      miners++;
+    } else if (builders < desiredBuilders && !c->isFemale) {
+      c->profession = Profession::Builder;
+      builders++;
+    } else if (soldiers < desiredSoldiers && !c->isFemale) {
+      c->profession = Profession::Soldier;
+      soldiers++;
+    } else if (c->isFemale) {
+      c->profession = Profession::Farmer;
+      farmers++;
+    }
+  }
+}
 
 // ============================================================================
-// NEW: ADAPTIVE CONSTRUCTION
+// BUILDING CONSTRUCTION - Updated to use city-centered placement
 // ============================================================================
 void SimulationManager::AttemptConstruction(City &city, World &world) {
-  // 1. Calculate Storage & Needs
+  // 1. Calculate storage and capacity
   int totalStorage = 200;
   int plannedCapacity = 0;
 
   for (const auto &b : city.buildings) {
     if (b.isComplete) {
-      if (b.type == BuildingType::Recursos)
-        totalStorage += 500;
-      else if (b.type == BuildingType::StockpileStone)
+      if (b.type == BuildingType::Recursos || b.type == BuildingType::StockpileStone)
         totalStorage += 500;
     }
-
     if (b.IsHousing()) {
-      int cap = b.capacity;
-      if (cap == 0)
-        cap = GetBuildingHousingCapacity(b.type);
-      if (cap == 0)
-        cap = 2; // Fallback
+      int cap = b.capacity > 0 ? b.capacity : GetBuildingHousingCapacity(b.type);
+      if (cap == 0) cap = 2;
       plannedCapacity += cap;
     }
   }
@@ -36,214 +107,160 @@ void SimulationManager::AttemptConstruction(City &city, World &world) {
 
   int population = city.GetPopulation();
 
-  // 2. Decide what to build
-  bool needWoodStorage = city.resources.wood >= (city.maxStorage * 0.8f);
-  bool needStoneStorage = city.resources.stone >= (city.maxStorage * 0.8f);
-  bool needHousing = population > (plannedCapacity - 2);
-
-  // Mine Logic: Build if stone is critically low OR if we have few mines for
-  // our population
-  int mineCount = 0;
-  for (const auto &b : city.buildings) {
-    if (b.type == BuildingType::Mina)
-      mineCount++;
-  }
-  // Target: 1 mine per 20 people, minimum 1 if stone < 20
-  bool needMine = (city.resources.stone < 20 && mineCount == 0) ||
-                  (mineCount < (population / 20) + 1);
+  // 2. Determine what to build
+  bool needHousing = population > (plannedCapacity + 2);
+  bool needWoodStorage = city.resources.wood >= (city.maxStorage * 0.85f);
+  bool needStoneStorage = city.resources.stone >= (city.maxStorage * 0.85f);
+  bool needMine = city.resources.stone < 30;
 
   BuildingType typeToBuild = BuildingType::None;
   int woodCost = 0;
+  int stoneCost = 0;
 
+  // Priority 1: Housing (most important)
   if (needHousing && city.resources.wood >= 5) {
     if (city.buildings.size() < 3) {
       typeToBuild = BuildingType::Cabana;
-      woodCost = 5;
+      woodCost = 2; stoneCost = 0;
     } else if (city.buildings.size() < 8) {
       typeToBuild = BuildingType::Casa;
-      woodCost = 10;
+      woodCost = 5; stoneCost = 2;
     } else {
       typeToBuild = BuildingType::Casa2;
-      woodCost = 15;
+      woodCost = 8; stoneCost = 5;
     }
-  } else if (needMine && city.resources.wood >= 50) {
-    typeToBuild = BuildingType::Mina;
-    woodCost = 50;
-  } else if (needStoneStorage && city.resources.wood >= 50) {
+  }
+  // Priority 2: Storage
+  else if (needStoneStorage && city.resources.wood >= 50) {
     typeToBuild = BuildingType::StockpileStone;
-    woodCost = 50;
-  } else if (needWoodStorage && city.resources.wood >= 50) {
+    woodCost = 50; stoneCost = 0;
+  }
+  // Priority 3: Mines (if stone is low)
+  else if (needMine && city.resources.wood >= 50) {
+    typeToBuild = BuildingType::Mina;
+    woodCost = 50; stoneCost = 0;
+  }
+  // Priority 4: Wood storage
+  else if (needWoodStorage && city.resources.wood >= 50) {
     typeToBuild = BuildingType::Recursos;
-    woodCost = 30;
+    woodCost = 30; stoneCost = 0;
   }
 
-  // === NEW BUILDINGS (population-gated) ===
+  // Priority 5: Population-gated buildings
   if (typeToBuild == BuildingType::None) {
-    // Count existing new buildings
-    int quartelCount = 0, mercadoCount = 0, workshopCount = 0;
-    int tavernaCount = 0, casteloCount = 0;
+    int quartelCount = 0, mercadoCount = 0, workshopCount = 0, tavernaCount = 0, casteloCount = 0;
     for (const auto &b : city.buildings) {
-      if (b.type == BuildingType::Quartel)
-        quartelCount++;
-      else if (b.type == BuildingType::Mercado)
-        mercadoCount++;
-      else if (b.type == BuildingType::Workshop)
-        workshopCount++;
-      else if (b.type == BuildingType::Taverna)
-        tavernaCount++;
-      else if (b.type == BuildingType::Castelo)
-        casteloCount++;
+      if (b.type == BuildingType::Quartel) quartelCount++;
+      else if (b.type == BuildingType::Mercado) mercadoCount++;
+      else if (b.type == BuildingType::Workshop) workshopCount++;
+      else if (b.type == BuildingType::Taverna) tavernaCount++;
+      else if (b.type == BuildingType::Castelo) casteloCount++;
     }
-
-    BuildingCost cost = {0, 0, 0};
 
     // Barracks: 1 when pop >= 15
     if (quartelCount == 0 && population >= 15) {
-      cost = GetBuildingCost(BuildingType::Quartel);
-      if (city.resources.wood >= cost.wood &&
-          city.resources.stone >= cost.stone) {
+      BuildingCost cost = GetBuildingCost(BuildingType::Quartel);
+      if (city.resources.wood >= cost.wood && city.resources.stone >= cost.stone) {
         typeToBuild = BuildingType::Quartel;
-        woodCost = cost.wood;
-        city.resources.stone -= cost.stone;
+        woodCost = cost.wood; stoneCost = cost.stone;
       }
     }
     // Market: 1 per 30 pop
-    if (typeToBuild == BuildingType::None &&
-        mercadoCount < (population / 30) + 1 && population >= 10) {
-      cost = GetBuildingCost(BuildingType::Mercado);
-      if (city.resources.wood >= cost.wood &&
-          city.resources.stone >= cost.stone) {
+    else if (mercadoCount < (population / 30) + 1 && population >= 10) {
+      BuildingCost cost = GetBuildingCost(BuildingType::Mercado);
+      if (city.resources.wood >= cost.wood && city.resources.stone >= cost.stone) {
         typeToBuild = BuildingType::Mercado;
-        woodCost = cost.wood;
-        city.resources.stone -= cost.stone;
+        woodCost = cost.wood; stoneCost = cost.stone;
       }
     }
     // Workshop: 1 per 25 pop
-    if (typeToBuild == BuildingType::None &&
-        workshopCount < (population / 25) + 1 && population >= 12) {
-      cost = GetBuildingCost(BuildingType::Workshop);
-      if (city.resources.wood >= cost.wood &&
-          city.resources.stone >= cost.stone) {
+    else if (workshopCount < (population / 25) + 1 && population >= 12) {
+      BuildingCost cost = GetBuildingCost(BuildingType::Workshop);
+      if (city.resources.wood >= cost.wood && city.resources.stone >= cost.stone) {
         typeToBuild = BuildingType::Workshop;
-        woodCost = cost.wood;
-        city.resources.stone -= cost.stone;
+        woodCost = cost.wood; stoneCost = cost.stone;
       }
     }
     // Tavern: 1 per 20 pop
-    if (typeToBuild == BuildingType::None &&
-        tavernaCount < (population / 20) + 1 && population >= 8) {
-      cost = GetBuildingCost(BuildingType::Taverna);
-      if (city.resources.wood >= cost.wood &&
-          city.resources.stone >= cost.stone) {
+    else if (tavernaCount < (population / 20) + 1 && population >= 8) {
+      BuildingCost cost = GetBuildingCost(BuildingType::Taverna);
+      if (city.resources.wood >= cost.wood && city.resources.stone >= cost.stone) {
         typeToBuild = BuildingType::Taverna;
-        woodCost = cost.wood;
-        city.resources.stone -= cost.stone;
+        woodCost = cost.wood; stoneCost = cost.stone;
       }
     }
     // Castle: max 1, pop >= 40
-    if (typeToBuild == BuildingType::None && casteloCount == 0 &&
-        population >= 40) {
-      cost = GetBuildingCost(BuildingType::Castelo);
-      if (city.resources.wood >= cost.wood &&
-          city.resources.stone >= cost.stone) {
+    else if (casteloCount == 0 && population >= 40) {
+      BuildingCost cost = GetBuildingCost(BuildingType::Castelo);
+      if (city.resources.wood >= cost.wood && city.resources.stone >= cost.stone) {
         typeToBuild = BuildingType::Castelo;
-        woodCost = cost.wood;
-        city.resources.stone -= cost.stone;
+        woodCost = cost.wood; stoneCost = cost.stone;
       }
     }
   }
 
-  if (typeToBuild == BuildingType::None)
-    return;
-  if (city.resources.wood < woodCost)
+  if (typeToBuild == BuildingType::None || city.resources.wood < woodCost)
     return;
 
-  // 3. Find Placement (Adaptive Spacing)
+  // 3. Find placement (use city center as primary reference)
   int bestBx = -1, bestBy = -1;
   float bestScore = 999999.0f;
 
-  int spacingLevels[] = {
-      3, 2, 1}; // Reduced spacing slightly for denser growth, allowing 3/2/1
+  BuildingSize size = GetBuildingSize(typeToBuild);
+  int centerBx = static_cast<int>(city.center.x);
+  int centerBy = static_cast<int>(city.center.y);
 
-  for (int spacing : spacingLevels) {
-    if (bestBx != -1)
-      break;
+  // Search in expanding rings around city center
+  for (int ring = 2; ring <= 8 && bestBx == -1; ring++) {
+    for (int dy = -ring; dy <= ring && bestBx == -1; dy++) {
+      for (int dx = -ring; dx <= ring && bestBx == -1; dx++) {
+        // Only check perimeter of ring
+        if (dx > -ring && dx < ring && dy > -ring && dy < ring) continue;
 
-    int startIdx = GRandom.Int(0, (int)city.territory.size() - 1);
+        int bx = centerBx + dx;
+        int by = centerBy + dy;
 
-    for (size_t i = 0; i < city.territory.size(); i++) {
-      size_t idx = (startIdx + i) % city.territory.size();
-      int bx = (int)city.territory[idx].x;
-      int by = (int)city.territory[idx].y;
+        if (bx < 0 || by < 0 || bx >= world.GetWidth() || by >= world.GetHeight())
+          continue;
 
-      BuildingSize size = GetBuildingSize(typeToBuild);
-
-      bool placeable = true;
-      for (int bdy = 0; bdy < size.height; bdy++) {
-        for (int bdx = 0; bdx < size.width; bdx++) {
-          int tx = bx + bdx;
-          int ty = by + bdy;
-
-          if (tx < 0 || tx >= world.GetWidth() || ty < 0 ||
-              ty >= world.GetHeight()) {
-            placeable = false;
-            break;
-          }
-          const Tile &tile = world.GetTileConst(tx, ty);
-          if (tile.isOccupied) { // Removed !world.IsWalkable(tx, ty) so it can
-                                 // build over trees/rocks
-            placeable = false;
-            break;
-          }
-          if (tile.type == TileType::DeepOcean ||
-              tile.type == TileType::Ocean ||
-              tile.type == TileType::ShallowOcean ||
-              tile.type == TileType::Mountain) {
-            placeable = false;
-            break;
-          }
-        }
-        if (!placeable)
-          break;
-      }
-      if (!placeable)
-        continue;
-
-      // Check neighbors
-      bool tooClose = false;
-      for (int dy = -spacing; dy < size.height + spacing; dy++) {
-        for (int dx = -spacing; dx < size.width + spacing; dx++) {
-          if (dx >= 0 && dx < size.width && dy >= 0 && dy < size.height)
-            continue;
-
-          int nx = bx + dx;
-          int ny = by + dy;
-          if (nx >= 0 && nx < world.GetWidth() && ny >= 0 &&
-              ny < world.GetHeight()) {
-            if (world.GetTileConst(nx, ny).isOccupied) {
-              tooClose = true;
-              break;
+        // Check if all tiles are free and walkable
+        bool placeable = true;
+        for (int bdy = 0; bdy < size.height && placeable; bdy++) {
+          for (int bdx = 0; bdx < size.width && placeable; bdx++) {
+            int tx = bx + bdx;
+            int ty = by + bdy;
+            if (tx < 0 || ty < 0 || tx >= world.GetWidth() || ty >= world.GetHeight()) {
+              placeable = false;
+            } else {
+              const Tile &tile = world.GetTileConst(tx, ty);
+              if (tile.isOccupied || tile.type == TileType::DeepOcean ||
+                  tile.type == TileType::Ocean || tile.type == TileType::ShallowOcean ||
+                  tile.type == TileType::Mountain) {
+                placeable = false;
+              }
             }
           }
         }
-        if (tooClose)
-          break;
-      }
-      if (tooClose)
-        continue;
 
-      float dist = std::hypot(bx - city.center.x, by - city.center.y);
-      float score = dist + GRandom.FloatRange(0.0f, 1.0f);
-
-      if (score < bestScore) {
-        bestScore = score;
-        bestBx = bx;
-        bestBy = by;
+        if (placeable) {
+          float dist = std::hypot(bx - centerBx, by - centerBy);
+          float score = dist + GRandom.FloatRange(0.0f, 1.0f);
+          if (score < bestScore) {
+            bestScore = score;
+            bestBx = bx;
+            bestBy = by;
+          }
+        }
       }
     }
   }
 
   if (bestBx != -1) {
+    // Deduct costs
+    city.resources.wood -= woodCost;
+    city.resources.stone -= stoneCost;
+
+    // Create building
     Building newBuilding;
     newBuilding.id = GetNextBuildingID();
     newBuilding.cityID = city.id;
@@ -255,50 +272,45 @@ void SimulationManager::AttemptConstruction(City &city, World &world) {
     newBuilding.variant = GRandom.Int(0, 2);
     newBuilding.capacity = GetBuildingHousingCapacity(typeToBuild);
 
-    city.resources.wood -= woodCost;
     city.buildings.push_back(newBuilding);
 
-    BuildingSize size = GetBuildingSize(typeToBuild);
-    for (int dy = 0; dy < size.height; dy++) {
-      for (int dx = 0; dx < size.width; dx++) {
-        int tx = bestBx + dx;
-        int ty = bestBy + dy;
-        if (tx >= 0 && tx < world.GetWidth() && ty >= 0 &&
-            ty < world.GetHeight()) {
-          Tile &bdTile = world.GetTile(tx, ty);
-          bdTile.isOccupied = true;
-          bdTile.hasStump = false;                  // Clear stumps
-          bdTile.isPlanted = false;                 // Clear crops
-          bdTile.decoration = DecorationType::None; // Clear trees/rocks
+    // Mark tiles as occupied
+    for (int bdy = 0; bdy < size.height; bdy++) {
+      for (int bdx = 0; bdx < size.width; bdx++) {
+        int tx = bestBx + bdx;
+        int ty = bestBy + bdy;
+        if (tx >= 0 && tx < world.GetWidth() && ty >= 0 && ty < world.GetHeight()) {
+          world.GetTile(tx, ty).isOccupied = true;
+          world.GetTile(tx, ty).decoration = DecorationType::None;
         }
       }
     }
 
-    TraceLog(LOG_INFO,
-             "CITY %d: Started construction of %s at (%d,%d). Storage: %d/%d",
+    TraceLog(LOG_INFO, "CITY %d: Started construction of %s at (%d,%d). "
+             "Wood: %d/%d, Stone: %d",
              city.id, GetBuildingName(typeToBuild), bestBx, bestBy,
-             city.resources.wood, city.maxStorage);
+             city.resources.wood, city.maxStorage, city.resources.stone);
   } else {
-    TraceLog(LOG_INFO,
-             "CITY %d: Failed to place %s! No valid spot found in territory. "
-             "Size: %d",
-             city.id, GetBuildingName(typeToBuild), (int)city.territory.size());
+    TraceLog(LOG_INFO, "CITY %d: Failed to place %s! No space around center (%d,%d)",
+             city.id, GetBuildingName(typeToBuild), centerBx, centerBy);
   }
 }
 
-// === HOUSING SYSTEM ===
+// ============================================================================
+// HOUSING SYSTEM
+// ============================================================================
 int GetHousingCapacity(const City &city) {
   int totalCapacity = 0;
   for (const auto &b : city.buildings) {
     if (b.isComplete && b.IsHousing()) {
-      totalCapacity += b.capacity;
+      totalCapacity += b.capacity > 0 ? b.capacity : GetBuildingHousingCapacity(b.type);
     }
   }
   return totalCapacity;
 }
 
 void SimulationManager::AssignHousing(City &city) {
-  // 1. Find Homeless
+  // Find homeless citizens
   std::vector<Citizen *> homeless;
   for (int id : city.citizenIDs) {
     Citizen *c = GetCitizen(id);
@@ -307,266 +319,99 @@ void SimulationManager::AssignHousing(City &city) {
     }
   }
 
-  if (homeless.empty())
-    return;
+  if (homeless.empty()) return;
 
-  // 2. Find Housing with vacancy
+  // Find available housing
   for (auto &b : city.buildings) {
     if (b.isComplete && b.IsHousing()) {
-
-      // Auto-configure capacity if 0 (migration fix)
       if (b.capacity == 0) {
-        if (b.type == BuildingType::Cabana)
-          b.capacity = 3;
-        else if (b.type == BuildingType::Casa)
-          b.capacity = 5;
-        else if (b.type == BuildingType::Casa2)
-          b.capacity = 8;
-        else
-          b.capacity = 2; // Fallback
+        if (b.type == BuildingType::Cabana) b.capacity = 3;
+        else if (b.type == BuildingType::Casa) b.capacity = 5;
+        else if (b.type == BuildingType::Casa2) b.capacity = 8;
+        else b.capacity = 2;
       }
-
-      // TRACE LOG for debugging housing
-      // TraceLog(LOG_INFO, "HOUSING CHECK: Building %d (Cap %d, Occ %d)",
-      // b.id, b.capacity, (int)b.occupants.size());
 
       while (b.occupants.size() < (size_t)b.capacity && !homeless.empty()) {
         Citizen *c = homeless.back();
         homeless.pop_back();
-
-        // Assign
         c->homeID = b.id;
         b.occupants.push_back(c->id);
-        TraceLog(LOG_INFO, "HOUSING: Citizen %s moved into Building %d",
-                 c->name.c_str(), b.id);
       }
     }
   }
 }
 
-// === ASSIGN JOBS ===
-// Government system to assign professions based on city needs
-void SimulationManager::AssignJobs(City &city) {
-  AssignHousing(city); // Run housing assignment first
-
-  int population = city.GetPopulation();
-  if (population == 0)
-    return;
-
-  // Count current workers
-  int lumberjacks = 0;
-  int farmers = 0;
-  int miners = 0;
-  int builders = 0;
-  int soldiers = 0;
-  int unemployed = 0;
-
-  std::vector<Citizen *> availableWorkers;
-
-  for (int id : city.citizenIDs) {
-    Citizen *c = GetCitizen(id);
-    if (!c || !c->isAlive || !c->isAdult())
-      continue;
-
-    switch (c->profession) {
-    case Profession::Lumberjack:
-      lumberjacks++;
-      break;
-    case Profession::Farmer:
-      farmers++;
-      break;
-    case Profession::Miner:
-      miners++;
-      break;
-    case Profession::Builder:
-      builders++;
-      break;
-    case Profession::Soldier:
-      soldiers++;
-      break;
-    case Profession::None:
-      unemployed++;
-      availableWorkers.push_back(c);
-      break;
-    default:
-      break;
-    }
-  }
-
-  if (availableWorkers.empty())
-    return;
-
-  // Determine Desired Jobs
-  int desiredFarmers = std::max(1, population / 4); // 1 per 4 pop
-  if (city.resources.food < 100)
-    desiredFarmers++; // Emergency food
-
-  int desiredLumberjacks = std::max(1, population / 6); // 1 per 6 pop
-  if (city.resources.wood < 50)
-    desiredLumberjacks += 2; // Need wood!
-
-  // Aggressive Builder Assignment for City Growth
-  // Aggressive Builder Assignment for City Growth
-  int desiredBuilders = 0;
-
-  // Check if we have incomplete buildings
-  bool hasConstructionSites = false;
-  int barracksCount = 0;
-  for (const auto &b : city.buildings) {
-    if (!b.isComplete) {
-      hasConstructionSites = true;
-    }
-    if (b.isComplete && b.type == BuildingType::Quartel) {
-      barracksCount++;
-    }
-  }
-
-  int desiredSoldiers = barracksCount * 2; // Each barracks supports 2 soldiers
-
-  if (hasConstructionSites) {
-    // If we have stuff to build, we NEED builders
-    desiredBuilders = std::max(1, population / 4);
-  } else if (city.resources.wood > 20 || city.resources.stone > 10) {
-    // If we have resources but no sites, we MIGHT build/upgrade
-    // Assign up to 20% of population as builders (reduced from 30% to save
-    // food/wood gatherers)
-    desiredBuilders = std::max(1, population / 5);
-  } else {
-    // Maintenance mode (1 builder per 20 buildings)
-    desiredBuilders = std::max(1, static_cast<int>(city.buildings.size()) / 20);
-  }
-
-  // More miners earlier (Feedback: "User saw only 1")
-  int desiredMiners = 0;
-  if (population > 5)
-    desiredMiners = 2; // Start with 2 miners
-  if (population > 20)
-    desiredMiners = 3;
-  if (population > 40)
-    desiredMiners = 5;
-
-  // Assign based on priority: Food > Wood > Build > Mine > Soldier
-  // Women can only be Farmers
-  for (Citizen *c : availableWorkers) {
-    if (farmers < desiredFarmers) {
-      c->profession = Profession::Farmer;
-      farmers++;
-      TraceLog(LOG_INFO, "GOV: Citizen %d assigned as FARMER in City %d", c->id,
-               city.id);
-    } else if (!c->isFemale && soldiers < desiredSoldiers) {
-      c->profession = Profession::Soldier;
-      soldiers++;
-      TraceLog(LOG_INFO, "GOV: Citizen %d assigned as SOLDIER in City %d",
-               c->id, city.id);
-    } else if (!c->isFemale && lumberjacks < desiredLumberjacks) {
-      c->profession = Profession::Lumberjack;
-      lumberjacks++;
-      TraceLog(LOG_INFO, "GOV: Citizen %d assigned as LUMBERJACK in City %d",
-               c->id, city.id);
-    } else if (!c->isFemale && builders < desiredBuilders) {
-      c->profession = Profession::Builder;
-      builders++;
-      TraceLog(LOG_INFO, "GOV: Citizen %d assigned as BUILDER in City %d",
-               c->id, city.id);
-    } else if (!c->isFemale && miners < desiredMiners) {
-      c->profession = Profession::Miner;
-      miners++;
-      TraceLog(LOG_INFO, "GOV: Citizen %d assigned as MINER in City %d", c->id,
-               city.id);
-    } else if (c->isFemale) {
-      // Women default to Farmer if no farmer slots left
-      c->profession = Profession::Farmer;
-      farmers++;
-    } else {
-      // Remaining males are Gathering/Laborers
-    }
-  }
-}
-
-// === BUILDING EVOLUTION / UPGRADES ===
-// === BUILDING EVOLUTION / UPGRADES ===
+// ============================================================================
+// BUILDING EVOLUTION / UPGRADES - Deterministic (no random chance)
+// ============================================================================
 void SimulationManager::UpdateBuildingUpgrade(City &city) {
-  // Check if we have minimum resources to even consider upgrading
+  // Must have resources
   if (city.resources.wood < 10 && city.resources.stone < 5)
     return;
 
-  // Efficiency: Small chance to process upgrade each tick
-  if (!GRandom.Chance(5))
-    return;
+  // Process all buildings
+  int maxUpgrades = 3; // Allow up to 3 upgrades per tick to speed up evolution
+  int upgradesDone = 0;
 
-  // Iterate to find a candidate for upgrade
   for (auto &b : city.buildings) {
-    if (!b.isComplete)
-      continue;
+    if (!b.isComplete || upgradesDone >= maxUpgrades) continue;
 
-    // TIER 0 -> TIER 1 (Cabana/Wood -> MixedCasa)
+    // Upgrade Cabana -> Casa
     if (b.type == BuildingType::Cabana) {
-      // Upgrade Cabana -> Casa (Wood)
       int costWood = 10;
       if (city.resources.wood >= costWood) {
         city.resources.wood -= costWood;
         b.type = BuildingType::Casa;
         b.capacity = 5;
-        b.variant = GRandom.Int(0, 5); // Variants 0-5
-        TraceLog(LOG_INFO,
-                 "CITY %d: Upgraded Cabana to Wood Casa (Var %d). Cap: 5",
+        b.variant = GRandom.Int(0, 5);
+        upgradesDone++;
+        TraceLog(LOG_INFO, "CITY %d: Upgraded Cabana to Casa (Var %d). Cap: 5",
                  city.id, b.variant);
-        return;
       }
     }
-    // TIER 1 -> TIER 2 (Casa -> Mixed -> Mansion)
+    // Upgrade Casa
     else if (b.type == BuildingType::Casa) {
       bool isWoodCasa = (b.variant <= 5);
       bool isMixedCasa = (b.variant >= 6 && b.variant <= 8);
 
       if (isWoodCasa) {
-        // Upgrade Wood Casa -> Mixed Casa (Tier 1)
-        int costWood = 15;
-        int costStone = 5;
-        if (city.resources.wood >= costWood &&
-            city.resources.stone >= costStone) {
+        int costWood = 15, costStone = 5;
+        if (city.resources.wood >= costWood && city.resources.stone >= costStone) {
           city.resources.wood -= costWood;
           city.resources.stone -= costStone;
-          b.variant = 6 + GRandom.Int(0, 2); // Variants 6-8
+          b.variant = 6 + GRandom.Int(0, 2);
           b.capacity = 5;
-          TraceLog(LOG_INFO,
-                   "CITY %d: Upgraded Wood Casa to Mixed Casa (Var %d). Cap: 5",
+          upgradesDone++;
+          TraceLog(LOG_INFO, "CITY %d: Upgraded Wood Casa to Mixed Casa (Var %d). Cap: 5",
                    city.id, b.variant);
-          return;
         }
       } else if (isMixedCasa) {
-        // Upgrade Mixed Casa -> Stone Mansion (Tier 2 / Casa2)
         int costStone = 50;
         if (city.resources.stone >= costStone) {
           city.resources.stone -= costStone;
           b.type = BuildingType::Casa2;
           b.capacity = 8;
           b.variant = GRandom.Int(0, 2);
-          TraceLog(
-              LOG_INFO,
-              "CITY %d: Upgraded Mixed Casa to Stone Mansion (Var %d). Cap: 8",
-              city.id, b.variant);
-          return;
+          upgradesDone++;
+          TraceLog(LOG_INFO, "CITY %d: Upgraded Mixed Casa to Mansion (Var %d). Cap: 8",
+                   city.id, b.variant);
         }
       }
     }
-    // MINE UPGRADES
+    // Upgrade Mine
     else if (b.type == BuildingType::Mina) {
-      // Max level is 5 (Variant 0 to 5)
       if (b.variant < 5) {
         int currentLevel = b.variant + 1;
         int costWood = 20 * currentLevel;
         int costStone = 10 * currentLevel;
 
-        if (city.resources.wood >= costWood &&
-            city.resources.stone >= costStone) {
+        if (city.resources.wood >= costWood && city.resources.stone >= costStone) {
           city.resources.wood -= costWood;
           city.resources.stone -= costStone;
           b.variant++;
-          TraceLog(LOG_INFO,
-                   "CITY %d: Upgraded Mine to Level %d (Var %d). Cost: %dW %dS",
+          upgradesDone++;
+          TraceLog(LOG_INFO, "CITY %d: Upgraded Mine to Level %d (Var %d). Cost: %dW %dS",
                    city.id, b.variant + 1, b.variant, costWood, costStone);
-          return;
         }
       }
     }

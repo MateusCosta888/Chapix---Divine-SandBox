@@ -117,6 +117,13 @@ private:
   int nextKingdomID = 1;
   int nextBuildingID = 1;
 
+  // === TIMERS (MOVED FROM STATIC VARIABLES FOR RELOAD PERSISTENCE) ===
+  float regrowthCheckTimer = 0.0f;
+  float castleSpawnTimer = 0.0f;
+  float birthCheckTimer = 0.0f;
+  float foodProductionTimer = 0.0f;
+  bool hasRebuiltCollision = false;
+
   // === UPDATE SUBSYSTEMS ===
   void UpdateCitizens(World &world, float deltaTime);
   void UpdateCities(World &world, float deltaTime);

@@ -68,6 +68,9 @@ struct Entity {
   int level = 1;                   // Hero level
   int kills = 0;                   // Kills count
 
+  // === HAND OF GOD (Drag & Drop) ===
+  bool isGrabbed = false;          // True when player is holding this entity
+
   // Helper to check if this entity is an intelligent creature
   bool IsIntelligent() const {
     return type == EntityType::HumanUnarmed || type == EntityType::HumanArmed ||
@@ -99,4 +102,5 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
     Entity, id, type, position, state, facingDirection, speed, health, maxHP,
     justSpawned, enemyScanTimer, attackCooldown, attackSpeed, targetID,
     animTime, currentFrame, hasTarget, targetPos, citizenID, bodyTemperature,
-    reproductionTimer, reproductionCooldown, isPlayerControlled, isHero, level, kills)
+    reproductionTimer, reproductionCooldown, isPlayerControlled, isHero, level, kills,
+    isGrabbed)

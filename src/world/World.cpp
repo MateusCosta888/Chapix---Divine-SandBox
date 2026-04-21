@@ -1165,6 +1165,10 @@ void World::UpdateEntities(float deltaTime) {
 
   for (auto &[entityID, e] : entities) {
 
+    if (e.isGrabbed) {
+      continue; // Hand of God: skip all physics/logic while grabbed
+    }
+
     // === UNIVERSAL DEATH HANDLER ===
     if (e.health <= 0 || e.state == EntityState::Die) {
       e.state = EntityState::Die;
@@ -2213,6 +2217,79 @@ void World::DrawSpawnEffects(const ResourceManager &resourceManager) const {
 }
 
 // ============================================================================
+// HAND OF GOD - DROP ENTITY
+// ============================================================================
+void World::DropEntity(int entityID, Vector2 dropPos) {
+  Entity *e = GetEntityByID(entityID);
+  if (!e) return;
+
+  int tx = (int)dropPos.x;
+  int ty = (int)dropPos.y;
+
+  // Clamp to world bounds
+  if (tx < 0) tx = 0;
+  if (ty < 0) ty = 0;
+  if (tx >= width) tx = width - 1;
+  if (ty >= height) ty = height - 1;
+
+  e->isGrabbed = false;
+
+  // Check if dropped on water -> drown!
+  if (IsSwimmable(tx, ty)) {
+    e->health = 0;
+    e->state = EntityState::Die;
+    e->animTime = 0.0f;
+    e->currentFrame = 0;
+    TraceLog(LOG_INFO, "HAND OF GOD: Entity %d drowned at (%d, %d)!", entityID, tx, ty);
+
+    // Spawn splash effect
+    AddSpawnEffect(tx, ty, (Color){100, 150, 255, 200}, VfxType::Default);
+    return;
+  }
+
+  // Find nearest walkable tile if dropped on obstacle
+  if (!IsWalkable(tx, ty)) {
+    bool found = false;
+    for (int r = 1; r <= 5 && !found; r++) {
+      for (int dx = -r; dx <= r && !found; dx++) {
+        for (int dy = -r; dy <= r && !found; dy++) {
+          int nx = tx + dx, ny = ty + dy;
+          if (nx >= 0 && ny >= 0 && nx < width && ny < height && IsWalkable(nx, ny)) {
+            tx = nx;
+            ty = ny;
+            found = true;
+          }
+        }
+      }
+    }
+  }
+
+  // Place entity on valid ground
+  e->position = {tx + 0.5f, ty + 0.5f};
+  e->state = EntityState::Idle;
+  e->hasTarget = false;
+  e->targetID = -1;
+  e->animTime = 0.0f;
+  e->currentFrame = 0;
+
+  // Reset citizen AI if it's a human
+  if (e->citizenID != -1) {
+    Citizen *c = simulation.GetCitizen(e->citizenID);
+    if (c) {
+      c->workState = Citizen::WorkState::Idle;
+      c->targetEntityID = -1;
+      c->targetTileX = -1;
+      c->targetTileY = -1;
+      c->isWorking = false;
+      c->stateTimer = 0.0f;
+      c->workTimer = 0.0f;
+      TraceLog(LOG_INFO, "HAND OF GOD: Citizen '%s' dropped at (%d, %d) - AI reset.",
+               c->name.c_str(), tx, ty);
+    }
+  }
+}
+
+// ============================================================================
 // GOD POWERS
 // ============================================================================
 void World::TriggerGodPower(int powerIndex, int tx, int ty) {
@@ -2381,3 +2458,4 @@ void from_json(const nlohmann::json &j, World &w) {
 
   j.at("simulation").get_to(w.simulation);
 }
+

@@ -926,8 +926,14 @@ void WorldRenderer::Draw(const Camera2D &camera,
       Rectangle dest = {e.position.x * tileSize, e.position.y * tileSize, destW,
                         destH};
       Vector2 origin = {destW / 2, destH * 0.9f};
+      
+      float sortY = dest.y + destH * 0.9f;
 
-      items.push_back({tex, src, dest, origin, WHITE, dest.y + destH * 0.9f});
+      if (e.isGrabbed) {
+          dest.y += 18.0f + sin(GetTime() * 2.5f) * 3.0f; // Softer animation, visually below cursor
+      }
+
+      items.push_back({tex, src, dest, origin, WHITE, sortY});
     } else {
       // Fallback circle drawn immediately (rare)
       DrawCircle((int)(e.position.x * tileSize), (int)(e.position.y * tileSize),
@@ -942,6 +948,13 @@ void WorldRenderer::Draw(const Camera2D &camera,
                        return a.sortY < b.sortY;
                      return a.dest.x < b.dest.x; // Tiebreaker
                    });
+
+  // DRAW SHADOWS FOR GRABBED ENTITIES
+  for (const auto &[eid, e] : entities) {
+    if (e.isGrabbed) {
+      DrawEllipse((int)(e.position.x * tileSize), (int)(e.position.y * tileSize) + 35, 7.0f, 3.5f, (Color){0, 0, 0, 100});
+    }
+  }
 
   // DRAW
   for (const auto &item : items) {

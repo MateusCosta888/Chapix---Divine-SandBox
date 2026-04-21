@@ -1,7 +1,7 @@
 ========================================
   ChapiX - Divine SandBox
   Otimizações e Melhorias Futuras
-  Atualizado em: 2026-04-18
+  Atualizado em: 2026-04-21
 ========================================
 
 === FINALIZADOS (✓) ===
@@ -20,7 +20,79 @@
 [✓] OTIMIZAÇÃO: MEMORY POOL PARA ENTIDADES (Migração de vector para unordered_map com remoção bufferizada)
 [✓] IA ORGÂNICA PARA CIDADÃOS: (Traços de Personalidade, Cansaço Probabilístico e Estados Ociosos Ricos)
 
-=== PRIORIDADE CRÍTICA (CORRIGIDOS AGORA) ===
+=== EVOLUÇÃO DE IA IMPLEMENTADA (2026-04-21) - CONCLUÍDO ✓ ===
+
+PROBLEMAS CRÍTICOS RESOLVIDOS:
+1. ✓ NPCs agora evoluuem - sistema de XP dinâmico com progressão contínua
+2. ✓ Fome não mata NPCs tão rápido - threshold aumentado de 90 para 95
+3. ✓ Energia e descanso agora dão XP passivo durante o descanso
+4. ✓ Diversidade de IA com Personalidade afetando decisões
+5. ✓ Estado de Treino permite evolução mesmo sem trabalho atribuído
+
+MELHORIAS IMPLEMENTADAS:
+
+1. SISTEMA DE XP DINÂMICO E PROGRESSIVO ✓
+   - LOC: CitizenAI.cpp (lines 117-155)
+   - XP Base: 1.0f por segundo (constante para progressão mínima)
+   - Bônus por ações: +2.0f por tarefa completa
+   - XP de combate: +25.0f base + bônus de personalidade
+   - XP de treino: +0.8f por segundo enquanto treina
+
+2. REBALANCEAMENTO DE FOME E ENERGIA ✓
+   - LOC: CitizenAI.cpp (lines 165-180)
+   - Hunger growth: 0.15f -> 0.08f por segundo (87% mais lento)
+   - Starvation threshold: 90 -> 95 (5 pontos a mais)
+   - Health loss: 2.0f -> 0.5f por segundo (75% mais lento)
+   - XP bonus ao estar bem alimentado (hunger < 60)
+
+3. SISTEMA DE "TREINO" ESPONTÂNEO (Idle Training) ✓
+   - LOC: CitizenAI.cpp (lines 374-446)
+   - Estado novo: Citizen::WorkState::Training
+   - Chance de 5-12% (dependendo de personalidade) de começar a treinar
+   - Treina skill aleatória: +0.2f por segundo
+   - Condição: hunger < 60, energy > 40
+   - Duração mínima: 10 segundos
+   - XP: 0.8f por segundo durante treino
+
+4. INTELIGÊNCIA DE CAÇA MELHORADA ✓
+   - LOC: CitizenAI.cpp (lines 522-569)
+   - Base hunting chance: 5% (sempre tem chance de caçar)
+   - Hunger aumenta chance (não bloqueia quando cheio)
+   - Brave: 50% mais agressivo na caça
+   - Hardworking: 30% mais propenso a caçar
+   - XP de combate: 25.0f base + bonus de personalidade
+   - Skill gain: 1.0f por vitória (aumentado de 0.5f)
+
+5. SISTEMA DE SKILL SOFT CAP ✓
+   - LOC: CitizenAI.cpp (todos os jobs)
+   - Soft cap em 100.0f: gain é reduzido para 50%
+   - Hard cap em 200.0f (muito difícil de atingir)
+   - Cada skill tem sua própria curva de decaimento
+
+6. BÔNUS DE XP POR PERSONALIDADE ✓
+   - LOC: CitizenAI.cpp (various locations)
+   - Hardworking: +20% XP geral
+   - Brave: +15% XP de combate
+   - Coward: -10% XP de combate (evita riscos)
+   - Lazy: -30% XP de trabalho, mas +15% XP de descanso
+
+7. XP E LEVEL UP REBALANCEADO ✓
+   - LOC: CitizenAI.cpp (lines 117-155)
+   - XP necessário: 50 + (level * 25) - linear, não exponencial
+   - Stats aumentam de forma mais equilibrada:
+     * Strength: +1.0f por nível (era 0.5f)
+     * Speed: +0.5f por nível (era 0.3f)
+     * Endurance: +1.0f por nível (era 0.5f)
+     * Intelligence: +0.5f por nível (era 0.3f)
+   - MaxHealth: +10.0f por nível (era 5.0f)
+   - Capacidade de carga aumenta a cada 2 níveis
+   - Bonus de XP extra (+50) a cada 5 níveis
+
+ARQUIVOS MODIFICADOS:
+- src/simulation/CitizenAI.cpp (múltiplas alterações)
+- src/simulation/Citizen.h (add Training state)
+
+PRIORIDADE CRÍTICA (CORRIGIDOS AGORA) ===
 
 1. ✓ VAZAMENTO DE MEMÓRIA EM PLANETFRAMES
    - PROBLEMA: Se o jogo fechar antes do loop principal, as texturas do loading

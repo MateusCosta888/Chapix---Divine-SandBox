@@ -128,7 +128,8 @@ struct Citizen {
     GoingToWork,  // Moving to work target
     Working,      // Actively working (chopping, farming, etc.)
     ReturningHome, // Carrying resources back to city
-    Hunting       // Hunting animals for food
+    Hunting,      // Hunting animals for food
+    Training      // Spontaneous skill practice (gains XP and skills)
   };
 
   WorkState workState = WorkState::Idle;
@@ -141,6 +142,7 @@ struct Citizen {
   int targetTileX = -1;
   int targetTileY = -1;
   int targetEntityID = -1;  // Entity ID for combat tracking
+  int targetBuildingIdx = -1; // Index in city.buildings for builders
   int carryingResource = 0; // How much resource currently carrying
   int maxCarryCapacity = 5; // Max resources can carry at once
 
@@ -176,5 +178,5 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(
     experience, maxExperience, inventory, abilities, cityID, kingdomID,
     profession, personality, currentJob, skillFarming, skillWoodcutting, skillMining,
     skillBuilding, skillCombat, workState, lastWorkState, isWorking, workTimer,
-    stateTimer, targetTileX, targetTileY, targetEntityID, carryingResource,
-    maxCarryCapacity, motherID, fatherID, spouseID, isAlive)
+    stateTimer, targetTileX, targetTileY, targetEntityID, targetBuildingIdx,
+    carryingResource, maxCarryCapacity, motherID, fatherID, spouseID, isAlive)

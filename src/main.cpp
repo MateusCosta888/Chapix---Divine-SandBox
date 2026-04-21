@@ -415,8 +415,77 @@ int main(int argc, char *argv[]) {
         camera.target.x = Clamp(camera.target.x, 0.0f, mapPixelW);
         camera.target.y = Clamp(camera.target.y, 0.0f, mapPixelH);
 
-        // World Interaction (Painting)
-        ui.Update(world, camera);
+        // ================================================================
+        // HAND OF GOD - Drag & Drop Entities
+        // ================================================================
+        static int draggedEntityID = -1; // Entity ID being dragged (-1 = none)
+
+        if (!isPointerOnUI && !ui.showBrushPopup && playerControlledEntityID == -1) {
+          Vector2 worldMousePos = GetScreenToWorld2D(mousePos, camera);
+          float mouseWorldX = worldMousePos.x / 10.0f;
+          float mouseWorldY = worldMousePos.y / 10.0f;
+
+          // GRAB: Left click pressed -> find nearest entity
+          if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && draggedEntityID == -1) {
+            float closestDist = 1.5f; // Grab radius in tiles
+            int closestEID = -1;
+            for (auto &[eid, e] : world.GetEntitiesMutable()) {
+              if (e.health <= 0 || e.state == EntityState::Die) continue;
+              float dist = Vector2Distance(e.position, {mouseWorldX, mouseWorldY});
+              if (dist < closestDist) {
+                closestDist = dist;
+                closestEID = eid;
+              }
+            }
+            if (closestEID != -1) {
+              draggedEntityID = closestEID;
+              Entity *grabbed = world.GetEntityByID(draggedEntityID);
+              if (grabbed) {
+                grabbed->isGrabbed = true;
+                grabbed->hasTarget = false;
+                grabbed->state = EntityState::Idle;
+                TraceLog(LOG_INFO, "HAND OF GOD: Grabbed entity %d", draggedEntityID);
+              }
+            }
+          }
+
+          // DRAG: Left button held -> Lerp entity position toward mouse
+          if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && draggedEntityID != -1) {
+            Entity *grabbed = world.GetEntityByID(draggedEntityID);
+            if (grabbed && grabbed->isGrabbed) {
+              float lerpSpeed = 8.0f * GetFrameTime();
+              grabbed->position.x = Lerp(grabbed->position.x, mouseWorldX, lerpSpeed);
+              grabbed->position.y = Lerp(grabbed->position.y, mouseWorldY, lerpSpeed);
+              grabbed->hasTarget = false;
+              grabbed->state = EntityState::Idle;
+            } else {
+              draggedEntityID = -1; // Entity died mid-drag
+            }
+          }
+
+          // DROP: Left button released -> drop entity
+          if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && draggedEntityID != -1) {
+            Entity *grabbed = world.GetEntityByID(draggedEntityID);
+            if (grabbed) {
+              world.DropEntity(draggedEntityID, grabbed->position);
+            }
+            draggedEntityID = -1;
+          }
+        } else if (draggedEntityID != -1) {
+          // If mouse went over UI while dragging, still allow drop
+          if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+            Entity *grabbed = world.GetEntityByID(draggedEntityID);
+            if (grabbed) {
+              world.DropEntity(draggedEntityID, grabbed->position);
+            }
+            draggedEntityID = -1;
+          }
+        }
+
+        // World Interaction (Painting) - skip if dragging an entity
+        if (draggedEntityID == -1) {
+          ui.Update(world, camera);
+        }
 
         world.Update();
         world.UpdateAnimation(GetFrameTime());

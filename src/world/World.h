@@ -92,6 +92,9 @@ public:
   void ClearTileContents(int x,
                          int y); // Remove all entities/buildings/decorations
 
+  // Hand of God (Drag & Drop)
+  void DropEntity(int entityID, Vector2 dropPos);
+
   // God Powers
   void TriggerGodPower(int powerIndex, int tx, int ty);
 
