@@ -36,6 +36,12 @@ static bool TryMoveToTarget(Entity *entity, float deltaTime) {
 
   Vector2 dir = Vector2Normalize(
       Vector2Subtract(entity->targetPos, entity->position));
+  
+  // Add tiny jitter to prevent perfect stacking
+  dir.x += (GRandom.Float() - 0.5f) * 0.15f;
+  dir.y += (GRandom.Float() - 0.5f) * 0.15f;
+  dir = Vector2Normalize(dir);
+
   entity->position = Vector2Add(entity->position, Vector2Scale(dir, moveDist));
   return false;
 }
@@ -81,6 +87,29 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
     if (!myEntity)
       continue;
 
+    // === STUCK DETECTION ===
+    if (myEntity->state == EntityState::Walking || myEntity->state == EntityState::Run) {
+        float distMoved = std::hypot(myEntity->position.x - c.lastX, myEntity->position.y - c.lastY);
+        if (distMoved < 0.01f) {
+            c.stuckTimer += deltaTime;
+            if (c.stuckTimer >= 3.0f) {
+                c.workState = Citizen::WorkState::Idle;
+                myEntity->state = EntityState::Idle;
+                myEntity->hasTarget = false;
+                c.stuckTimer = 0.0f;
+                // Small nudge
+                myEntity->position.x += (GRandom.Float() - 0.5f) * 0.2f;
+                myEntity->position.y += (GRandom.Float() - 0.5f) * 0.2f;
+            }
+        } else {
+            c.stuckTimer = 0.0f;
+        }
+    } else {
+        c.stuckTimer = 0.0f;
+    }
+    c.lastX = myEntity->position.x;
+    c.lastY = myEntity->position.y;
+
     // === AGE SYSTEM ===
     float ageMultiplier = c.isChild() ? 5.0f : 1.0f;
     float yearProgress = deltaTime * 0.05f * ageMultiplier;
@@ -106,9 +135,29 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
 
       if (threat) {
         if (c.profession != Profession::Soldier) {
-          Vector2 fleeDir = Vector2Normalize(
-              Vector2Subtract(myEntity->position, threat->position));
-          myEntity->targetPos = Vector2Add(myEntity->position, Vector2Scale(fleeDir, 5.0f));
+          // Flee logic: find a spot away from threat that is walkable
+          Vector2 fleeDir = Vector2Normalize(Vector2Subtract(myEntity->position, threat->position));
+          Vector2 bestFleePos = myEntity->position;
+          float bestFleeScore = -1.0f;
+
+          for (int i = 0; i < 8; i++) {
+              float angle = ((float)i / 8.0f) * 2.0f * PI;
+              Vector2 checkDir = {cosf(angle), sinf(angle)};
+              // Favor directions away from threat
+              float dot = Vector2DotProduct(checkDir, fleeDir);
+              if (dot < 0.2f) continue; // Skip directions towards threat
+
+              Vector2 checkPos = Vector2Add(myEntity->position, Vector2Scale(checkDir, 5.0f));
+              if (world.IsWalkable((int)checkPos.x, (int)checkPos.y)) {
+                  float score = dot;
+                  if (score > bestFleeScore) {
+                      bestFleeScore = score;
+                      bestFleePos = checkPos;
+                  }
+              }
+          }
+
+          myEntity->targetPos = bestFleePos;
           myEntity->hasTarget = true;
           myEntity->state = EntityState::Run;
           c.workState = Citizen::WorkState::Idle;
@@ -172,13 +221,13 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
     }
 
     // === HUNGER SYSTEM ===
-    // Hunger grows slower now (0.08f vs 0.15f) - gives more time for evolution
-    c.hunger += deltaTime * 0.08f;
+    // Hunger grows even slower for better early-game survival
+    c.hunger += deltaTime * 0.05f; // Buffed from 0.08f
     if (c.hunger > 100.0f) c.hunger = 100.0f;
 
-    // Starvation threshold increased (95 vs 90) - more time before HP loss
-    if (c.hunger >= 95.0f) {
-      c.health -= deltaTime * 0.5f;  // Slower HP loss (0.5 vs 2.0)
+    // Starvation threshold
+    if (c.hunger >= 98.0f) { // Buffed from 95.0f
+      c.health -= deltaTime * 0.2f;  // Buffed from 0.5f (much more time to find food)
     }
 
     // XP bonus for finding food (hunger reduction = survival skill)
@@ -666,7 +715,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           // Find nearest tree
           int bestTileX = -1, bestTileY = -1;
           float bestDist = 999999.0f;
-          const int SEARCH_RADIUS = 50;
+          const int SEARCH_RADIUS = 120; // Increased from 50
 
           int centerX = static_cast<int>(myEntity->position.x);
           int centerY = static_cast<int>(myEntity->position.y);
@@ -731,7 +780,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
             tile.stumpVariant = GRandom.Int(0, 1);
             tile.regrowthTimer = 0.0f;
 
-            c.carryingResource += 3;
+            c.carryingResource += 10; // Increased from 5
 
             // Soft cap skill system: Diminishing returns after 100
             // Gain is reduced by 50% when skill > 100, 75% when > 150
@@ -747,7 +796,9 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
 
             if (c.carryingResource >= c.maxCarryCapacity) {
               c.workState = Citizen::WorkState::ReturningHome;
-              myEntity->targetPos = myCity->center;
+              float jx = GRandom.FloatRange(-1.2f, 1.2f);
+              float jy = GRandom.FloatRange(-1.2f, 1.2f);
+              myEntity->targetPos = {myCity->center.x + jx, myCity->center.y + jy};
               myEntity->hasTarget = true;
               myEntity->state = EntityState::Walking;
             } else {
@@ -920,7 +971,9 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
 
               if (c.carryingResource >= c.maxCarryCapacity) {
                 c.workState = Citizen::WorkState::ReturningHome;
-                myEntity->targetPos = myCity->center;
+                float jx = GRandom.FloatRange(-1.2f, 1.2f);
+                float jy = GRandom.FloatRange(-1.2f, 1.2f);
+                myEntity->targetPos = {myCity->center.x + jx, myCity->center.y + jy};
                 myEntity->hasTarget = true;
                 myEntity->state = EntityState::Walking;
               } else {
@@ -987,7 +1040,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
 
           int bestX = -1, bestY = -1;
           float bestDist = 999999.0f;
-          int range = 60;
+          int range = 120; // Increased from 60
           int cx = (int)myEntity->position.x, cy = (int)myEntity->position.y;
 
           for (int dy = -range; dy <= range; dy++) {
@@ -1047,7 +1100,7 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
             if (rockExists) {
               if (t.resourceAmount > 0) {
                 t.resourceAmount -= 1.0f;
-                c.carryingResource += 1;
+                c.carryingResource += 5; // Increased from 2
 
                 // Soft cap skill system for mining
                 float miningGain = 0.2f;
@@ -1060,10 +1113,10 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
                 if (t.resourceAmount <= 0) t.decoration = DecorationType::None;
               } else {
                 t.decoration = DecorationType::None;
-                c.carryingResource += 1;
+               c.carryingResource += 2; // Increased from 1
               }
             } else if (t.type == TileType::Mountain) {
-              c.carryingResource += 1;
+              c.carryingResource += 2; // Increased from 1
 
               // Soft cap skill system for mining (harder work)
               float miningGain = 0.1f;
@@ -1081,7 +1134,9 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
 
             if (c.carryingResource >= c.maxCarryCapacity) {
               c.workState = Citizen::WorkState::ReturningHome;
-              myEntity->targetPos = myCity->center;
+              float jx = GRandom.FloatRange(-1.2f, 1.2f);
+              float jy = GRandom.FloatRange(-1.2f, 1.2f);
+              myEntity->targetPos = {myCity->center.x + jx, myCity->center.y + jy};
               myEntity->hasTarget = true;
               myEntity->state = EntityState::Walking;
             }
@@ -1172,12 +1227,12 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
                 typeToBuild = BuildingType::Casa2;
                 woodCost = 8; stoneCost = 5;
               }
-            } else if (needWoodStorage && myCity->resources.wood >= 50) {
+            } else if (needWoodStorage && myCity->resources.wood >= 25) {
               typeToBuild = BuildingType::Recursos;
-              woodCost = 30; stoneCost = 0;
-            } else if (needStoneStorage && myCity->resources.stone >= 50) {
+              woodCost = 20; stoneCost = 0;
+            } else if (needStoneStorage && myCity->resources.stone >= 25) {
               typeToBuild = BuildingType::StockpileStone;
-              woodCost = 50; stoneCost = 0;
+              woodCost = 25; stoneCost = 0;
             }
 
             // If we found a building to construct, do it now
@@ -1242,12 +1297,14 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
             }
           }
 
-          // Find the best construction site
+          // Find the best construction site - Add some randomness to distribute workers
           if (bestIdx < 0) {
             for (size_t i = 0; i < myCity->buildings.size(); i++) {
               Building &b = myCity->buildings[i];
-              if (!b.isComplete && b.constructionProgress == 0) {
+              if (!b.isComplete && b.constructionProgress >= 0 && b.constructionProgress < 1.0f) {
                 float dist = std::hypot(myEntity->position.x - b.tileX, myEntity->position.y - b.tileY);
+                // Add random bias (0-10 tiles) to distance to distribute workers across different sites
+                dist += (GRandom.Float() * 10.0f);
                 if (dist < bestDist) {
                   bestDist = dist;
                   bestIdx = (int)i;
@@ -1261,7 +1318,11 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
             c.targetBuildingIdx = bestIdx;
             c.workState = Citizen::WorkState::GoingToWork;
             c.isWorking = true;
-            myEntity->targetPos = {b.tileX + 0.5f, b.tileY + 0.5f};
+            BuildingSize size = GetBuildingSize(b.type);
+            // CLUMPING FIX: Add jitter to building target
+            float jx = GRandom.FloatRange(-0.7f, 0.7f);
+            float jy = GRandom.FloatRange(-0.7f, 0.7f);
+            myEntity->targetPos = {b.tileX + size.width / 2.0f + jx, b.tileY + size.height / 2.0f + jy};
             myEntity->hasTarget = true;
             myEntity->state = EntityState::Walking;
           } else {
@@ -1272,9 +1333,10 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
 
         case Citizen::WorkState::GoingToWork: {
           Building &b = myCity->buildings[c.targetBuildingIdx];
-          float dist = std::hypot(myEntity->position.x - (b.tileX + 0.5f),
-                                  myEntity->position.y - (b.tileY + 0.5f));
-          if (dist < 1.5f) {
+          BuildingSize size = GetBuildingSize(b.type);
+          float dist = std::hypot(myEntity->position.x - (b.tileX + size.width / 2.0f),
+                                  myEntity->position.y - (b.tileY + size.height / 2.0f));
+          if (dist < 2.0f) { // Increased from 1.5
             c.workState = Citizen::WorkState::Working;
             c.workTimer = 0.0f;
             myEntity->state = EntityState::Attack;
@@ -1287,18 +1349,21 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           c.workTimer += deltaTime;
           Building &b = myCity->buildings[c.targetBuildingIdx];
 
-          // Building progress: 10 seconds for Cabana, more for larger buildings
-          float buildTime = 5.0f + (b.type == BuildingType::Casa ? 5.0f : 0) +
-                           (b.type == BuildingType::Casa2 ? 10.0f : 0) +
-                           (b.type == BuildingType::Recursos ? 5.0f : 0);
-          if (buildTime > 25.0f) buildTime = 25.0f;
+          // Building progress: MUCH faster construction
+          float buildTime = 1.0f + (b.type == BuildingType::Casa ? 1.0f : 0) +
+                           (b.type == BuildingType::Casa2 ? 2.0f : 0) +
+                           (b.type == BuildingType::Recursos ? 1.0f : 0);
+          if (buildTime > 8.0f) buildTime = 8.0f;
 
           if (c.workTimer >= buildTime) {
             c.workTimer = 0.0f;
 
             // Check if building is already complete (might have been finished by another builder)
             if (!b.isComplete && b.constructionProgress < 1.0f) {
-              b.constructionProgress += 0.25f; // 25% progress per session
+              // Finish faster
+              float progressGain = 0.5f;
+              if (b.type == BuildingType::Cabana || b.type == BuildingType::Casa) progressGain = 1.0f;
+              b.constructionProgress += progressGain;
 
               // Soft cap skill system for building
               float buildingGain = 0.5f;
@@ -1367,34 +1432,51 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
           float detectRange = 25.0f;
 
           auto nearbyEntities = world.GetEntitiesInRadius(myEntity->position, detectRange);
+          int bestPriority = 0; // 1:Slime, 2:Boar, 3:Human, 4:Dragon
+
           for (Entity *otherE : nearbyEntities) {
-            if (otherE->id == myEntity->id) continue;
-            if (otherE->IsIntelligent()) {
-              Citizen *otherCitizen = GetCitizen(otherE->citizenID);
-              if (otherCitizen && otherCitizen->cityID != c.cityID && otherCitizen->cityID >= 0) {
-                bool isEnemy = false;
-                City *otherCity = GetCity(otherCitizen->cityID);
-                Kingdom *myKingdom = myCity->kingdomID >= 0 ? GetKingdom(myCity->kingdomID) : nullptr;
-                Kingdom *otherKingdom = otherCity->kingdomID >= 0 ? GetKingdom(otherCity->kingdomID) : nullptr;
+            if (otherE->id == myEntity->id || otherE->health <= 0) continue;
+            
+            float d = std::hypot(myEntity->position.x - otherE->position.x,
+                                 myEntity->position.y - otherE->position.y);
+            
+            int priority = 0;
+            int potentialTargetID = -1;
 
-                if (myKingdom && otherKingdom && myKingdom->IsAtWarWith(otherKingdom->id)) {
-                  isEnemy = true;
-                }
-                if (!isEnemy && myCity) {
-                  float distToMyCity = std::hypot(otherE->position.x - myCity->center.x,
-                                                  otherE->position.y - myCity->center.y);
-                  if (distToMyCity < 20.0f) isEnemy = true;
-                }
+            if (otherE->type == EntityType::Dragon) {
+                priority = 4;
+                potentialTargetID = otherE->id; // For monsters, use entity ID (handled in Working state)
+            } else if (otherE->IsIntelligent()) {
+                Citizen *otherCitizen = GetCitizen(otherE->citizenID);
+                if (otherCitizen && otherCitizen->cityID != c.cityID && otherCitizen->cityID >= 0) {
+                    bool isEnemy = false;
+                    City *otherCity = GetCity(otherCitizen->cityID);
+                    Kingdom *myKingdom = myCity->kingdomID >= 0 ? GetKingdom(myCity->kingdomID) : nullptr;
+                    Kingdom *otherKingdom = otherCity->kingdomID >= 0 ? GetKingdom(otherCity->kingdomID) : nullptr;
 
-                if (isEnemy) {
-                  float d = std::hypot(myEntity->position.x - otherE->position.x,
-                                       myEntity->position.y - otherE->position.y);
-                  if (d <= detectRange && d < closestDist) {
-                    closestDist = d;
-                    enemyID = otherCitizen->id;
-                  }
+                    if (myKingdom && otherKingdom && myKingdom->IsAtWarWith(otherKingdom->id)) isEnemy = true;
+                    if (!isEnemy && myCity) {
+                        float distToMyCity = std::hypot(otherE->position.x - myCity->center.x,
+                                                        otherE->position.y - myCity->center.y);
+                        if (distToMyCity < 20.0f) isEnemy = true;
+                    }
+                    if (isEnemy) {
+                        priority = 3;
+                        potentialTargetID = otherCitizen->id;
+                    }
                 }
-              }
+            } else if (otherE->type == EntityType::Boar) {
+                priority = 2;
+                potentialTargetID = otherE->id;
+            } else if (otherE->type == EntityType::Slime) {
+                priority = 1;
+                potentialTargetID = otherE->id;
+            }
+
+            if (priority > 0 && (priority > bestPriority || (priority == bestPriority && d < closestDist))) {
+                bestPriority = priority;
+                closestDist = d;
+                enemyID = potentialTargetID;
             }
           }
 
@@ -1530,9 +1612,20 @@ void SimulationManager::UpdateCitizens(World &world, float deltaTime) {
       c.workState = Citizen::WorkState::Wandering;
     }
 
-    // === RICH IDLE ===
+    // === RICH IDLE & EXPLORATION ===
     if (c.workState == Citizen::WorkState::Wandering && c.stateTimer == 0.0f) {
-      if (GRandom.Chance(25)) {
+      // Chance to SCOUT (Long range wander) to find new city spots
+      if (GRandom.Chance(5)) { // 5% chance to scout far away
+         int scoutX = GRandom.Int(20, world.GetWidth() - 20);
+         int scoutY = GRandom.Int(20, world.GetHeight() - 20);
+         if (world.IsWalkable(scoutX, scoutY)) {
+            myEntity->targetPos = {(float)scoutX + 0.5f, (float)scoutY + 0.5f};
+            myEntity->hasTarget = true;
+            myEntity->state = EntityState::Walking;
+            c.workTimer = (float)GRandom.Int(20, 40); // Long scout mission
+         }
+      }
+      else if (GRandom.Chance(25)) {
         int r = GRandom.Int(0, 2);
         if (r == 0) c.workState = Citizen::WorkState::IdleSitting;
         else if (r == 1) c.workState = Citizen::WorkState::IdleObserving;

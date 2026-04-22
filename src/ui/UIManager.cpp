@@ -527,13 +527,14 @@ void UIManager::HandleInput(World &world, Camera2D &camera) {
               world.SetTileDecoration(nx, ny, DecorationType::None);
           }
         } else if (currentTab == UIState::Rocks) {
-          DecorationType decs[] = {DecorationType::Rock,
-                                   DecorationType::BigRock};
-          if (selectedToolIndex < 2) {
+          DecorationType decs[] = {DecorationType::Rock, DecorationType::BigRock,
+                                   DecorationType::SmallRock, DecorationType::MediumRock,
+                                   DecorationType::Ruins, DecorationType::Crystal};
+          if (selectedToolIndex < 6) {
             // --- SCATTER PLACEMENT for large brushes ---
             if (size > 1) {
               // Rocks are bulky: 20% density for natural look
-              int density = (selectedToolIndex == 0) ? 25 : 15; // BigRock rarer
+              int density = (selectedToolIndex == 1) ? 15 : 25; // BigRock rarer
               if ((rand() % 100) >= density)
                 continue;
 
@@ -662,6 +663,35 @@ void UIManager::Draw(const World &world) {
   // Set tracking variable to prevent showing again
   if (maxCityID > lastKnownCityID) {
     lastKnownCityID = maxCityID;
+  }
+
+  // --- TUTORIALS & ALERTS ---
+  alertCheckTimer += GetFrameTime();
+  if (alertCheckTimer >= 3.0f) {
+      alertCheckTimer = 0.0f;
+      int humanCount = world.GetSimulation().GetTotalPopulation();
+      int kingdomCount = world.GetSimulation().GetTotalKingdoms();
+      
+      if (!tutHumanPlaced && humanCount == 0) {
+          AddNotification("Coloque humanos para iniciar uma civilizacao.", -1);
+          tutHumanPlaced = true;
+      } else if (!tutCityFounded && humanCount > 5 && cities.empty()) {
+          AddNotification("Espere os humanos criarem uma vila ou use o menu Social.", -1);
+          tutCityFounded = true;
+      } else if (!tutWarPossible && kingdomCount == 1 && humanCount > 20) {
+          AddNotification("Crie multiplas civilizacoes para permitir guerras.", -1);
+          tutWarPossible = true;
+      }
+      
+      // Alerts
+      for (auto &pair : cities) {
+          if (pair.second.resources.food < 10) {
+              AddNotification(TextFormat("Alerta: Fome em %s!", pair.second.name.c_str()), -1);
+          }
+          if (pair.second.GetPopulation() > 40) {
+              AddNotification(TextFormat("Aviso: %s esta superlotada!", pair.second.name.c_str()), -1);
+          }
+      }
   }
 
   // Update war notifications based on current diplomacy state

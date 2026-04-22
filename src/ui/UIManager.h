@@ -145,6 +145,13 @@ public:
 
   bool isSeedInputActive = false;
   char newWorldSeedInput[32] = "\0";
+  
+  // Tutorial Tracking
+  bool tutHumanPlaced = false;
+  bool tutCityFounded = false;
+  bool tutWarPossible = false;
+  bool tutStagnationShown = false;
+  float alertCheckTimer = 0.0f;
 
   // World Creator Assets & Anim state
   Texture2D texCreatorBg;

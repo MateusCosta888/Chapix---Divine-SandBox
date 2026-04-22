@@ -15,6 +15,7 @@ build_log*.txt
 bin/
 build/
 compiler/
+Release/
 compile_commands.json
 CMakeCache.txt
 

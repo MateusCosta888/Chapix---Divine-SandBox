@@ -364,7 +364,7 @@ void WorldRenderer::Draw(const Camera2D &camera,
                          .texMossTrees[treeIdx %
                                        ResourceManager::NUM_MOSS_TREE_TYPES];
             else
-              tex =
+               tex =
                   &resourceManager
                        .texNormalTrees[v %
                                        ResourceManager::NUM_NORMAL_TREE_TYPES];
@@ -408,21 +408,21 @@ void WorldRenderer::Draw(const Camera2D &camera,
                                          ResourceManager::NUM_SAND_DECORATIONS];
           scale = 1.0f;
           break;
-        case DecorationType::Rock: // Rock1
-          tex = &resourceManager.texRock[0];
-          scale = 3.0f; // Increased from 2.5f
+        case DecorationType::Rock: // Generic Rock
+          tex = &resourceManager.texRock[v % 4];
+          scale = 2.0f;
           break;
-        case DecorationType::SmallRock: // Rock2
-          tex = &resourceManager.texRock[1];
-          scale = 3.0f; // Increased from 2.5f
+        case DecorationType::SmallRock: 
+          tex = &resourceManager.texSmallRocks[v % ResourceManager::NUM_SMALL_ROCK_TYPES];
+          scale = 2.0f;
           break;
-        case DecorationType::MediumRock: // Rock3
-          tex = &resourceManager.texRock[2];
-          scale = 3.0f; // Increased from 2.5f
+        case DecorationType::MediumRock:
+          tex = &resourceManager.texMediumRocks[v % ResourceManager::NUM_MEDIUM_ROCK_TYPES];
+          scale = 2.5f;
           break;
-        case DecorationType::BigRock: // Rock4
-          tex = &resourceManager.texRock[3];
-          scale = 3.0f; // Increased from 2.5f
+        case DecorationType::BigRock:
+          tex = &resourceManager.texBigRocks[v % ResourceManager::NUM_BIG_ROCK_TYPES];
+          scale = 3.0f;
           break;
         case DecorationType::Crystal: {
           int type = v % 3;
@@ -442,7 +442,8 @@ void WorldRenderer::Draw(const Camera2D &camera,
           scale = 1.0f;
           break;
         case DecorationType::Ruins:
-          // Disabled: Ruins removed from forests per user request
+          tex = &resourceManager.texRuins[v % 5];
+          scale = 2.0f;
           break;
         case DecorationType::GrassTuft:
           tex = &resourceManager.texGraminhas;
@@ -525,8 +526,8 @@ void WorldRenderer::Draw(const Camera2D &camera,
       const City &city = pair.second;
       if (!city.isAlive) continue; // Skip dead cities - no ghost buildings
       for (const Building &b : city.buildings) {
-        if (!b.isComplete)
-          continue;
+        // Construction site rendering
+        bool isConstructing = !b.isComplete;
 
         Texture2D *tex = nullptr;
         float scale = 2.0f;
@@ -615,7 +616,14 @@ void WorldRenderer::Draw(const Camera2D &camera,
           Vector2 origin = {w / 2, h * 0.85f}; // Bottom center anchor
 
           float sortY = dest.y + h * 0.5f;
-          items.push_back({*tex, src, dest, origin, WHITE, sortY});
+          Color bColor = isConstructing ? Fade(WHITE, 0.6f) : WHITE;
+          items.push_back({*tex, src, dest, origin, bColor, sortY});
+
+          // Draw progress bar for construction
+          if (isConstructing) {
+            DrawRectangle(screenX - 15, screenY - 10, 30, 4, BLACK);
+            DrawRectangle(screenX - 15, screenY - 10, (int)(30 * b.constructionProgress), 4, ORANGE);
+          }
         }
       }
     }
@@ -658,7 +666,7 @@ void WorldRenderer::Draw(const Camera2D &camera,
       } else {
         // Standard States (Idle, Walk, Attack/Farming)
         int stateIdx = 0;
-        if (e.state == EntityState::Walking)
+        if (e.state == EntityState::Walking || e.state == EntityState::Run)
           stateIdx = 1;
         else if (e.state == EntityState::Attack)
           stateIdx = 2;
@@ -927,7 +935,7 @@ void WorldRenderer::Draw(const Camera2D &camera,
                         destH};
       Vector2 origin = {destW / 2, destH * 0.9f};
       
-      float sortY = dest.y + destH * 0.9f;
+      float sortY = dest.y; // Correctly sort by the feet/base (where origin.y is)
 
       if (e.isGrabbed) {
           dest.y += 18.0f + sin(GetTime() * 2.5f) * 3.0f; // Softer animation, visually below cursor
@@ -993,24 +1001,8 @@ void WorldRenderer::Draw(const Camera2D &camera,
 
     // --- Health Bar ---
     // Determine max HP based on entity type
-    float maxHP = 20.0f; // Default (unarmed human)
-    if (e.type == EntityType::Boar)
-      maxHP = 40.0f;
-    else if (e.type == EntityType::HumanArmed)
-      maxHP = 50.0f;
-    else if (e.type == EntityType::HumanWoman)
-      maxHP = 20.0f;
-    else if (e.type == EntityType::Slime)
-      maxHP = 25.0f;
-    // Animals
-    else if (e.type == EntityType::Cow || e.type == EntityType::Bull)
-      maxHP = 10.0f;
-    else if (e.type == EntityType::Sheep || e.type == EntityType::Pig ||
-             e.type == EntityType::Lamb)
-      maxHP = 10.0f;
-    else if (e.type == EntityType::Chicken || e.type == EntityType::Chicken2 ||
-             e.type == EntityType::Turkey)
-      maxHP = 5.0f;
+    // Determine max HP based on entity struct or fallback
+    float maxHP = e.maxHP > 0 ? e.maxHP : 20.0f;
 
     // Only show bar when damaged or selected (not always)
     bool isDamaged = (e.health < maxHP);

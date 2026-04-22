@@ -326,7 +326,7 @@ void UIManager::DrawToolbar(const World &world) {
       }
     }
   } else if (currentTab == UIState::Rocks) {
-    numTools = 5; // 4 types + eraser
+    numTools = 7; // 6 types + eraser
     for (int i = 0; i < numTools; i++) {
       Rectangle btnRect = {startX + i * (btnSize + padding), startY, btnSize,
                            btnSize};
@@ -338,8 +338,9 @@ void UIManager::DrawToolbar(const World &world) {
         DrawRectangleLinesEx(btnRect, 3, YELLOW);
       }
 
-      if (i < 4) {
+      if (i < 6) {
         DecorationType decs[] = {DecorationType::Rock, DecorationType::BigRock,
+                                 DecorationType::SmallRock, DecorationType::MediumRock,
                                  DecorationType::Ruins,
                                  DecorationType::Crystal};
         Texture2D tex = const_cast<World &>(world).GetTextureForUI(decs[i]);
@@ -500,6 +501,20 @@ void UIManager::DrawToolbar(const World &world) {
           humanSpawnMenuPos = {btnRect.x, btnRect.y - 110};
           humanSpawnSelection = -1;
           popupJustOpened = true; // Prevent immediate close
+        } else if (creatureTypes[i] == EntityType::Dragon) {
+            // Milestone check for Dragon
+            int pop = world.GetSimulation().GetTotalPopulation();
+            int soldiers = 0;
+            for (auto &pair : world.GetSimulation().GetAllCitizens()) {
+                if (pair.second.profession == Profession::Soldier) soldiers++;
+            }
+
+            if (pop < 50 || soldiers < 5) {
+                const_cast<UIManager*>(this)->AddNotification("Dragao bloqueado: Sua vila precisa de 50 cidadaos e 5 soldados.", -1);
+            } else {
+                selectedToolIndex = i;
+                showHumanSpawnMenu = false;
+            }
         } else {
           selectedToolIndex = i;
           showHumanSpawnMenu = false;
@@ -963,8 +978,10 @@ void UIManager::DrawSocialCityList(const World &world) {
             // Force War: select kingdoms
             if (forceWarKingdomA == -1) {
               forceWarKingdomA = city.kingdomID;
+              TraceLog(LOG_INFO, "UI: Selected Kingdom A for war: %d", forceWarKingdomA);
             } else if (city.kingdomID != forceWarKingdomA) {
               forceWarKingdomB = city.kingdomID;
+              TraceLog(LOG_INFO, "UI: Selected Kingdom B for war: %d. Executing!", forceWarKingdomB);
               // Execute Force War!
               sim.ForceDeclareWar(forceWarKingdomA, forceWarKingdomB);
               forceWarMode = false;

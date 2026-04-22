@@ -44,10 +44,17 @@ void SimulationManager::AssignJobs(City &city) {
     if (!b.isComplete) { hasIncompleteBuildings = true; break; }
   }
 
-  int desiredFarmers = std::max(2, population / 3);  // 1 per 3 pop
-  int desiredLumberjacks = std::max(1, population / 5); // 1 per 5 pop
-  int desiredMiners = std::max(1, population / 8);  // 1 per 8 pop
-  int desiredBuilders = hasIncompleteBuildings ? std::max(1, population / 3) : std::max(1, population / 10);
+  int desiredFarmers = std::max(1, population / 4);     // 1 per 4 pop
+  int desiredLumberjacks = std::max(1, population / 4); // 1 per 4 pop
+  int desiredMiners = std::max(0, population / 8);      // Stone needed later
+  
+  // DEADLOCK FIX: Cap builders so we always have resource gatherers
+  int desiredBuilders = 0;
+  if (hasIncompleteBuildings) {
+    if (population <= 3) desiredBuilders = 1;
+    else desiredBuilders = std::max(1, (int)(population * 0.3f)); // Max 30% are builders
+  }
+
   int barracksCount = 0;
   for (const auto &b : city.buildings) {
     if (b.isComplete && b.type == BuildingType::Quartel) barracksCount++;
@@ -55,31 +62,47 @@ void SimulationManager::AssignJobs(City &city) {
   int desiredSoldiers = barracksCount * 3;
 
   // Emergency needs
-  if (city.resources.food < 50) desiredFarmers += 2;
-  if (city.resources.wood < 30) desiredLumberjacks += 2;
-  if (city.resources.stone < 20) desiredMiners += 2;
+  if (city.resources.food < 30) desiredFarmers += 1;
+  if (city.resources.wood < 20) desiredLumberjacks += 2; // Lumber priority
+  if (city.resources.stone < 10 && hasIncompleteBuildings) desiredMiners += 1;
 
-  // Assign jobs by priority
+  // MIGRATION LOGIC: If overcrowded, someone becomes a settler
+  bool spawnedSettler = false;
+  if (population > 15 && GRandom.Chance(10)) { // 10% chance per assign cycle
+     spawnedSettler = true;
+  }
+
+  // Assign jobs by distribution
   for (Citizen *c : availableWorkers) {
-    // Priority: Food > Wood > Stone > Build > Soldier
-    if (farmers < desiredFarmers) {
-      c->profession = Profession::Farmer;
-      farmers++;
-    } else if (lumberjacks < desiredLumberjacks && !c->isFemale) {
+    if (spawnedSettler) {
+      c->cityID = -1; // Leave city to become a settler!
+      c->profession = Profession::None; 
+      spawnedSettler = false;
+      continue;
+    }
+
+    // Priority: Lumberjacks (can't build without wood!)
+    if (lumberjacks < desiredLumberjacks) {
       c->profession = Profession::Lumberjack;
       lumberjacks++;
-    } else if (miners < desiredMiners && !c->isFemale) {
-      c->profession = Profession::Miner;
-      miners++;
-    } else if (builders < desiredBuilders && !c->isFemale) {
-      c->profession = Profession::Builder;
-      builders++;
-    } else if (soldiers < desiredSoldiers && !c->isFemale) {
-      c->profession = Profession::Soldier;
-      soldiers++;
-    } else if (c->isFemale) {
+    } else if (farmers < desiredFarmers) {
       c->profession = Profession::Farmer;
       farmers++;
+    } else if (builders < desiredBuilders) {
+      c->profession = Profession::Builder;
+      builders++;
+    } else if (miners < desiredMiners) {
+      c->profession = Profession::Miner;
+      miners++;
+    } else if (soldiers < desiredSoldiers) {
+      c->profession = Profession::Soldier;
+      soldiers++;
+    } else {
+      // Default to what's most needed
+      int roll = GRandom.Int(0, 2);
+      if (roll == 0) c->profession = Profession::Farmer;
+      else if (roll == 1) c->profession = Profession::Lumberjack;
+      else c->profession = Profession::Builder;
     }
   }
 }
@@ -108,7 +131,7 @@ void SimulationManager::AttemptConstruction(City &city, World &world) {
   int population = city.GetPopulation();
 
   // 2. Determine what to build
-  bool needHousing = population > (plannedCapacity + 2);
+  bool needHousing = population >= plannedCapacity;
   bool needWoodStorage = city.resources.wood >= (city.maxStorage * 0.85f);
   bool needStoneStorage = city.resources.stone >= (city.maxStorage * 0.85f);
   bool needMine = city.resources.stone < 30;
@@ -131,19 +154,19 @@ void SimulationManager::AttemptConstruction(City &city, World &world) {
     }
   }
   // Priority 2: Storage
-  else if (needStoneStorage && city.resources.wood >= 50) {
+  else if (needStoneStorage && city.resources.wood >= 25) {
     typeToBuild = BuildingType::StockpileStone;
-    woodCost = 50; stoneCost = 0;
+    woodCost = 25; stoneCost = 0;
   }
   // Priority 3: Mines (if stone is low)
-  else if (needMine && city.resources.wood >= 50) {
+  else if (needMine && city.resources.wood >= 30) {
     typeToBuild = BuildingType::Mina;
-    woodCost = 50; stoneCost = 0;
+    woodCost = 30; stoneCost = 0;
   }
   // Priority 4: Wood storage
-  else if (needWoodStorage && city.resources.wood >= 50) {
+  else if (needWoodStorage && city.resources.wood >= 20) {
     typeToBuild = BuildingType::Recursos;
-    woodCost = 30; stoneCost = 0;
+    woodCost = 20; stoneCost = 0;
   }
 
   // Priority 5: Population-gated buildings

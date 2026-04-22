@@ -65,6 +65,11 @@ struct City {
   // === STATS ===
   bool isAlive = true;
   float age = 0.0f; // How long city has existed
+  float buildTimer = 0.0f;
+  float upgradeTimer = 0.0f;
+  float mineTimer = 0.0f;
+  float foodTimer = 0.0f;
+  float birthTimer = 0.0f;
 
   // === HELPERS ===
   int GetPopulation() const { return static_cast<int>(citizenIDs.size()); }
@@ -83,4 +88,5 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(City, id, name, color, flagID, center,
                                    maxStorage, buildings, cultureAggression,
                                    cultureDiplomacy, cultureExpansion,
                                    cultureIndustry, cultureReligion, techLevel,
-                                   knowledgePoints, isAlive, age)
+                                   knowledgePoints, isAlive, age, buildTimer,
+                                   upgradeTimer, mineTimer, foodTimer, birthTimer)

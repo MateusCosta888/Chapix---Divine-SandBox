@@ -137,16 +137,52 @@ int SimulationManager::FoundCity(World &world, int founderCitizenID, int x,
     }
   }
 
-  // Add a FREE starting cabana at city center
+  // Initial resources to help start the city - Boosted
+  cities[cityID].resources.wood = 25;
+  cities[cityID].resources.food = 50;
+  cities[cityID].resources.stone = 5;
+
+  // === KINGDOM ASSIGNMENT ===
+  int bestKingdomID = -1;
+  float bestDist = 150.0f; // Join existing kingdom if within 150 units
+
+  for (const auto &pair : kingdoms) {
+    const Kingdom &k = pair.second;
+    if (!k.isAlive) continue;
+    float d = std::hypot(k.center.x - x, k.center.y - y);
+    if (d < bestDist) {
+      bestDist = d;
+      bestKingdomID = k.id;
+    }
+  }
+
+  if (bestKingdomID != -1) {
+    cities[cityID].kingdomID = bestKingdomID;
+    kingdoms[bestKingdomID].cityIDs.push_back(cityID);
+  } else {
+    // Create new kingdom
+    Kingdom newK;
+    newK.id = GetNextKingdomID();
+    newK.name = "Kingdom of " + cities[cityID].name;
+    newK.color = cities[cityID].color;
+    newK.center = cities[cityID].center;
+    newK.capitalCityID = cityID;
+    newK.cityIDs.push_back(cityID);
+    newK.isAlive = true;
+    kingdoms[newK.id] = newK;
+    cities[cityID].kingdomID = newK.id;
+  }
+
+  // Add a starting cabana at city center - NOT FREE, must be built
   Building cabana;
   cabana.id = static_cast<int>(cities[cityID].buildings.size());
   cabana.type = BuildingType::Cabana;
   cabana.tileX = x;
   cabana.tileY = y;
   cabana.cityID = cityID;
-  cabana.variant = 0; // First cabana variant
-  cabana.isComplete = true;
-  cabana.isComplete = true;
+  cabana.variant = 0;
+  cabana.isComplete = false;
+  cabana.constructionProgress = 0.1f; // 10% started
   cities[cityID].buildings.push_back(cabana);
   world.GetTile(x, y).isOccupied = true; // Mark as occupied
 
@@ -154,7 +190,21 @@ int SimulationManager::FoundCity(World &world, int founderCitizenID, int x,
   cities[cityID].populationCap =
       2 + GetBuildingHousingCapacity(BuildingType::Cabana);
 
-  TraceLog(LOG_INFO, "CITY: Founded with free Cabana at (%d,%d), popCap = %d",
+  // Give city some starting resources for a fast start
+  cities[cityID].resources.food = 60;
+  cities[cityID].resources.wood = 40;
+  cities[cityID].resources.stone = 10;
+
+  // Add a few more settlers to jumpstart the city
+  for (int i = 0; i < 3; i++) {
+    Vector2 p = {x + GRandom.Float() * 2 - 1, y + GRandom.Float() * 2 - 1};
+    if (world.IsWalkable((int)p.x, (int)p.y)) {
+      world.AddEntity(EntityType::HumanUnarmed, p, false);
+      // The AddEntity logic will automatically join them to this city if close
+    }
+  }
+
+  TraceLog(LOG_INFO, "CITY: Founded with free Cabana at (%d,%d), popCap = %d, Starting Settlers added",
            x, y, cities[cityID].populationCap);
 
   return cityID;
@@ -172,12 +222,11 @@ void SimulationManager::AddCitizenToCity(int cityID, int citizenID) {
 // ============================================================================
 void SimulationManager::UpdateCities(World &world, float deltaTime) {
   // Birth timer (don't check every frame)
-  static float birthCheckTimer = 0.0f;
-  birthCheckTimer += deltaTime;
-  bool doBirthCheck =
-      birthCheckTimer >= 5.0f; // Check for births every 5 seconds
+  static float globalBirthScanTimer = 0.0f;
+  globalBirthScanTimer += deltaTime;
+  bool doBirthCheck = globalBirthScanTimer >= 5.0f;
   if (doBirthCheck)
-    birthCheckTimer = 0.0f;
+    globalBirthScanTimer = 0.0f;
 
   for (auto &pair : cities) {
     City &city = pair.second;
@@ -188,13 +237,11 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
 
     // === FOOD PRODUCTION ===
     // Passive food generation based on territory (farms, foraging, etc.)
-    // Every 10 seconds of real time, add some food based on population
-    static float foodProductionTimer = 0.0f;
-    foodProductionTimer += deltaTime;
-    if (foodProductionTimer >= 10.0f) {
-      foodProductionTimer = 0.0f;
+    city.foodTimer += deltaTime;
+    if (city.foodTimer >= 10.0f) {
+      city.foodTimer = 0.0f;
       // Each city produces some food passively (simulating gathering/farming)
-      int baseProduction = 5 + city.GetPopulation() / 2;
+      int baseProduction = 10 + city.GetPopulation() / 2;
       city.resources.food += baseProduction;
 
       // Cap resources at max storage
@@ -230,19 +277,18 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
       }
     }
 
-    // === POPULATION GROWTH (BIRTHS) ===
-    // Slower reproduction: check every 30s, need energy/food, soft population
-    // cap
-    static float birthCheckTimer = 0.0f;
-    birthCheckTimer += deltaTime;
+    // Dynamic reproduction scaling
+    // Timer increases with population: 25s at start, +0.5s per person, max 60s
+    float birthInterval = std::min(60.0f, 25.0f + (city.GetPopulation() * 0.5f));
+    
+    // Dynamic housing cap: base 10, plus 6 per building (reduced from 8)
+    int housingCap = 10 + static_cast<int>(city.buildings.size()) * 6;
 
-    // Soft cap: max 5 citizens per building (housing limit)
-    int housingCap = std::max(10, static_cast<int>(city.buildings.size()) * 5);
-
-    if (birthCheckTimer >= 30.0f &&
-        city.resources.food > city.GetPopulation() * 5 &&
+    city.birthTimer += deltaTime;
+    if (city.birthTimer >= birthInterval &&
+        city.resources.food >= (20 + city.GetPopulation() / 2) &&
         city.GetPopulation() < housingCap) {
-      birthCheckTimer = 0.0f;
+      city.birthTimer = 0.0f;
 
       // Find a female and male adult citizen for parents
       Citizen *mother = nullptr;
@@ -250,9 +296,8 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
 
       for (int citizenID : city.citizenIDs) {
         Citizen *c = GetCitizen(citizenID);
-        // Stricter requirements for parents
-        if (c && c->isAlive && c->isAdult() && !c->isElder() &&
-            c->energy > 30.0f && c->hunger < 50.0f) {
+        // Lenient requirements for parents (Removed energy/hunger for debug/growth)
+        if (c && c->isAlive && c->isAdult() && !c->isElder()) {
           if (!mother && c->isFemale) {
             mother = c;
           } else if (!father && !c->isFemale &&
@@ -294,8 +339,9 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
         entities[e.id] = e;
         world.RebuildEntityCache();
 
-        // Cost for birth
-        city.resources.food -= 20;
+        // Cost for birth scales with population
+        int birthCost = std::min(100, 20 + city.GetPopulation() / 2);
+        city.resources.food -= birthCost;
 
         TraceLog(
             LOG_INFO,
@@ -321,10 +367,11 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
                                          }),
                           city.citizenIDs.end());
 
-    // City dies if no citizens left
-    if (city.citizenIDs.empty()) {
+    // City dies if no citizens left AND it has existed for a while (grace period)
+    // This prevents newly founded cities from vanishing if the founder dies instantly
+    if (city.citizenIDs.empty() && city.age > 120.0f) { 
       city.isAlive = false;
-      TraceLog(LOG_INFO, "SIMULATION: City %d has fallen! (No citizens remain)",
+      TraceLog(LOG_INFO, "SIMULATION: City %d has fallen! (No citizens remain after grace period)",
                city.id);
 
       // === CLEANUP: Remove ghost buildings and free tiles ===
@@ -382,20 +429,16 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
     }
 
     // === AUTOMATIC BUILDING CONSTRUCTION ===
-    // Check every 2 seconds for building construction
-    static float buildTimer = 0.0f;
-    buildTimer += deltaTime;
-    if (buildTimer >= 2.0f) {
-      buildTimer = 0.0f;
+    city.buildTimer += deltaTime;
+    if (city.buildTimer >= 2.0f) {
+      city.buildTimer = 0.0f;
       AttemptConstruction(city, world);
     }
 
     // === BUILDING EVOLUTION (UPGRADES) ===
-    // Check every 3 seconds for building upgrades
-    static float upgradeTimer = 0.0f;
-    upgradeTimer += deltaTime;
-    if (upgradeTimer >= 3.0f) {
-      upgradeTimer = 0.0f;
+    city.upgradeTimer += deltaTime;
+    if (city.upgradeTimer >= 3.0f) {
+      city.upgradeTimer = 0.0f;
       UpdateBuildingUpgrade(city);
     }
 
@@ -403,22 +446,18 @@ void SimulationManager::UpdateCities(World &world, float deltaTime) {
     AttemptTerritoryExpansion(city, world);
 
     // === PASSIVE STONE GENERATION (MINES) ===
-    static float mineTimer = 0.0f;
-    mineTimer += deltaTime;
-    if (mineTimer >= 3.0f) { // Every 3 seconds
-      mineTimer = 0.0f;
+    city.mineTimer += deltaTime;
+    if (city.mineTimer >= 3.0f) { // Every 3 seconds
+      city.mineTimer = 0.0f;
       int stoneGen = 0;
       int workshopCount = 0;
       for (const auto &b : city.buildings) {
         if (b.isComplete && b.type == BuildingType::Mina) {
-          // Tier 1 (Var 0) -> 2 stone
-          // Tier 6 (Var 5) -> 12 stone
           stoneGen += (b.variant + 1) * 2;
         }
         if (b.isComplete && b.type == BuildingType::Workshop)
           workshopCount++;
       }
-      // Workshop bonus: +20% per workshop (additive)
       if (workshopCount > 0 && stoneGen > 0) {
         stoneGen = (int)(stoneGen * (1.0f + workshopCount * 0.2f));
       }

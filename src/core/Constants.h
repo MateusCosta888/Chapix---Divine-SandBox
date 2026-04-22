@@ -25,6 +25,7 @@ namespace Constants {
   constexpr int MAX_SOLDIERS_PER_CASTLE = 5;
   constexpr float WORLD_EVENT_CHECK_INTERVAL = 120.0f;     // 2 minutes
   constexpr float DRAGON_SPAWN_CHANCE = 0.1f;              // 10% per check
+  constexpr int MAX_DRAGONS_IN_WORLD = 3;                  // Keep dragons rare and boss-like
   constexpr float ANIMAL_SPAWN_CHECK_INTERVAL = 5.0f;      // Birth check every 5s
   constexpr int MAX_ANIMALS_PER_SPECIES = 30;
 
@@ -53,8 +54,8 @@ namespace Constants {
   constexpr float BLOCK_CHANCE_ARMED = 0.2f;  // 20% block chance
 
   // === ENTITIES ===
-  constexpr float HUMAN_HEALTH_UNARMED = 20.0f;
-  constexpr float HUMAN_HEALTH_ARMED = 50.0f;
+  constexpr float HUMAN_HEALTH_UNARMED = 60.0f;      // Buffed from 20 to 60 for survival
+  constexpr float HUMAN_HEALTH_ARMED = 120.0f;      // Buffed from 50 to 120
   constexpr float HUMAN_SPEED_UNARMED = 2.0f;
   constexpr float HUMAN_SPEED_ARMED = 2.1f;
   constexpr float BOAR_SPEED = 2.4f;

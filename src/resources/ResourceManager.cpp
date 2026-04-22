@@ -344,10 +344,11 @@ void ResourceManager::Load() {
 
   // Big Rocks
   for (int i = 0; i < NUM_BIG_ROCK_TYPES; i++) {
-    texBigRocks[i] =
-        LoadTexture(TextFormat("assets/rocks-and-stones-top-down-pixel-art/"
-                               "PNGs/Objects_separately/Rock1_%d.png",
-                               i + 1));
+    const char* path = TextFormat("assets/rocks-and-stones-top-down-pixel-art/PNGs/Objects_separately/Rock1_%d.png", i + 1);
+    texBigRocks[i] = LoadTexture(path);
+    if (texBigRocks[i].id == 0) {
+        texBigRocks[i] = LoadTexture(TextFormat("assets/rocks-and-stones-top-down-pixel-art/PNGs/Objects_separately/Rock1_%d_no_shadow.png", i + 1));
+    }
     SetTextureFilter(texBigRocks[i], TEXTURE_FILTER_POINT);
   }
   // Snow/Desert Rock Shadows (as part of big rocks or decorations)
@@ -391,10 +392,11 @@ void ResourceManager::Load() {
 
   // Small Rocks (Rock2)
   for (int i = 0; i < NUM_SMALL_ROCK_TYPES; i++) {
-    texSmallRocks[i] =
-        LoadTexture(TextFormat("assets/rocks-and-stones-top-down-pixel-art/"
-                               "PNGs/Objects_separately/Rock2_%d.png",
-                               i + 1));
+    const char* path = TextFormat("assets/rocks-and-stones-top-down-pixel-art/PNGs/Objects_separately/Rock2_%d.png", i + 1);
+    texSmallRocks[i] = LoadTexture(path);
+    if (texSmallRocks[i].id == 0) {
+        texSmallRocks[i] = LoadTexture(TextFormat("assets/rocks-and-stones-top-down-pixel-art/PNGs/Objects_separately/Rock2_%d_no_shadow.png", i + 1));
+    }
     SetTextureFilter(texSmallRocks[i], TEXTURE_FILTER_POINT);
   }
 
@@ -1307,14 +1309,14 @@ Texture2D ResourceManager::GetTextureForUI(DecorationType type) const {
     return texBushes[0];
   // Removed invalid enums (SnowBush, Cactus, Crystal) - they are procedural
   // only
-  case DecorationType::Rock: // Rock1
+  case DecorationType::Rock:
     return texRock[0];
-  case DecorationType::SmallRock: // Rock2
-    return texRock[1];
-  case DecorationType::MediumRock: // Rock3
-    return texRock[2];
-  case DecorationType::BigRock: // Rock4
-    return texRock[3];
+  case DecorationType::SmallRock:
+    return texSmallRocks[0];
+  case DecorationType::MediumRock:
+    return texMediumRocks[0];
+  case DecorationType::BigRock:
+    return texBigRocks[0];
   case DecorationType::Flower:
     return texFlowers[0];
   case DecorationType::Mushroom:

@@ -31,6 +31,7 @@ struct Kingdom {
   int id = -1;
   std::string name = "New Kingdom";
   Color color = {200, 100, 100, 255}; // Red-ish default
+  Vector2 center = {0, 0};
 
   // === LEADERSHIP ===
   int leaderCitizenID = -1; // The king/queen
@@ -118,4 +119,4 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Kingdom, id, name, color, leader
                                    capitalCityID, cityIDs, relations,
                                    diplomaticStatus, totalAggression,
                                    totalDiplomacy, isAlive, age,
-                                   warCheckTimer, warCooldown)
+                                   warCheckTimer, warCooldown, center)

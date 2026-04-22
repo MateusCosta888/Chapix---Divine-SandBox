@@ -467,3 +467,78 @@ Dica: Use 'addr2line -e bin/game.exe 0xENDERECO' para resolver nomes de funcoes.
 === SESSAO INICIADA: 2026-03-26 21:51:10 ===
 === SESSAO INICIADA: 2026-04-12 21:39:31 ===
 === SESSAO INICIADA: 2026-04-12 22:49:14 ===
+=== SESSAO INICIADA: 2026-04-18 20:00:34 ===
+=== SESSAO INICIADA: 2026-04-18 20:04:37 ===
+=== SESSAO INICIADA: 2026-04-21 21:38:27 ===
+=== SESSAO INICIADA: 2026-04-21 21:51:01 ===
+=== SESSAO INICIADA: 2026-04-21 22:22:24 ===
+=== SESSAO INICIADA: 2026-04-22 21:29:23 ===
+=== SESSAO INICIADA: 2026-04-22 21:29:46 ===
+=== SESSAO INICIADA: 2026-04-22 22:03:05 ===
+=== SESSAO INICIADA: 2026-04-22 22:39:17 ===
+=== SESSAO INICIADA: 2026-04-22 22:51:02 ===
+=== SESSAO INICIADA: 2026-04-22 22:52:56 ===
+=== SESSAO INICIADA: 2026-04-22 23:02:54 ===
+=== SESSAO INICIADA: 2026-04-22 23:10:38 ===
+=== SESSAO INICIADA: 2026-04-22 23:17:35 ===
+=== SESSAO INICIADA: 2026-04-22 23:24:10 ===
+=== SESSAO INICIADA: 2026-04-22 23:24:23 ===
+=== SESSAO INICIADA: 2026-04-22 23:30:00 ===
+=== SESSAO INICIADA: 2026-04-22 23:39:42 ===
+=== SESSAO INICIADA: 2026-04-22 23:44:18 ===
+=== SESSAO INICIADA: 2026-04-22 23:53:55 ===
+=== SESSAO INICIADA: 2026-04-23 00:06:29 ===
+=== SESSAO INICIADA: 2026-04-23 00:08:42 ===
+================================================================
+              CHAPIX - CRASH REPORT
+================================================================
+
+Data/Hora: 2026-04-23 00:08:45
+Sinal: SIGSEGV (Segmentation Fault - Acesso a memoria invalida) (codigo: 11)
+
+=== CONTEXTO DO JOGO ===
+Estado: Main Menu
+
+=== INFORMACAO DO SISTEMA ===
+RAM Total: 31936 MB
+RAM Usada: 14932 MB
+RAM Disponivel: 17003 MB
+Uso de Memoria: 46%
+
+=== STACK TRACE ===
+Stack Trace (19 frames):
+  [0] 0x7ff79d5573ea
+  [1] 0x7ff79d5579d7
+  [2] 0x7ff79d68e612
+  [3] 0x7fff1853bdaf
+  [4] 0x7fff18c6623f
+  [5] 0x7fff18b12397
+  [6] 0x7fff18c65b7e
+  [7] 0x7fff18b78c1d
+  [8] 0x7fff1852d60c
+  [9] 0x7ff79d603c76
+  [10] 0x7ff79d616d5a
+  [11] 0x7ff79d616da4
+  [12] 0x7ff79d57ddb9
+  [13] 0x7ff79d57bdb0
+  [14] 0x7ff79d55431b
+  [15] 0x7ff79d5512c4
+  [16] 0x7ff79d551313
+  [17] 0x7fff169ee8d7
+  [18] 0x7fff18b8c3fc
+
+Dica: Use 'addr2line -e bin/ChapiX.exe 0xENDERECO' para resolver nomes de funcoes.
+
+=== DICAS PARA DEBUG ===
+1. Se SIGSEGV: Provavelmente acessou um ponteiro nulo ou memoria ja liberada.
+   - Verifique se GetCitizen/GetCity retorna nullptr antes de usar.
+   - Verifique bounds de arrays e vetores.
+2. Se SIGABRT: Um assert() falhou ou houve corrupcao de memoria.
+   - Verifique se ha double-free ou buffer overflow.
+3. Se SIGFPE: Divisao por zero em algum calculo.
+   - Verifique divisoes onde o divisor pode ser 0.
+
+
+========== FIM DO RELATORIO ==========
+
+=== SESSAO INICIADA: 2026-04-23 00:29:03 ===

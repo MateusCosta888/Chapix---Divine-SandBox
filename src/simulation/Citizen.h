@@ -145,6 +145,11 @@ struct Citizen {
   int targetBuildingIdx = -1; // Index in city.buildings for builders
   int carryingResource = 0; // How much resource currently carrying
   int maxCarryCapacity = 5; // Max resources can carry at once
+  
+  // Stuck Detection
+  float lastX = 0.0f;
+  float lastY = 0.0f;
+  float stuckTimer = 0.0f;
 
   // === FAMILY ===
   int motherID = -1;
@@ -179,4 +184,5 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(
     profession, personality, currentJob, skillFarming, skillWoodcutting, skillMining,
     skillBuilding, skillCombat, workState, lastWorkState, isWorking, workTimer,
     stateTimer, targetTileX, targetTileY, targetEntityID, targetBuildingIdx,
-    carryingResource, maxCarryCapacity, motherID, fatherID, spouseID, isAlive)
+    carryingResource, maxCarryCapacity, motherID, fatherID, spouseID, isAlive,
+    lastX, lastY, stuckTimer)

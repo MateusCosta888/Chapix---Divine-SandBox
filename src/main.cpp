@@ -40,9 +40,18 @@ const int TAB_HEIGHT = 30;
 // struct GameUI removed
 
 int main(int argc, char *argv[]) {
+  // Check for assets folder. If not found and we are in "bin", go up one level.
+  if (!DirectoryExists("assets") && DirectoryExists("../assets")) {
+    ChangeDirectory("..");
+  }
+
   // Initialize crash handler FIRST (before anything else)
   CrashHandler::Init();
   CrashHandler::SetGameContext("Initializing");
+
+#ifdef RELEASE
+  SetTraceLogLevel(LOG_WARNING);
+#endif
 
   // Dynamic resolution: detect monitor and adapt
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
